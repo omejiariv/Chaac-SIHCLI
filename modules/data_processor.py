@@ -197,3 +197,29 @@ def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded
             df_enso[col] = pd.to_numeric(df_enso[col].astype(str).str.replace(',', '.'), errors='coerce')
 
     return gdf_stations, gdf_municipios, df_long, df_enso
+
+from scipy.stats import gamma, norm
+
+def calculate_spi(series, window):
+    """
+    Calcula el Índice Estandarizado de Precipitación (SPI) para una serie de tiempo.
+    """
+    # 1. Calcula la suma móvil de la precipitación
+    rolling_sum = series.rolling(window, min_periods=window).sum()
+    
+    # 2. Ajusta una distribución Gamma a los datos de la suma móvil
+    # Se eliminan los ceros y NaNs para un ajuste adecuado
+    params = gamma.fit(rolling_sum.dropna(), floc=0)
+    shape, loc, scale = params
+    
+    # 3. Calcula la probabilidad acumulada (CDF) con la distribución Gamma
+    cdf = gamma.cdf(rolling_sum, shape, loc=loc, scale=scale)
+    
+    # 4. Transforma la probabilidad acumulada a una distribución normal estándar (Z-score)
+    # Este Z-score es el valor del SPI
+    spi = norm.ppf(cdf)
+    
+    # Reemplaza los infinitos que pueden surgir de valores muy extremos
+    spi = spi.replace([np.inf, -np.inf], np.nan)
+    
+    return spi
