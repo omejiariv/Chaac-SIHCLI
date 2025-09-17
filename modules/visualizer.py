@@ -963,82 +963,74 @@ def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze):
             st.info("No se identificaron eventos secos con el umbral actual.")
 
 def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
-    st.header("Análisis de Sequías y Eventos Extremos (SPI)")
-    st.markdown("El **Índice Estandarizado de Precipitación (SPI)** cuantifica las anomalías de lluvia. Valores negativos (rojo/naranja) indican condiciones de sequía, mientras que valores positivos (azul/verde) indican condiciones de humedad.")
+    st.header("Análisis de Extremos Hidrológicos")
+    st.markdown("Esta sección ofrece dos metodologías para identificar eventos extremos: el **análisis de percentiles** para extremos puntuales y el **Índice Estandarizado de Precipitación (SPI)** para evaluar la intensidad de la sequía o humedad.")
 
     if len(stations_for_analysis) == 0:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        station_to_analyze = st.selectbox(
-            "Seleccione una estación para el análisis:",
+    # Crear las dos sub-pestañas
+    percentile_sub_tab, spi_sub_tab = st.tabs(["📈 Análisis por Percentiles", "💧 Análisis SPI"])
+
+    # --- Lógica para la sub-pestaña de Percentiles ---
+    with percentile_sub_tab:
+        st.subheader("Análisis de Eventos Extremos por Umbrales de Percentiles")
+        station_to_analyze_perc = st.selectbox(
+            "Seleccione una estación para el análisis de percentiles:",
             options=sorted(stations_for_analysis),
-            key="spi_station_select",
+            key="percentile_station_select",
         )
-        
-        spi_window = st.select_slider(
-            "Seleccione la escala de tiempo del SPI (meses):",
-            options=[3, 6, 9, 12, 24],
-            value=12,
-            key="spi_window_slider",
-            help="Una escala corta (3 meses) refleja sequías agrícolas a corto plazo. Una escala larga (12-24 meses) refleja sequías hidrológicas."
-        )
+        if station_to_analyze_perc:
+            display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_perc)
 
-    if not station_to_analyze:
-        st.info("Seleccione una estación para comenzar el análisis.")
-        return
+    # --- Lógica para la sub-pestaña de SPI ---
+    with spi_sub_tab:
+        st.subheader("Análisis de Sequías y Humedad con el Índice Estandarizado de Precipitación (SPI)")
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            station_to_analyze_spi = st.selectbox(
+                "Seleccione una estación para el análisis SPI:",
+                options=sorted(stations_for_analysis),
+                key="spi_station_select",
+            )
+            spi_window = st.select_slider(
+                "Seleccione la escala de tiempo del SPI (meses):",
+                options=[3, 6, 9, 12, 24], value=12, key="spi_window_slider",
+                help="Una escala corta (3 meses) refleja sequías agrícolas. Una escala larga (12-24 meses) refleja sequías hidrológicas."
+            )
 
-    # Prepara los datos para la estación seleccionada
-    df_station = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze].copy()
-    df_station = df_station.set_index(Config.DATE_COL).sort_index()
-    precip_series = df_station[Config.PRECIPITATION_COL]
+        if station_to_analyze_spi:
+            df_station = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_spi].copy()
+            df_station = df_station.set_index(Config.DATE_COL).sort_index()
+            precip_series = df_station[Config.PRECIPITATION_COL]
 
-    if len(precip_series.dropna()) < spi_window * 2: # Se necesita suficientes datos
-        st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{spi_window}. Se requiere al menos el doble de meses que la ventana seleccionada.")
-        return
+            if len(precip_series.dropna()) < spi_window * 2:
+                st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{spi_window}.")
+            else:
+                with st.spinner(f"Calculando SPI-{spi_window}..."):
+                    df_station['spi'] = calculate_spi(precip_series, spi_window)
+                df_plot = df_station.dropna(subset=['spi']).copy()
 
-    # Calcula el SPI
-    with st.spinner(f"Calculando SPI-{spi_window} para la estación {station_to_analyze}..."):
-        df_station['spi'] = calculate_spi(precip_series, spi_window)
+                conditions = [
+                    df_plot['spi'] <= -2.0, (df_plot['spi'] > -2.0) & (df_plot['spi'] <= -1.5),
+                    (df_plot['spi'] > -1.5) & (df_plot['spi'] <= -1.0), (df_plot['spi'] > -1.0) & (df_plot['spi'] < 1.0),
+                    (df_plot['spi'] >= 1.0) & (df_plot['spi'] < 1.5), (df_plot['spi'] >= 1.5) & (df_plot['spi'] < 2.0),
+                    df_plot['spi'] >= 2.0
+                ]
+                colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
+                df_plot['color'] = np.select(conditions, colors, default='grey')
 
-    df_plot = df_station.dropna(subset=['spi'])
-
-    # Asigna colores según el valor del SPI
-    conditions = [
-        df_plot['spi'] <= -2.0,
-        (df_plot['spi'] > -2.0) & (df_plot['spi'] <= -1.5),
-        (df_plot['spi'] > -1.5) & (df_plot['spi'] <= -1.0),
-        (df_plot['spi'] > -1.0) & (df_plot['spi'] < 1.0),
-        (df_plot['spi'] >= 1.0) & (df_plot['spi'] < 1.5),
-        (df_plot['spi'] >= 1.5) & (df_plot['spi'] < 2.0),
-        df_plot['spi'] >= 2.0
-    ]
-    colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
-    df_plot['color'] = np.select(conditions, colors, default='grey')
-
-    # Crea el gráfico
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df_plot.index,
-        y=df_plot['spi'],
-        marker_color=df_plot['color'],
-        name='SPI'
-    ))
-    fig.update_layout(
-        title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze}",
-        yaxis_title="Valor SPI",
-        xaxis_title="Fecha",
-        height=600
-    )
-    
-    with col2:
-        st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Ver tabla de datos SPI"):
-        st.dataframe(df_plot[['spi']].style.format("{:.2f}"))
+                fig = go.Figure()
+                fig.add_trace(go.Bar(x=df_plot.index, y=df_plot['spi'], marker_color=df_plot['color'], name='SPI'))
+                fig.update_layout(
+                    title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze_spi}",
+                    yaxis_title="Valor SPI", xaxis_title="Fecha", height=600
+                )
+                with col2:
+                    st.plotly_chart(fig, use_container_width=True)
+                with st.expander("Ver tabla de datos SPI"):
+                    st.dataframe(df_plot[['spi']].style.format("{:.2f}"))
 
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Anomalías de Precipitación")
