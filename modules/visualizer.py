@@ -1,5 +1,3 @@
-# modules/visualizer.py
-
 # --- Importaciones ---
 import streamlit as st
 import pandas as pd
@@ -146,8 +144,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
     return m
 
 # --- Funciones para las Pestañas de la UI ---
-# (Cada una de estas funciones es una "vista" que se mostrará en app.py)
-
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
     st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
@@ -155,6 +151,7 @@ def display_welcome_tab():
         st.image(Config.LOGO_PATH, width=400, caption="Corporación Cuenca Verde")
 
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered):
+    # (El código de esta función va aquí, sin cambios)
     st.header("Distribución espacial de las Estaciones de Lluvia")
     
     if len(stations_for_analysis) == 0:
@@ -210,10 +207,10 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 with st.expander("Resumen de Filtros Activos", expanded=True):
                     summary_text = f"**Período:** {st.session_state.year_range[0]} - {st.session_state.year_range[1]}\n\n"
                     summary_text += f"**% Mínimo de Datos:** {st.session_state.min_data_perc_slider}%\n\n"
-                    if st.session_state.selected_altitudes: summary_text += f"**Altitud:** {', '.join(st.session_state.selected_altitudes)}\n\n"
-                    if st.session_state.selected_regions: summary_text += f"**Región:** {', '.join(st.session_state.selected_regions)}\n\n"
-                    if st.session_state.selected_municipios: summary_text += f"**Municipio:** {', '.join(st.session_state.selected_municipios)}\n\n"
-                    if st.session_state.selected_celdas: summary_text += f"**Celda XY:** {', '.join(st.session_state.selected_celdas)}\n\n"
+                    if 'selected_altitudes' in st.session_state and st.session_state.selected_altitudes: summary_text += f"**Altitud:** {', '.join(st.session_state.selected_altitudes)}\n\n"
+                    if 'selected_regions' in st.session_state and st.session_state.selected_regions: summary_text += f"**Región:** {', '.join(st.session_state.selected_regions)}\n\n"
+                    if 'selected_municipios' in st.session_state and st.session_state.selected_municipios: summary_text += f"**Municipio:** {', '.join(st.session_state.selected_municipios)}\n\n"
+                    if 'selected_celdas' in st.session_state and st.session_state.selected_celdas: summary_text += f"**Celda XY:** {', '.join(st.session_state.selected_celdas)}\n\n"
                     st.info(summary_text)
 
         with map_col:
@@ -982,9 +979,8 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
         )
         
         if station_to_analyze_perc:
-            # --- PEGAMOS EL CÓDIGO DE PERCENTILES DIRECTAMENTE AQUÍ ---
+            st.markdown("---")
             st.subheader("Análisis de Eventos Extremos por Umbrales de Percentiles")
-            st.markdown("Esta sección identifica meses con precipitación extremadamente alta (húmedos) o baja (secos) basándose en **percentiles** definidos por el usuario sobre los datos históricos.")
             
             # Controles de Percentiles
             col1_perc, col2_perc = st.columns(2)
@@ -1007,13 +1003,14 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                 st.warning("Se necesitan al menos 30 meses de datos para un análisis de percentiles significativo.")
             else:
                 precip_data_for_dry = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] > 0][Config.PRECIPITATION_COL]
+                
                 if not precip_data_for_dry.empty:
                     wet_threshold = df_station_perc[Config.PRECIPITATION_COL].quantile(wet_percentile / 100)
                     dry_threshold = precip_data_for_dry.quantile(dry_percentile / 100)
                     
-                    # El resto de la lógica y gráficos de percentiles...
-                    st.metric(f"Umbral Húmedo (P{wet_percentile})", f"> {wet_threshold:.1f} mm")
-                    st.metric(f"Umbral Seco (P{dry_percentile})", f"< {dry_threshold:.1f} mm")
+                    m_col1, m_col2 = st.columns(2)
+                    m_col1.metric(f"Umbral Húmedo (P{wet_percentile})", f"> {wet_threshold:.1f} mm")
+                    m_col2.metric(f"Umbral Seco (P{dry_percentile})", f"< {dry_threshold:.1f} mm")
                 else:
                     st.warning("No hay datos de precipitación > 0 para calcular el umbral seco.")
 
@@ -1021,6 +1018,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
     with spi_sub_tab:
         st.subheader("Análisis con el Índice Estandarizado de Precipitación (SPI)")
         col1_spi, col2_spi = st.columns([1, 2])
+        
         with col1_spi:
             station_to_analyze_spi = st.selectbox(
                 "Seleccione una estación para el análisis SPI:",
@@ -1061,6 +1059,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                     title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze_spi}",
                     yaxis_title="Valor SPI", xaxis_title="Fecha", height=600
                 )
+                
                 with col2_spi:
                     st.plotly_chart(fig, use_container_width=True)
                 
