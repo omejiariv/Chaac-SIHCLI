@@ -24,34 +24,30 @@ class Config:
     IOD_COL = 'iod'
     
     # Rutas de Archivos
-    LOGO_PATH = "CuencaVerdeLogo_V1.JPG"
-    LOGO_DROP_PATH = "CuencaVerdeGoticaLogo.JPG"
-    GIF_PATH = "PPAM.gif"
+    # NOTA: Las rutas deben ser relativas al archivo principal (app.py) si están en la raíz
+    LOGO_PATH = "data/CuencaVerdeLogo_V1.JPG"
+    LOGO_DROP_PATH = "data/CuencaVerdeGoticaLogo.JPG"
+    GIF_PATH = "data/PPAM.gif"
     
     # Mensajes de la UI
     APP_TITLE = "Sistema de información de las lluvias y el Clima en el norte de la región Andina"
     WELCOME_TEXT = """
-    Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos
-    de precipitación y su
+    Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de precipitación y su
     relación con el fenómeno ENSO en el norte de la región Andina.
     
     **¿Cómo empezar?**
-    1.  **Cargue sus archivos**: Si es la primera vez que usa la aplicación, el panel de la izquierda le solicitará cargar los
-    archivos de estaciones,
+    1.  **Cargue sus archivos**: Si es la primera vez que usa la aplicación, el panel de la izquierda le solicitará cargar los archivos de estaciones,
     precipitación y el shapefile de municipios. La aplicación recordará estos archivos en su sesión.
-    2.  **Filtre los datos**: Una vez cargados los datos, utilice el **Panel de Control** en la barra lateral para filtrar las
-    estaciones por ubicación (región, municipio), altitud,
+    2.  **Filtre los datos**: Una vez cargados los datos, utilice el **Panel de Control** en la barra lateral para filtrar las estaciones por ubicación (región, municipio), altitud,
     porcentaje de datos disponibles, y para seleccionar el período de análisis (años y meses).
-    3.  **Explore las pestañas**: Cada pestaña ofrece una perspectiva diferente de los datos. Navegue a través de ellas para
-    descubrir:
+    3.  **Explore las pestañas**: Cada pestaña ofrece una perspectiva diferente de los datos. Navegue a través de ellas para descubrir:
         - **Distribución Espacial**: Mapas interactivos de las estaciones.
         - **Gráficos**: Series de tiempo anuales, mensuales, comparaciones y distribuciones.
         - **Mapas Avanzados**: Animaciones y mapas de interpolación.
         - **Análisis de Anomalías**: Desviaciones de la precipitación respecto a la media histórica.
         - **Tendencias y Pronósticos**: Análisis de tendencias a largo plazo y modelos de pronóstico.
     
-    Utilice el botón **🧹 Limpiar Filtros** en el panel lateral para
-    reiniciar su selección en cualquier momento.
+    Utilice el botón **🧹 Limpiar Filtros** en el panel lateral para reiniciar su selección en cualquier momento.
     
     ¡Esperamos que esta herramienta le sea de gran utilidad para sus análisis climáticos!
     """
@@ -67,8 +63,8 @@ class Config:
             'gdf_stations': None,
             'df_precip_anual': None,
             'gdf_municipios': None,
-            'df_long': None,
-            'df_enso': None,
+             'df_long': None,
+             'df_enso': None,
             'min_data_perc_slider': 0,
             'altitude_multiselect': [],
             'regions_multiselect': [],
@@ -78,8 +74,8 @@ class Config:
             'exclude_na': False,
             'exclude_zeros': False,
             'uploaded_forecast': None,
-            'sarima_forecast': None,
-            'prophet_forecast': None
+            'sarima_forecast': pd.DataFrame(), # Usamos DataFrame vacío en lugar de None
+            'prophet_forecast': pd.DataFrame()  # Usamos DataFrame vacío en lugar de None
         }
         for key, value in state_defaults.items():
             if key not in st.session_state:
