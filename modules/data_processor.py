@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
+# modules/data_processor.py
+
 import streamlit as st
 import pandas as pd
 import geopandas as gpd
+import numpy as np
+import io
 import zipfile
 import tempfile
 import os
-import io
-import numpy as np
 from modules.config import Config
 
-# ---
-# Funciones de Carga y Preprocesamiento
-# ---
 @st.cache_data
 def parse_spanish_dates(date_series):
     """Convierte abreviaturas de meses en español a inglés."""
@@ -23,7 +21,7 @@ def parse_spanish_dates(date_series):
 
 @st.cache_data
 def load_csv_data(file_uploader_object, sep=';', lower_case=True):
-    """Carga y decodifica un archivo CSV de manera robusta desde un objeto de Streamlit."""
+    """Carga y decodifica un archivo CSV de manera robusta."""
     if file_uploader_object is None:
         return None
     try:
