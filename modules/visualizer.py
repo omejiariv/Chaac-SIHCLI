@@ -26,7 +26,7 @@ import pymannkendall as mk
 # --- Importaciones de Módulos Propios ---
 from modules.config import Config
 from modules.utils import add_folium_download_button, add_plotly_download_buttons
-from modules.data_processor import calculate_spi
+from modules.data_processor import calculate_spi, interpolate_idw, interpolate_rbf_spline
 
 # --- Funciones de Creación de Gráficos y Mapas ---
 
@@ -790,77 +790,67 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
         if df_anual_non_na.empty or len(df_anual_non_na[Config.YEAR_COL].unique()) == 0:
             st.warning("No hay suficientes datos anuales para realizar la interpolación.")
-            return
-
-        min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
-        
-        # --- Controles en la primera columna ---
-        control_col, map_col1, map_col2 = st.columns([1, 2, 2])
-        
-        with control_col:
-            st.markdown("##### Controles de los Mapas")
+        else:
+            min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
             
-            # Controles para el Mapa 1
-            st.markdown("**Mapa 1**")
-            year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
-            method1 = st.selectbox("Método de interpolación", 
-                                   options=["Kriging Ordinario", "IDW", "Spline (Thin Plate)"], 
-                                   key="interp_method1")
+            control_col, map_col1, map_col2 = st.columns([1, 2, 2])
             
-            st.markdown("---")
+            with control_col:
+                st.markdown("##### Controles de los Mapas")
+                
+                st.markdown("**Mapa 1**")
+                year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
+                method1 = st.selectbox("Método de interpolación", options=["Kriging Ordinario", "IDW", "Spline (Thin Plate)"], key="interp_method1")
+                
+                st.markdown("---")
 
-            # Controles para el Mapa 2
-            st.markdown("**Mapa 2**")
-            year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
-            method2 = st.selectbox("Método de interpolación", 
-                                   options=["Kriging Ordinario", "IDW", "Spline (Thin Plate)"],
-                                   index=1, key="interp_method2")
+                st.markdown("**Mapa 2**")
+                year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
+                method2 = st.selectbox("Método de interpolación", options=["Kriging Ordinario", "IDW", "Spline (Thin Plate)"], index=1, key="interp_method2")
 
-        # --- Función Auxiliar para generar mapas ---
-        def generate_interpolation_map(year, method):
-            data_year = df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year].copy()
-            
-            if len(data_year) < 3:
-                return go.Figure().update_layout(title=f"Datos insuficientes para {year}")
+            def generate_interpolation_map(year, method, gdf_filtered):
+                data_year = df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year].copy()
+                
+                if len(data_year) < 4:
+                    fig = go.Figure()
+                    fig.update_layout(title=f"Datos insuficientes para {method} en {year} (se necesitan al menos 4 puntos)", xaxis_visible=False, yaxis_visible=False)
+                    return fig
 
-            lons, lats, vals = data_year[Config.LONGITUDE_COL], data_year[Config.LATITUDE_COL], data_year[Config.PRECIPITATION_COL]
-            bounds = gdf_filtered.total_bounds
-            grid_lon = np.linspace(bounds[0] - 0.1, bounds[2] + 0.1, 100)
-            grid_lat = np.linspace(bounds[1] - 0.1, bounds[3] + 0.1, 100)
+                lons, lats, vals = data_year[Config.LONGITUDE_COL], data_year[Config.LATITUDE_COL], data_year[Config.PRECIPITATION_COL]
+                bounds = gdf_filtered.total_bounds
+                grid_lon = np.linspace(bounds[0] - 0.1, bounds[2] + 0.1, 100)
+                grid_lat = np.linspace(bounds[1] - 0.1, bounds[3] + 0.1, 100)
+                z_grid = None
 
-            z_grid = None
-            if method == "Kriging Ordinario":
                 try:
-                    ok = OrdinaryKriging(lons, lats, vals, variogram_model='linear', verbose=False, enable_plotting=False)
-                    z_grid, _ = ok.execute('grid', grid_lon, grid_lat)
+                    if method == "Kriging Ordinario":
+                        ok = OrdinaryKriging(lons, lats, vals, variogram_model='linear', verbose=False, enable_plotting=False)
+                        z_grid, _ = ok.execute('grid', grid_lon, grid_lat)
+                    elif method == "IDW":
+                        z_grid = interpolate_idw(lons.values, lats.values, vals.values, grid_lon, grid_lat)
+                    elif method == "Spline (Thin Plate)":
+                        z_grid = interpolate_rbf_spline(lons.values, lats.values, vals.values, grid_lon, grid_lat, function='thin_plate_spline')
                 except Exception as e:
-                    st.error(f"Error en Kriging: {e}")
-                    return go.Figure().update_layout(title=f"Error en Kriging para {year}")
-            
-            elif method == "IDW":
-                z_grid = interpolate_idw(lons.values, lats.values, vals.values, grid_lon, grid_lat)
-            
-            elif method == "Spline (Thin Plate)":
-                z_grid = interpolate_rbf_spline(lons, lats, vals, grid_lon, grid_lat, function='thin_plate_spline')
+                    st.error(f"Error al calcular {method} para el año {year}: {e}")
+                    return go.Figure().update_layout(title=f"Error en {method} para {year}")
+                
+                if z_grid is not None:
+                    fig = go.Figure(data=go.Contour(z=z_grid.T, x=grid_lon, y=grid_lat, 
+                                                     colorscale='YlGnBu', contours=dict(showlabels=True, labelfont=dict(size=10, color='white'))))
+                    fig.add_trace(go.Scatter(x=lons, y=lats, mode='markers', marker=dict(color='red', size=5), name='Estaciones'))
+                    fig.update_layout(title=f"Precipitación en {year} ({method})", height=600)
+                    return fig
+                return go.Figure().update_layout(title="Error: Método no implementado")
 
-            if z_grid is not None:
-                fig = go.Figure(data=go.Contour(z=z_grid.T, x=grid_lon, y=grid_lat, 
-                                                 colorscale='YlGnBu', contours=dict(showlabels=True, labelfont=dict(size=10, color='white'))))
-                fig.add_trace(go.Scatter(x=lons, y=lats, mode='markers', marker=dict(color='red', size=5), name='Estaciones'))
-                fig.update_layout(title=f"Precipitación en {year} ({method})", height=600)
-                return fig
-            return go.Figure().update_layout(title="Método no implementado")
-
-        # --- Renderizar los mapas ---
-        with map_col1:
-            with st.spinner(f"Generando mapa 1 ({year1}, {method1})..."):
-                fig1 = generate_interpolation_map(year1, method1)
-                st.plotly_chart(fig1, use_container_width=True)
-        
-        with map_col2:
-            with st.spinner(f"Generando mapa 2 ({year2}, {method2})..."):
-                fig2 = generate_interpolation_map(year2, method2)
-                st.plotly_chart(fig2, use_container_width=True)
+            with map_col1:
+                with st.spinner(f"Generando mapa 1 ({year1}, {method1})..."):
+                    fig1 = generate_interpolation_map(year1, method1, gdf_filtered)
+                    st.plotly_chart(fig1, use_container_width=True)
+            
+            with map_col2:
+                with st.spinner(f"Generando mapa 2 ({year2}, {method2})..."):
+                    fig2 = generate_interpolation_map(year2, method2, gdf_filtered)
+                    st.plotly_chart(fig2, use_container_width=True)
                 
 ## Análisis de Sequías (SPI)
 
