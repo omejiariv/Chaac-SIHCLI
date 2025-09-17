@@ -25,13 +25,14 @@ class Config:
     SOI_COL = 'soi'
     IOD_COL = 'iod'
     
-    # Rutas de Archivos
-    LOGO_PATH = "data/CuencaVerdeLogo_V1.JPG"
-    LOGO_DROP_PATH = "data/CuencaVerdeGoticaLogo.JPG"
-    GIF_PATH = "data/PPAM.gif"
+    # Rutas de Archivos (usando la ruta absoluta)
+    LOGO_PATH = os.path.join(BASE_DIR, "data", "CuencaVerdeLogo_V1.JPG")
+    LOGO_DROP_PATH = os.path.join(BASE_DIR, "data", "CuencaVerdeGoticaLogo.JPG")
+    GIF_PATH = os.path.join(BASE_DIR, "data", "PPAM.gif")
     
     # Mensajes de la UI
     APP_TITLE = "Sistema de información de las lluvias y el Clima en el norte de la región Andina"
+    # ... (el resto de tu clase Config se mantiene igual) ...
     WELCOME_TEXT = """
     Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de precipitación y su
     relación con el fenómeno ENSO en el norte de la región Andina.
@@ -55,7 +56,7 @@ class Config:
     
     @staticmethod
     def initialize_session_state():
-        """Inicializa todas las variables necesarias en el estado de la sesión de Streamlit."""
+        # ... (este método se mantiene igual) ...
         state_defaults = {
             'data_loaded': False,
             'analysis_mode': "Usar datos originales",
