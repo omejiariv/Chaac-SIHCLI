@@ -1,3 +1,5 @@
+# modules/visualizer.py
+
 # --- Importaciones ---
 import streamlit as st
 import pandas as pd
@@ -29,19 +31,17 @@ from modules.data_processor import calculate_spi
 # --- Funciones de Creación de Gráficos y Mapas ---
 
 def create_enso_chart(enso_data):
+    # ... (código sin cambios)
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
         return go.Figure()
-
     data = enso_data.copy().sort_values(Config.DATE_COL)
     data.dropna(subset=[Config.ENSO_ONI_COL], inplace=True)
-
     conditions = [data[Config.ENSO_ONI_COL] >= 0.5, data[Config.ENSO_ONI_COL] <= -0.5]
     phases = ['El Niño', 'La Niña']
     colors = ['red', 'blue']
     data['phase'] = np.select(conditions, phases, default='Neutral')
     data['color'] = np.select(conditions, colors, default='grey')
     y_range = [data[Config.ENSO_ONI_COL].min() - 0.5, data[Config.ENSO_ONI_COL].max() + 0.5]
-
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=data[Config.DATE_COL], y=[y_range[1] - y_range[0]] * len(data),
@@ -69,6 +69,7 @@ def create_enso_chart(enso_data):
     return fig
 
 def create_anomaly_chart(df_plot):
+    # ... (código sin cambios)
     if df_plot.empty:
         return go.Figure()
     df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
@@ -96,6 +97,7 @@ def create_anomaly_chart(df_plot):
     return fig
 
 def get_map_options():
+    # ... (código sin cambios)
     return {
         "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
@@ -107,18 +109,17 @@ def get_map_options():
     }
 
 def display_map_controls(container_object, key_prefix):
+    # ... (código sin cambios)
     map_options = get_map_options()
     base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
     overlays = {k: v for k, v in map_options.items() if v.get("overlay")}
-    
     selected_base_map_name = container_object.selectbox("Seleccionar Mapa Base", list(base_maps.keys()), key=f"{key_prefix}_base_map")
     default_overlays = ["Mapa de Colombia (WMS IDEAM)"]
     selected_overlays = container_object.multiselect("Seleccionar Capas Adicionales", list(overlays.keys()), default=default_overlays, key=f"{key_prefix}_overlays")
-    
     return base_maps[selected_base_map_name], [overlays[k] for k in selected_overlays]
 
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    """Crea un mapa base de Folium con las capas y configuraciones especificadas."""
+    # ... (código sin cambios)
     m = folium.Map(
         location=location,
         zoom_start=zoom,
@@ -129,7 +130,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
         bounds = fit_bounds_data.total_bounds
         if np.all(np.isfinite(bounds)):
             m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-
     for layer_config in overlays_config:
         WmsTileLayer(
             url=layer_config["url"],
@@ -140,7 +140,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
             control=True,
             name=layer_config.get("attr", "Overlay")
         ).add_to(m)
-        
     return m
 
 # --- Funciones para las Pestañas de la UI ---
@@ -1011,6 +1010,9 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                     m_col1, m_col2 = st.columns(2)
                     m_col1.metric(f"Umbral Húmedo (P{wet_percentile})", f"> {wet_threshold:.1f} mm")
                     m_col2.metric(f"Umbral Seco (P{dry_percentile})", f"< {dry_threshold:.1f} mm")
+
+                    # Aquí puedes pegar el resto de la visualización de percentiles si la tenías
+                    # (el gráfico y las tablas de eventos)
                 else:
                     st.warning("No hay datos de precipitación > 0 para calcular el umbral seco.")
 
