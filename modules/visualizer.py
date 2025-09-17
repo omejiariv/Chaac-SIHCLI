@@ -863,8 +863,7 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
         else:
             st.warning("No hay datos para realizar la interpolación.")
 
-## Análisis de Sequías (SPI) - ELIMINADO. Solo queda Percentiles
-# ---
+## Análisis de Sequías (SPI)
 
 def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze):
     st.subheader("Análisis de Eventos Extremos por Umbrales de Percentiles")
@@ -1019,6 +1018,27 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
     ]
     colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
     df_plot['color'] = np.select(conditions, colors, default='grey')
+
+    # Crea el gráfico
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_plot.index,
+        y=df_plot['spi'],
+        marker_color=df_plot['color'],
+        name='SPI'
+    ))
+    fig.update_layout(
+        title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze}",
+        yaxis_title="Valor SPI",
+        xaxis_title="Fecha",
+        height=600
+    )
+    
+    with col2:
+        st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("Ver tabla de datos SPI"):
+        st.dataframe(df_plot[['spi']].style.format("{:.2f}"))
 
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Anomalías de Precipitación")
