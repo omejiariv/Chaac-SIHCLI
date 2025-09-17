@@ -24,7 +24,7 @@ class Config:
     SOI_COL = 'soi'
     IOD_COL = 'iod'
     
-    # Rutas de Archivos (actualizadas a la nueva estructura)
+    # Rutas de Archivos
     LOGO_PATH = "data/CuencaVerdeLogo_V1.JPG"
     LOGO_DROP_PATH = "data/CuencaVerdeGoticaLogo.JPG"
     GIF_PATH = "data/PPAM.gif"
