@@ -31,7 +31,6 @@ from modules.data_processor import calculate_spi
 # --- Funciones de Creación de Gráficos y Mapas ---
 
 def create_enso_chart(enso_data):
-    # ... (código sin cambios)
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
         return go.Figure()
     data = enso_data.copy().sort_values(Config.DATE_COL)
@@ -50,34 +49,25 @@ def create_enso_chart(enso_data):
     ))
     legend_map = {'El Niño': 'red', 'La Niña': 'blue', 'Neutral': 'grey'}
     for phase, color in legend_map.items():
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode='markers',
-            marker=dict(size=15, color=color, symbol='square', opacity=0.5),
-            name=phase, showlegend=True
-        ))
-    fig.add_trace(go.Scatter(
-        x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL],
-        mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True
-    ))
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers',
+                                 marker=dict(size=15, color=color, symbol='square', opacity=0.5),
+                                 name=phase, showlegend=True))
+    fig.add_trace(go.Scatter(x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL],
+                             mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True))
     fig.add_hline(y=0.5, line_dash="dash", line_color="red")
     fig.add_hline(y=-0.5, line_dash="dash", line_color="blue")
-    fig.update_layout(
-        height=600, title="Fases del Fenómeno ENSO y Anomalía ONI",
-        yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha", showlegend=True,
-        legend_title_text='Fase', yaxis_range=y_range
-    )
+    fig.update_layout(height=600, title="Fases del Fenómeno ENSO y Anomalía ONI",
+                      yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha", showlegend=True,
+                      legend_title_text='Fase', yaxis_range=y_range)
     return fig
 
 def create_anomaly_chart(df_plot):
-    # ... (código sin cambios)
     if df_plot.empty:
         return go.Figure()
     df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df_plot[Config.DATE_COL], y=df_plot['anomalia'],
-        marker_color=df_plot['color'], name='Anomalía de Precipitación'
-    ))
+    fig.add_trace(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'],
+                         marker_color=df_plot['color'], name='Anomalía de Precipitación'))
     if Config.ENSO_ONI_COL in df_plot.columns:
         df_plot_enso = df_plot.dropna(subset=[Config.ENSO_ONI_COL])
         nino_periods = df_plot_enso[df_plot_enso[Config.ENSO_ONI_COL] >= 0.5]
@@ -90,14 +80,11 @@ def create_anomaly_chart(df_plot):
                           fillcolor="blue", opacity=0.15, layer="below", line_width=0)
         fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(symbol='square', color='rgba(255, 0, 0, 0.3)'), name='Fase El Niño'))
         fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(symbol='square', color='rgba(0, 0, 255, 0.3)'), name='Fase La Niña'))
-    fig.update_layout(
-        height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO",
-        yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True
-    )
+    fig.update_layout(height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO",
+                      yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True)
     return fig
 
 def get_map_options():
-    # ... (código sin cambios)
     return {
         "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
@@ -109,7 +96,6 @@ def get_map_options():
     }
 
 def display_map_controls(container_object, key_prefix):
-    # ... (código sin cambios)
     map_options = get_map_options()
     base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
     overlays = {k: v for k, v in map_options.items() if v.get("overlay")}
@@ -119,30 +105,19 @@ def display_map_controls(container_object, key_prefix):
     return base_maps[selected_base_map_name], [overlays[k] for k in selected_overlays]
 
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    # ... (código sin cambios)
-    m = folium.Map(
-        location=location,
-        zoom_start=zoom,
-        tiles=base_map_config.get("tiles", "OpenStreetMap"),
-        attr=base_map_config.get("attr", None)
-    )
+    m = folium.Map(location=location, zoom_start=zoom, tiles=base_map_config.get("tiles", "OpenStreetMap"), attr=base_map_config.get("attr", None))
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         bounds = fit_bounds_data.total_bounds
         if np.all(np.isfinite(bounds)):
             m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
     for layer_config in overlays_config:
-        WmsTileLayer(
-            url=layer_config["url"],
-            layers=layer_config["layers"],
-            fmt='image/png',
-            transparent=layer_config.get("transparent", False),
-            overlay=True,
-            control=True,
-            name=layer_config.get("attr", "Overlay")
-        ).add_to(m)
+        WmsTileLayer(url=layer_config["url"], layers=layer_config["layers"], fmt='image/png',
+                     transparent=layer_config.get("transparent", False), overlay=True, control=True,
+                     name=layer_config.get("attr", "Overlay")).add_to(m)
     return m
 
 # --- Funciones para las Pestañas de la UI ---
+
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
     st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
@@ -981,7 +956,6 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
             st.markdown("---")
             st.subheader("Análisis de Eventos Extremos por Umbrales de Percentiles")
             
-            # Controles de Percentiles
             col1_perc, col2_perc = st.columns(2)
             with col1_perc:
                 wet_percentile = st.slider("Percentil para Evento Húmedo (superior a):", min_value=75, max_value=99, value=90, step=1, key="wet_perc_slider")
@@ -1005,7 +979,6 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                     m_col1.metric(f"Umbral Húmedo (P{wet_percentile})", f"> {wet_threshold:.1f} mm")
                     m_col2.metric(f"Umbral Seco (P{dry_percentile})", f"< {dry_threshold:.1f} mm")
 
-                    # LÓGICA DE GRÁFICOS Y TABLAS DE PERCENTILES QUE FALTABA
                     df_wet_events = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] > wet_threshold]
                     df_dry_events = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] < dry_threshold]
 
@@ -1013,17 +986,19 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                     fig_perc = go.Figure()
                     fig_perc.add_trace(go.Bar(x=df_station_perc[Config.DATE_COL], y=df_station_perc[Config.PRECIPITATION_COL], name='Precipitación Mensual', marker_color='lightblue'))
                     if not df_wet_events.empty:
-                        fig_perc.add_trace(go.Scatter(x=df_wet_events[Config.DATE_COL], y=df_wet_events[Config.PRECIPITATION_COL], mode='markers', name='Eventos Húmedos', marker=dict(color='blue', size=10, symbol='circle')))
+                        fig_perc.add_trace(go.Scatter(x=df_wet_events[Config.DATE_COL], y=df_wet_events[Config.PRECIPITATION_COL], mode='markers', name='Eventos Húmedos', marker=dict(color='blue', size=10)))
                     if not df_dry_events.empty:
-                        fig_perc.add_trace(go.Scatter(x=df_dry_events[Config.DATE_COL], y=df_dry_events[Config.PRECIPITATION_COL], mode='markers', name='Eventos Secos', marker=dict(color='red', size=10, symbol='circle')))
-                    fig_perc.add_hline(y=wet_threshold, line_dash="dash", line_color="blue", annotation_text=f"Umbral Húmedo")
-                    fig_perc.add_hline(y=dry_threshold, line_dash="dash", line_color="red", annotation_text=f"Umbral Seco")
+                        fig_perc.add_trace(go.Scatter(x=df_dry_events[Config.DATE_COL], y=df_dry_events[Config.PRECIPITATION_COL], mode='markers', name='Eventos Secos', marker=dict(color='red', size=10)))
+                    fig_perc.add_hline(y=wet_threshold, line_dash="dash", line_color="blue", annotation_text=f"P{wet_percentile}")
+                    fig_perc.add_hline(y=dry_threshold, line_dash="dash", line_color="red", annotation_text=f"P{dry_percentile}")
                     fig_perc.update_layout(title=f"Eventos Extremos para: {station_to_analyze_perc}", xaxis_title="Fecha", yaxis_title="Precipitación (mm)", height=600)
                     st.plotly_chart(fig_perc, use_container_width=True)
 
     # --- Lógica para la sub-pestaña de SPI ---
     with spi_sub_tab:
+        st.subheader("Análisis con el Índice Estandarizado de Precipitación (SPI)")
         col1_spi, col2_spi = st.columns([1, 2])
+        
         with col1_spi:
             station_to_analyze_spi = st.selectbox("Seleccione una estación para el análisis SPI:", options=sorted(stations_for_analysis), key="spi_station_select")
             spi_window = st.select_slider("Seleccione la escala de tiempo del SPI (meses):", options=[3, 6, 9, 12, 24], value=12, key="spi_window_slider", help="Una escala corta (3 meses) refleja sequías agrícolas. Una escala larga (12-24 meses) refleja sequías hidrológicas.")
@@ -1053,11 +1028,13 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                 fig.add_trace(go.Bar(x=df_plot.index, y=df_plot['spi'], marker_color=df_plot['color'], name='SPI'))
                 fig.update_layout(title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze_spi}",
                                   yaxis_title="Valor SPI", xaxis_title="Fecha", height=600)
+                
                 with col2_spi:
                     st.plotly_chart(fig, use_container_width=True)
+                
                 with st.expander("Ver tabla de datos SPI"):
                     st.dataframe(df_plot[['spi']].style.format("{:.2f}"))
-
+                    
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Anomalías de Precipitación")
     selected_stations_str = f"{len(stations_for_analysis)} estaciones" if len(stations_for_analysis) > 1 else f"1 estación: {stations_for_analysis[0]}"
