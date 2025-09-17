@@ -738,7 +738,7 @@ def main():
             
             with tab_tendencias:
                 display_trends_forecast_tab(df_monthly_filtered, stations_for_analysis)
-        
+            
             else:
         st.warning("Por favor, suba todos los archivos requeridos en la barra lateral para comenzar.")
         display_welcome_tab()
