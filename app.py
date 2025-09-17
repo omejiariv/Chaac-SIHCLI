@@ -739,8 +739,7 @@ def main():
         with tab_tendencias:
             display_trends_forecast_tab(df_monthly_filtered, stations_for_analysis)
 
-# Asegúrate de que este `else` esté al mismo nivel que el `if st.session_state.data_loaded`
-    else:
+        else:
         st.warning("Por favor, suba todos los archivos requeridos en la barra lateral para comenzar.")
         display_welcome_tab()
 
