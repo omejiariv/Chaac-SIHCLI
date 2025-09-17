@@ -1,3 +1,483 @@
+# -*- coding: utf-8 -*-
+# Importaciones
+# ---
+import streamlit as st
+import pandas as pd
+import altair as alt
+import folium
+from folium.plugins import MarkerCluster, MiniMap
+from folium.raster_layers import WmsTileLayer
+from streamlit_folium import folium_static
+import plotly.express as px
+import plotly.graph_objects as go
+import geopandas as gpd
+import zipfile
+import tempfile
+import os
+import io
+import numpy as np
+import warnings 
+from pykrige.ok import OrdinaryKriging
+from scipy import stats
+from scipy.stats import gamma, norm
+import statsmodels.api as sm
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import pacf
+from prophet import Prophet
+from prophet.plot import plot_plotly
+import branca.colormap as cm
+import base64
+import pymannkendall as mk
+from modules.config import Config 
+from modules.data_processor import load_and_process_all_data
+
+# Desactivar UserWarning de scipy/statsmodels que son comunes durante el fitting de distribución
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# ---
+# Constantes y Configuración Centralizada
+# ---
+class Config:
+    # Nombres de Columnas de Datos
+    STATION_NAME_COL = 'nom_est'
+    PRECIPITATION_COL = 'precipitation'
+    LATITUDE_COL = 'latitud_geo'
+    LONGITUDE_COL = 'longitud_geo'
+    YEAR_COL = 'año'
+    MONTH_COL = 'mes'
+    DATE_COL = 'fecha_mes_año'
+    ENSO_ONI_COL = 'anomalia_oni'
+    ORIGIN_COL = 'origen'
+    ALTITUDE_COL = 'alt_est'
+    MUNICIPALITY_COL = 'municipio'
+    REGION_COL = 'depto_region'
+    PERCENTAGE_COL = 'porc_datos'
+    CELL_COL = 'celda_xy'
+    
+    # Índices climáticos leídos del archivo principal
+    SOI_COL = 'soi'
+    IOD_COL = 'iod'
+    
+    # Rutas de Archivos
+    LOGO_PATH = "CuencaVerdeLogo_V1.JPG"
+    LOGO_DROP_PATH = "CuencaVerdeGoticaLogo.JPG"
+    GIF_PATH = "PPAM.gif"
+    
+    # Mensajes de la UI
+    APP_TITLE = "Sistema de información de las lluvias y el Clima en el norte de la región Andina"
+    WELCOME_TEXT = """
+    Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de precipitación y su
+    relación con el fenómeno ENSO en el norte de la región Andina.
+    
+    **¿Cómo empezar?**
+    1.  **Cargue sus archivos**: Si es la primera vez que usa la aplicación, el panel de la izquierda le solicitará cargar los archivos de estaciones,
+    precipitación y el shapefile de municipios. La aplicación recordará estos archivos en su sesión.
+    2.  **Filtre los datos**: Una vez cargados los datos, utilice el **Panel de Control** en la barra lateral para filtrar las estaciones por ubicación (región, municipio), altitud,
+    porcentaje de datos disponibles, y para seleccionar el período de análisis (años y meses).
+    3.  **Explore las pestañas**: Cada pestaña ofrece una perspectiva diferente de los datos. Navegue a través de ellas para descubrir:
+        - **Distribución Espacial**: Mapas interactivos de las estaciones.
+        - **Gráficos**: Series de tiempo anuales, mensuales, comparaciones y distribuciones.
+        - **Mapas Avanzados**: Animaciones y mapas de interpolación.
+        - **Análisis de Anomalías**: Desviaciones de la precipitación respecto a la media histórica.
+        - **Tendencias y Pronósticos**: Análisis de tendencias a largo plazo y modelos de pronóstico.
+    
+    Utilice el botón **🧹 Limpiar Filtros** en el panel lateral para reiniciar su selección en cualquier momento.
+    
+    ¡Esperamos que esta herramienta le sea de gran utilidad para sus análisis climáticos!
+    """
+    
+    @staticmethod
+    def initialize_session_state():
+        """Inicializa todas las variables necesarias en el estado de la sesión de Streamlit."""
+        state_defaults = {
+            'data_loaded': False,
+            'analysis_mode': "Usar datos originales",
+            'select_all_stations_state': False,
+            'df_monthly_processed': pd.DataFrame(),
+            'gdf_stations': None,
+            'df_precip_anual': None,
+            'gdf_municipios': None,
+             'df_long': None,
+             'df_enso': None,
+            'min_data_perc_slider': 0,
+            'altitude_multiselect': [],
+            'regions_multiselect': [],
+            'municipios_multiselect': [],
+            'celdas_multiselect': [],
+            'station_multiselect': [],
+            'exclude_na': False,
+            'exclude_zeros': False,
+            'uploaded_forecast': None,
+            'sarima_forecast': None, 
+            'prophet_forecast': None 
+        }
+        for key, value in state_defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+
+# ---
+# Funciones de Carga y Preprocesamiento
+# ---
+@st.cache_data
+def parse_spanish_dates(date_series):
+    """Convierte abreviaturas de meses en español a inglés."""
+    months_es_to_en = {'ene': 'Jan', 'abr': 'Apr', 'ago': 'Aug', 'dic': 'Dec'}
+    date_series_str = date_series.astype(str).str.lower()
+    for es, en in months_es_to_en.items():
+        date_series_str = date_series_str.str.replace(es, en, regex=False)
+    return pd.to_datetime(date_series_str, format='%b-%y', errors='coerce')
+
+@st.cache_data
+def load_csv_data(file_uploader_object, sep=';', lower_case=True):
+    """Carga y decodifica un archivo CSV de manera robusta desde un objeto de Streamlit."""
+    if file_uploader_object is None:
+        return None
+    try:
+        content = file_uploader_object.getvalue()
+        if not content.strip():
+            st.error(f"El archivo '{file_uploader_object.name}' parece estar vacío.")
+            return None
+    except Exception as e:
+        st.error(f"Error al leer el archivo '{file_uploader_object.name}': {e}")
+        return None
+
+    encodings_to_try = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+    for encoding in encodings_to_try:
+        try:
+            df = pd.read_csv(io.BytesIO(content), sep=sep, encoding=encoding)
+            df.columns = df.columns.str.strip().str.replace(';', '')
+            if lower_case:
+                df.columns = df.columns.str.lower()
+            return df
+        except Exception:
+            continue
+    st.error(f"No se pudo decodificar el archivo '{file_uploader_object.name}' con las codificaciones probadas.")
+    return None
+
+@st.cache_data
+def load_shapefile(file_uploader_object):
+    """Procesa y carga un shapefile desde un archivo .zip subido a Streamlit."""
+    if file_uploader_object is None:
+        return None
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with zipfile.ZipFile(file_uploader_object, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            shp_files = [f for f in os.listdir(temp_dir) if f.endswith('.shp')]
+            if not shp_files:
+                st.error("No se encontró un archivo .shp en el archivo .zip.")
+                return None
+            
+            shp_path = os.path.join(temp_dir, shp_files[0])
+            gdf = gpd.read_file(shp_path)
+            gdf.columns = gdf.columns.str.strip().str.lower()
+            
+            if gdf.crs is None:
+                gdf.set_crs("EPSG:9377", inplace=True)
+            return gdf.to_crs("EPSG:4326")
+    except Exception as e:
+        st.error(f"Error al procesar el shapefile: {e}")
+        return None
+
+@st.cache_data
+def complete_series(_df):
+    """Completa las series de tiempo de precipitación usando interpolación lineal temporal."""
+    all_completed_dfs = []
+    station_list = _df[Config.STATION_NAME_COL].unique()
+    progress_bar = st.progress(0, text="Completando todas las series...")
+    
+    for i, station in enumerate(station_list):
+        df_station = _df[_df[Config.STATION_NAME_COL] == station].copy()
+        df_station[Config.DATE_COL] = pd.to_datetime(df_station[Config.DATE_COL])
+        df_station.set_index(Config.DATE_COL, inplace=True)
+        
+        if not df_station.index.is_unique:
+            df_station = df_station[~df_station.index.duplicated(keep='first')]
+
+        date_range = pd.date_range(start=df_station.index.min(), end=df_station.index.max(), freq='MS')
+        df_resampled = df_station.reindex(date_range)
+        
+        df_resampled[Config.PRECIPITATION_COL] = df_resampled[Config.PRECIPITATION_COL].interpolate(method='time')
+        
+        df_resampled[Config.ORIGIN_COL] = df_resampled[Config.ORIGIN_COL].fillna('Completado')
+        df_resampled[Config.STATION_NAME_COL] = station
+        df_resampled[Config.YEAR_COL] = df_resampled.index.year
+        df_resampled[Config.MONTH_COL] = df_resampled.index.month
+        df_resampled.reset_index(inplace=True)
+        df_resampled.rename(columns={'index': Config.DATE_COL}, inplace=True)
+        all_completed_dfs.append(df_resampled)
+        
+        progress_bar.progress((i + 1) / len(station_list), text=f"Completando series... Estación: {station}")
+    
+    progress_bar.empty()
+    return pd.concat(all_completed_dfs, ignore_index=True)
+
+@st.cache_data
+def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile):
+    """
+    Carga y procesa todos los archivos de entrada y los fusiona en dataframes listos para usar.
+    """
+    df_stations_raw = load_csv_data(uploaded_file_mapa)
+    df_precip_raw = load_csv_data(uploaded_file_precip)
+    gdf_municipios = load_shapefile(uploaded_zip_shapefile)
+
+    if any(df is None for df in [df_stations_raw, df_precip_raw, gdf_municipios]):
+        return None, None, None, None
+
+    # --- 1. Procesar Estaciones (gdf_stations) ---
+    lon_col = next((col for col in df_stations_raw.columns if 'longitud' in col.lower() or 'lon' in col.lower()), None)
+    lat_col = next((col for col in df_stations_raw.columns if 'latitud' in col.lower() or 'lat' in col.lower()), None)
+    if not all([lon_col, lat_col]):
+        st.error("No se encontraron columnas de longitud y/o latitud en el archivo de estaciones.")
+        return None, None, None, None
+    
+    df_stations_raw[lon_col] = pd.to_numeric(df_stations_raw[lon_col].astype(str).str.replace(',', '.'), errors='coerce')
+    df_stations_raw[lat_col] = pd.to_numeric(df_stations_raw[lat_col].astype(str).str.replace(',', '.'), errors='coerce')
+    df_stations_raw.dropna(subset=[lon_col, lat_col], inplace=True)
+
+    gdf_stations = gpd.GeoDataFrame(df_stations_raw,
+                                     geometry=gpd.points_from_xy(df_stations_raw[lon_col], df_stations_raw[lat_col]),
+                                     crs="EPSG:9377").to_crs("EPSG:4326")
+    gdf_stations[Config.LONGITUDE_COL] = gdf_stations.geometry.x
+    gdf_stations[Config.LATITUDE_COL] = gdf_stations.geometry.y
+    if Config.ALTITUDE_COL in gdf_stations.columns:
+        gdf_stations[Config.ALTITUDE_COL] = pd.to_numeric(gdf_stations[Config.ALTITUDE_COL].astype(str).str.replace(',', '.'), errors='coerce')
+
+    # --- 2. Procesar Precipitación (df_long) ---
+    station_id_cols = [col for col in df_precip_raw.columns if col.isdigit()]
+    if not station_id_cols:
+        st.error("No se encontraron columnas de estación (ej: '12345') en el archivo de precipitación mensual.")
+        return None, None, None, None
+
+    id_vars = [col for col in df_precip_raw.columns if not col.isdigit()]
+    df_long = df_precip_raw.melt(id_vars=id_vars, value_vars=station_id_cols, 
+                                 var_name='id_estacion', value_name=Config.PRECIPITATION_COL)
+
+    cols_to_numeric = [Config.ENSO_ONI_COL, 'temp_sst', 'temp_media', Config.PRECIPITATION_COL, Config.SOI_COL, Config.IOD_COL]
+    for col in cols_to_numeric:
+        if col in df_long.columns:
+            df_long[col] = pd.to_numeric(df_long[col].astype(str).str.replace(',', '.'), errors='coerce')
+    
+    df_long.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+    df_long[Config.DATE_COL] = parse_spanish_dates(df_long[Config.DATE_COL])
+    df_long.dropna(subset=[Config.DATE_COL], inplace=True)
+    df_long[Config.ORIGIN_COL] = 'Original'
+
+    df_long[Config.YEAR_COL] = df_long[Config.DATE_COL].dt.year
+    df_long[Config.MONTH_COL] = df_long[Config.DATE_COL].dt.month
+    
+    id_estacion_col_name = next((col for col in gdf_stations.columns if 'id_estacio' in col), None)
+    if id_estacion_col_name is None:
+        st.error("No se encontró la columna 'id_estacio' en el archivo de estaciones.")
+        return None, None, None, None
+        
+    gdf_stations[id_estacion_col_name] = gdf_stations[id_estacion_col_name].astype(str).str.strip()
+    df_long['id_estacion'] = df_long['id_estacion'].astype(str).str.strip()
+    station_mapping = gdf_stations.set_index(id_estacion_col_name)[Config.STATION_NAME_COL].to_dict()
+    df_long[Config.STATION_NAME_COL] = df_long['id_estacion'].map(station_mapping)
+    df_long.dropna(subset=[Config.STATION_NAME_COL], inplace=True)
+
+    station_metadata_cols = [
+        Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.REGION_COL, 
+        Config.ALTITUDE_COL, Config.CELL_COL, Config.LATITUDE_COL, Config.LONGITUDE_COL
+    ]
+    existing_metadata_cols = [col for col in station_metadata_cols if col in gdf_stations.columns]
+
+    df_long = pd.merge(
+        df_long,
+        gdf_stations[existing_metadata_cols].drop_duplicates(subset=[Config.STATION_NAME_COL]),
+        on=Config.STATION_NAME_COL,
+        how='left'
+    )
+    
+    # --- 3. Extraer datos ENSO para gráficos aislados ---
+    enso_cols = ['id', Config.DATE_COL, Config.ENSO_ONI_COL, 'temp_sst', 'temp_media']
+    existing_enso_cols = [col for col in enso_cols if col in df_precip_raw.columns]
+    df_enso = df_precip_raw[existing_enso_cols].drop_duplicates().copy()
+    
+    if Config.DATE_COL in df_enso.columns:
+        df_enso[Config.DATE_COL] = parse_spanish_dates(df_enso[Config.DATE_COL])
+        df_enso.dropna(subset=[Config.DATE_COL], inplace=True)
+
+    for col in [Config.ENSO_ONI_COL, 'temp_sst', 'temp_media']:
+        if col in df_enso.columns:
+            df_enso[col] = pd.to_numeric(df_enso[col].astype(str).str.replace(',', '.'), errors='coerce')
+
+    return gdf_stations, gdf_municipios, df_long, df_enso
+
+# ---
+# Funciones para Gráficos, Mapas y Descargas
+# ---
+def add_plotly_download_buttons(fig, file_prefix):
+    """Muestra botones de descarga para un gráfico Plotly (HTML y PNG)."""
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        html_buffer = io.StringIO()
+        fig.write_html(html_buffer, include_plotlyjs='cdn')
+        st.download_button(
+            label="📥 Descargar Gráfico (HTML)",
+            data=html_buffer.getvalue(),
+            file_name=f"{file_prefix}.html",
+            mime="text/html",
+            key=f"dl_html_{file_prefix}",
+            use_container_width=True
+        )
+    with col2:
+        try:
+            img_bytes = fig.to_image(format="png", width=1200, height=700, scale=2)
+            st.download_button(
+                label="📥 Descargar Gráfico (PNG)",
+                data=img_bytes,
+                file_name=f"{file_prefix}.png",
+                mime="image/png",
+                key=f"dl_png_{file_prefix}",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.warning("No se pudo generar la imagen PNG. Asegúrate de tener la librería 'kaleido' instalada (`pip install kaleido`).")
+
+def add_folium_download_button(map_object, file_name):
+    """Muestra un botón de descarga para un mapa de Folium (HTML)."""
+    st.markdown("---")
+    map_buffer = io.BytesIO()
+    map_object.save(map_buffer, close_file=False)
+    st.download_button(
+        label="📥 Descargar Mapa (HTML)",
+        data=map_buffer.getvalue(),
+        file_name=file_name,
+        mime="text/html",
+        key=f"dl_map_{file_name.replace('.', '_')}",
+        use_container_width=True
+    )
+
+def create_enso_chart(enso_data):
+    if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
+        return go.Figure()
+
+    data = enso_data.copy().sort_values(Config.DATE_COL)
+    data.dropna(subset=[Config.ENSO_ONI_COL], inplace=True)
+
+    conditions = [data[Config.ENSO_ONI_COL] >= 0.5, data[Config.ENSO_ONI_COL] <= -0.5]
+    phases = ['El Niño', 'La Niña']
+    colors = ['red', 'blue']
+    data['phase'] = np.select(conditions, phases, default='Neutral')
+    data['color'] = np.select(conditions, colors, default='grey')
+    y_range = [data[Config.ENSO_ONI_COL].min() - 0.5, data[Config.ENSO_ONI_COL].max() + 0.5]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=data[Config.DATE_COL], y=[y_range[1] - y_range[0]] * len(data),
+        base=y_range[0], marker_color=data['color'], width=30*24*60*60*1000,
+        opacity=0.3, hoverinfo='none', showlegend=False
+    ))
+    legend_map = {'El Niño': 'red', 'La Niña': 'blue', 'Neutral': 'grey'}
+    for phase, color in legend_map.items():
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='markers',
+            marker=dict(size=15, color=color, symbol='square', opacity=0.5),
+            name=phase, showlegend=True
+        ))
+    fig.add_trace(go.Scatter(
+        x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL],
+        mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True
+    ))
+    fig.add_hline(y=0.5, line_dash="dash", line_color="red")
+    fig.add_hline(y=-0.5, line_dash="dash", line_color="blue")
+    fig.update_layout(
+        height=600, title="Fases del Fenómeno ENSO y Anomalía ONI",
+        yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha", showlegend=True,
+        legend_title_text='Fase', yaxis_range=y_range
+    )
+    return fig
+
+def create_anomaly_chart(df_plot):
+    if df_plot.empty:
+        return go.Figure()
+    df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_plot[Config.DATE_COL], y=df_plot['anomalia'],
+        marker_color=df_plot['color'], name='Anomalía de Precipitación'
+    ))
+    if Config.ENSO_ONI_COL in df_plot.columns:
+        df_plot_enso = df_plot.dropna(subset=[Config.ENSO_ONI_COL])
+        nino_periods = df_plot_enso[df_plot_enso[Config.ENSO_ONI_COL] >= 0.5]
+        for _, row in nino_periods.iterrows():
+            fig.add_vrect(x0=row[Config.DATE_COL] - pd.DateOffset(days=15), x1=row[Config.DATE_COL] + pd.DateOffset(days=15),
+                          fillcolor="red", opacity=0.15, layer="below", line_width=0)
+        nina_periods = df_plot_enso[df_plot_enso[Config.ENSO_ONI_COL] <= -0.5]
+        for _, row in nina_periods.iterrows():
+            fig.add_vrect(x0=row[Config.DATE_COL] - pd.DateOffset(days=15), x1=row[Config.DATE_COL] + pd.DateOffset(days=15),
+                          fillcolor="blue", opacity=0.15, layer="below", line_width=0)
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(symbol='square', color='rgba(255, 0, 0, 0.3)'), name='Fase El Niño'))
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(symbol='square', color='rgba(0, 0, 255, 0.3)'), name='Fase La Niña'))
+    fig.update_layout(
+        height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO",
+        yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True
+    )
+    return fig
+
+def get_map_options():
+    return {
+        "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
+        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
+        "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)', "overlay": False},
+        "Relieve (Stamen Terrain)": {"tiles": "Stamen Terrain", "attr": 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
+        "Relieve y Océanos (GEBCO)": {"url": "https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/web_map_service.php", "layers": "GEBCO_2021_Surface", "transparent": False, "attr": "GEBCO 2021", "overlay": True},
+        "Mapa de Colombia (WMS IDEAM)": {"url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", "layers": "ideam:col_admin", "transparent": True, "attr": "IDEAM", "overlay": True},
+        "Cobertura de la Tierra (WMS IGAC)": {"url": "https://servicios.igac.gov.co/server/services/IDEAM/IDEAM_Cobertura_Corine/MapServer/WMSServer", "layers": "IDEAM_Cobertura_Corine_Web", "transparent": True, "attr": "IGAC", "overlay": True},
+    }
+
+def display_map_controls(container_object, key_prefix):
+    map_options = get_map_options()
+    base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
+    overlays = {k: v for k, v in map_options.items() if v.get("overlay")}
+    
+    selected_base_map_name = container_object.selectbox("Seleccionar Mapa Base", list(base_maps.keys()), key=f"{key_prefix}_base_map")
+    default_overlays = ["Mapa de Colombia (WMS IDEAM)"]
+    selected_overlays = container_object.multiselect("Seleccionar Capas Adicionales", list(overlays.keys()), default=default_overlays, key=f"{key_prefix}_overlays")
+    
+    return base_maps[selected_base_map_name], [overlays[k] for k in selected_overlays]
+
+def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
+    """Crea un mapa base de Folium con las capas y configuraciones especificadas."""
+    m = folium.Map(
+        location=location,
+        zoom_start=zoom,
+        tiles=base_map_config.get("tiles", "OpenStreetMap"),
+        attr=base_map_config.get("attr", None)
+    )
+    if fit_bounds_data is not None and not fit_bounds_data.empty:
+        bounds = fit_bounds_data.total_bounds
+        if np.all(np.isfinite(bounds)):
+            m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+
+    for layer_config in overlays_config:
+        WmsTileLayer(
+            url=layer_config["url"],
+            layers=layer_config["layers"],
+            fmt='image/png',
+            transparent=layer_config.get("transparent", False),
+            overlay=True,
+            control=True,
+            name=layer_config.get("attr", "Overlay")
+        ).add_to(m)
+        
+    return m
+
+# ---
+# Funciones para las Pestañas de la UI
+# ---
+
+def display_welcome_tab():
+    st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
+    st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
+    if os.path.exists(Config.LOGO_PATH):
+        st.image(Config.LOGO_PATH, width=400, caption="Corporación Cuenca Verde")
+
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered):
     st.header("Distribución espacial de las Estaciones de Lluvia")
     
