@@ -4,7 +4,6 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. Definir BASE_DIR aquí, en el nivel superior del archivo.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 2. Ahora, definir la clase. Ya puede "ver" y usar la variable BASE_DIR.
