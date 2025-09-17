@@ -24,10 +24,10 @@ class Config:
     SOI_COL = 'soi'
     IOD_COL = 'iod'
     
-    # Rutas de Archivos (asumiendo que la carpeta 'data' existe)
+    # Rutas de Archivos (actualizadas a la nueva estructura)
     LOGO_PATH = "data/CuencaVerdeLogo_V1.JPG"
     LOGO_DROP_PATH = "data/CuencaVerdeGoticaLogo.JPG"
-    GIF_PATH = "data/PPAM.gif" 
+    GIF_PATH = "data/PPAM.gif"
     
     # Mensajes de la UI
     APP_TITLE = "Sistema de información de las lluvias y el Clima en el norte de la región Andina"
@@ -74,8 +74,8 @@ class Config:
             'exclude_na': False,
             'exclude_zeros': False,
             'uploaded_forecast': None,
-            'sarima_forecast': pd.DataFrame(), 
-            'prophet_forecast': pd.DataFrame() 
+            'sarima_forecast': None, 
+            'prophet_forecast': None 
         }
         for key, value in state_defaults.items():
             if key not in st.session_state:
