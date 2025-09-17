@@ -2445,9 +2445,10 @@ def main():
         st.session_state.df_monthly_filtered = df_monthly_filtered
 
         # AÑADIDO: "Análisis de Sequías" / "Análisis de Extremos"
+        # app.py
         tab_names = [
             "🏠 Bienvenida", "🗺️ Distribución Espacial", "📊 Gráficos", "✨ Mapas Avanzados", 
-            "📉 Análisis de Anomalías", "🌪️ Análisis de Sequías", "🔢 Estadísticas", 
+            "📉 Análisis de Anomalías", "🌪️ Análisis de extremos hid", "🔢 Estadísticas", 
             "🤝 Análisis de Correlación", "🌊 Análisis ENSO", "📈 Tendencias y Pronósticos", 
             "📥 Descargas", "📋 Tabla de Estaciones"
         ]
