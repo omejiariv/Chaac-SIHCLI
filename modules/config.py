@@ -4,26 +4,15 @@ import streamlit as st
 import pandas as pd
 import os
 
+# 1. Definir BASE_DIR aquí, en el nivel superior del archivo.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 2. Ahora, definir la clase. Ya puede "ver" y usar la variable BASE_DIR.
 class Config:
     # Nombres de Columnas de Datos
     STATION_NAME_COL = 'nom_est'
     PRECIPITATION_COL = 'precipitation'
-    LATITUDE_COL = 'latitud_geo'
-    LONGITUDE_COL = 'longitud_geo'
-    YEAR_COL = 'año'
-    MONTH_COL = 'mes'
-    DATE_COL = 'fecha_mes_año'
-    ENSO_ONI_COL = 'anomalia_oni'
-    ORIGIN_COL = 'origen'
-    ALTITUDE_COL = 'alt_est'
-    MUNICIPALITY_COL = 'municipio'
-    REGION_COL = 'depto_region'
-    PERCENTAGE_COL = 'porc_datos'
-    CELL_COL = 'celda_xy'
-    
-    # Índices climáticos leídos del archivo principal
-    SOI_COL = 'soi'
-    IOD_COL = 'iod'
+    # ... (el resto de tus nombres de columnas) ...
     
     # Rutas de Archivos (usando la ruta absoluta)
     LOGO_PATH = os.path.join(BASE_DIR, "data", "CuencaVerdeLogo_V1.JPG")
