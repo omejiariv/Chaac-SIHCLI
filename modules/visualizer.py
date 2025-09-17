@@ -26,7 +26,7 @@ import pymannkendall as mk
 # --- Importaciones de Módulos Propios ---
 from modules.config import Config
 from modules.utils import add_folium_download_button, add_plotly_download_buttons
-
+from modules.data_processor import calculate_spi
 
 # --- Funciones de Creación de Gráficos y Mapas ---
 
@@ -963,32 +963,62 @@ def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze):
         else:
             st.info("No se identificaron eventos secos con el umbral actual.")
 
-
 def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
-    st.header("Análisis de Sequías y Eventos Extremos Hidrológicos")
-    st.markdown("Esta sección unificada ofrece dos metodologías de análisis: el **análisis de percentiles** para extremos puntuales.")
+    st.header("Análisis de Sequías y Eventos Extremos (SPI)")
+    st.markdown("El **Índice Estandarizado de Precipitación (SPI)** cuantifica las anomalías de lluvia. Valores negativos (rojo/naranja) indican condiciones de sequía, mientras que valores positivos (azul/verde) indican condiciones de humedad.")
 
     if len(stations_for_analysis) == 0:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    station_to_analyze = st.selectbox(
-        "Seleccione una estación para el análisis:",
-        options=sorted(stations_for_analysis),
-        key="drought_station_select",
-        help="El análisis se realiza a nivel de estación."
-    )
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        station_to_analyze = st.selectbox(
+            "Seleccione una estación para el análisis:",
+            options=sorted(stations_for_analysis),
+            key="spi_station_select",
+        )
+        
+        spi_window = st.select_slider(
+            "Seleccione la escala de tiempo del SPI (meses):",
+            options=[3, 6, 9, 12, 24],
+            value=12,
+            key="spi_window_slider",
+            help="Una escala corta (3 meses) refleja sequías agrícolas a corto plazo. Una escala larga (12-24 meses) refleja sequías hidrológicas."
+        )
 
     if not station_to_analyze:
         st.info("Seleccione una estación para comenzar el análisis.")
         return
 
-    # Subpestañas (SPI eliminado, solo queda Percentil)
-    percentile_tab = st.tabs(["📈 Extremos por Percentil"])[0]
+    # Prepara los datos para la estación seleccionada
+    df_station = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze].copy()
+    df_station = df_station.set_index(Config.DATE_COL).sort_index()
+    precip_series = df_station[Config.PRECIPITATION_COL]
 
-    with percentile_tab:
-        display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze)
+    if len(precip_series.dropna()) < spi_window * 2: # Se necesita suficientes datos
+        st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{spi_window}. Se requiere al menos el doble de meses que la ventana seleccionada.")
+        return
 
+    # Calcula el SPI
+    with st.spinner(f"Calculando SPI-{spi_window} para la estación {station_to_analyze}..."):
+        df_station['spi'] = calculate_spi(precip_series, spi_window)
+
+    df_plot = df_station.dropna(subset=['spi'])
+
+    # Asigna colores según el valor del SPI
+    conditions = [
+        df_plot['spi'] <= -2.0,
+        (df_plot['spi'] > -2.0) & (df_plot['spi'] <= -1.5),
+        (df_plot['spi'] > -1.5) & (df_plot['spi'] <= -1.0),
+        (df_plot['spi'] > -1.0) & (df_plot['spi'] < 1.0),
+        (df_plot['spi'] >= 1.0) & (df_plot['spi'] < 1.5),
+        (df_plot['spi'] >= 1.5) & (df_plot['spi'] < 2.0),
+        df_plot['spi'] >= 2.0
+    ]
+    colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
+    df_plot['color'] = np.select(conditions, colors, default='grey')
 
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Anomalías de Precipitación")
