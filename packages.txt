@@ -1,0 +1,10 @@
+gdal-bin
+libgdal-dev
+libgeos-dev
+libproj-dev
+locales
+build-essential
+gfortran
+python3-dev
+libspatialindex-dev
+libtool
