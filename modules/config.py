@@ -15,7 +15,7 @@ class Config:
     # ... (el resto de tus nombres de columnas) ...
     
     # Rutas de Archivos (usando la ruta absoluta)
-    LOGO_PATH = os.path.join(BASE_DIR, "data", "CuencaVerdeLogo_V1.JPG")
+    LOGO_PATH = os.path.join(BASE_DIR, "data", "CuencaVerde Logo.jpg")
     LOGO_DROP_PATH = os.path.join(BASE_DIR, "data", "CuencaVerdeGoticaLogo.JPG")
     GIF_PATH = os.path.join(BASE_DIR, "data", "PPAM.gif")
     
