@@ -9,6 +9,7 @@ import io
 import numpy as np
 from modules.config import Config
 
+# ---
 # Funciones de Carga y Preprocesamiento
 # ---
 @st.cache_data
@@ -130,8 +131,8 @@ def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded
     df_stations_raw.dropna(subset=[lon_col, lat_col], inplace=True)
 
     gdf_stations = gpd.GeoDataFrame(df_stations_raw,
-                                    geometry=gpd.points_from_xy(df_stations_raw[lon_col], df_stations_raw[lat_col]),
-                                    crs="EPSG:9377").to_crs("EPSG:4326")
+                                     geometry=gpd.points_from_xy(df_stations_raw[lon_col], df_stations_raw[lat_col]),
+                                     crs="EPSG:9377").to_crs("EPSG:4326")
     gdf_stations[Config.LONGITUDE_COL] = gdf_stations.geometry.x
     gdf_stations[Config.LATITUDE_COL] = gdf_stations.geometry.y
     if Config.ALTITUDE_COL in gdf_stations.columns:
