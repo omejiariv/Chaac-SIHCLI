@@ -975,20 +975,53 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
 
     # --- Lógica para la sub-pestaña de Percentiles ---
     with percentile_sub_tab:
-        st.subheader("Análisis de Eventos Extremos por Umbrales de Percentiles")
         station_to_analyze_perc = st.selectbox(
             "Seleccione una estación para el análisis de percentiles:",
             options=sorted(stations_for_analysis),
             key="percentile_station_select",
         )
+        
         if station_to_analyze_perc:
-            display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_perc)
+            # --- PEGAMOS EL CÓDIGO DE PERCENTILES DIRECTAMENTE AQUÍ ---
+            st.subheader("Análisis de Eventos Extremos por Umbrales de Percentiles")
+            st.markdown("Esta sección identifica meses con precipitación extremadamente alta (húmedos) o baja (secos) basándose en **percentiles** definidos por el usuario sobre los datos históricos.")
+            
+            # Controles de Percentiles
+            col1_perc, col2_perc = st.columns(2)
+            with col1_perc:
+                wet_percentile = st.slider(
+                    "Percentil para Evento Húmedo (superior a):",
+                    min_value=75, max_value=99, value=90, step=1,
+                    key="wet_perc_slider"
+                )
+            with col2_perc:
+                dry_percentile = st.slider(
+                    "Percentil para Evento Seco (inferior a):",
+                    min_value=1, max_value=25, value=10, step=1,
+                    key="dry_perc_slider"
+                )
+
+            df_station_perc = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_perc].copy()
+            
+            if len(df_station_perc) < 30:
+                st.warning("Se necesitan al menos 30 meses de datos para un análisis de percentiles significativo.")
+            else:
+                precip_data_for_dry = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] > 0][Config.PRECIPITATION_COL]
+                if not precip_data_for_dry.empty:
+                    wet_threshold = df_station_perc[Config.PRECIPITATION_COL].quantile(wet_percentile / 100)
+                    dry_threshold = precip_data_for_dry.quantile(dry_percentile / 100)
+                    
+                    # El resto de la lógica y gráficos de percentiles...
+                    st.metric(f"Umbral Húmedo (P{wet_percentile})", f"> {wet_threshold:.1f} mm")
+                    st.metric(f"Umbral Seco (P{dry_percentile})", f"< {dry_threshold:.1f} mm")
+                else:
+                    st.warning("No hay datos de precipitación > 0 para calcular el umbral seco.")
 
     # --- Lógica para la sub-pestaña de SPI ---
     with spi_sub_tab:
-        st.subheader("Análisis de Sequías y Humedad con el Índice Estandarizado de Precipitación (SPI)")
-        col1, col2 = st.columns([1, 2])
-        with col1:
+        st.subheader("Análisis con el Índice Estandarizado de Precipitación (SPI)")
+        col1_spi, col2_spi = st.columns([1, 2])
+        with col1_spi:
             station_to_analyze_spi = st.selectbox(
                 "Seleccione una estación para el análisis SPI:",
                 options=sorted(stations_for_analysis),
@@ -1001,16 +1034,17 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
             )
 
         if station_to_analyze_spi:
-            df_station = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_spi].copy()
-            df_station = df_station.set_index(Config.DATE_COL).sort_index()
-            precip_series = df_station[Config.PRECIPITATION_COL]
+            df_station_spi = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_spi].copy()
+            df_station_spi = df_station_spi.set_index(Config.DATE_COL).sort_index()
+            precip_series = df_station_spi[Config.PRECIPITATION_COL]
 
             if len(precip_series.dropna()) < spi_window * 2:
-                st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{spi_window}.")
+                with col2_spi:
+                    st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{spi_window}.")
             else:
                 with st.spinner(f"Calculando SPI-{spi_window}..."):
-                    df_station['spi'] = calculate_spi(precip_series, spi_window)
-                df_plot = df_station.dropna(subset=['spi']).copy()
+                    df_station_spi['spi'] = calculate_spi(precip_series, spi_window)
+                df_plot = df_station_spi.dropna(subset=['spi']).copy()
 
                 conditions = [
                     df_plot['spi'] <= -2.0, (df_plot['spi'] > -2.0) & (df_plot['spi'] <= -1.5),
@@ -1027,8 +1061,9 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                     title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze_spi}",
                     yaxis_title="Valor SPI", xaxis_title="Fecha", height=600
                 )
-                with col2:
+                with col2_spi:
                     st.plotly_chart(fig, use_container_width=True)
+                
                 with st.expander("Ver tabla de datos SPI"):
                     st.dataframe(df_plot[['spi']].style.format("{:.2f}"))
 
