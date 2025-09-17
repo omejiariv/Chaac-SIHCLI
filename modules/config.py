@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# modules/config.py
+
 import streamlit as st
 import pandas as pd
 
@@ -23,11 +24,10 @@ class Config:
     SOI_COL = 'soi'
     IOD_COL = 'iod'
     
-    # Rutas de Archivos
-    # NOTA: Las rutas deben ser relativas al archivo principal (app.py) si están en la raíz
+    # Rutas de Archivos (asumiendo que la carpeta 'data' existe)
     LOGO_PATH = "data/CuencaVerdeLogo_V1.JPG"
     LOGO_DROP_PATH = "data/CuencaVerdeGoticaLogo.JPG"
-    GIF_PATH = "data/PPAM.gif"
+    GIF_PATH = "data/PPAM.gif" 
     
     # Mensajes de la UI
     APP_TITLE = "Sistema de información de las lluvias y el Clima en el norte de la región Andina"
@@ -63,8 +63,8 @@ class Config:
             'gdf_stations': None,
             'df_precip_anual': None,
             'gdf_municipios': None,
-             'df_long': None,
-             'df_enso': None,
+            'df_long': None,
+            'df_enso': None,
             'min_data_perc_slider': 0,
             'altitude_multiselect': [],
             'regions_multiselect': [],
@@ -74,8 +74,8 @@ class Config:
             'exclude_na': False,
             'exclude_zeros': False,
             'uploaded_forecast': None,
-            'sarima_forecast': pd.DataFrame(), # Usamos DataFrame vacío en lugar de None
-            'prophet_forecast': pd.DataFrame()  # Usamos DataFrame vacío en lugar de None
+            'sarima_forecast': pd.DataFrame(), 
+            'prophet_forecast': pd.DataFrame() 
         }
         for key, value in state_defaults.items():
             if key not in st.session_state:
