@@ -984,17 +984,9 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
             # Controles de Percentiles
             col1_perc, col2_perc = st.columns(2)
             with col1_perc:
-                wet_percentile = st.slider(
-                    "Percentil para Evento Húmedo (superior a):",
-                    min_value=75, max_value=99, value=90, step=1,
-                    key="wet_perc_slider"
-                )
+                wet_percentile = st.slider("Percentil para Evento Húmedo (superior a):", min_value=75, max_value=99, value=90, step=1, key="wet_perc_slider")
             with col2_perc:
-                dry_percentile = st.slider(
-                    "Percentil para Evento Seco (inferior a):",
-                    min_value=1, max_value=25, value=10, step=1,
-                    key="dry_perc_slider"
-                )
+                dry_percentile = st.slider("Percentil para Evento Seco (inferior a):", min_value=1, max_value=25, value=10, step=1, key="dry_perc_slider")
 
             df_station_perc = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_perc].copy()
             
@@ -1003,7 +995,9 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
             else:
                 precip_data_for_dry = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] > 0][Config.PRECIPITATION_COL]
                 
-                if not precip_data_for_dry.empty:
+                if precip_data_for_dry.empty:
+                    st.warning("No hay datos de precipitación > 0 para calcular el umbral seco.")
+                else:
                     wet_threshold = df_station_perc[Config.PRECIPITATION_COL].quantile(wet_percentile / 100)
                     dry_threshold = precip_data_for_dry.quantile(dry_percentile / 100)
                     
@@ -1011,27 +1005,28 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                     m_col1.metric(f"Umbral Húmedo (P{wet_percentile})", f"> {wet_threshold:.1f} mm")
                     m_col2.metric(f"Umbral Seco (P{dry_percentile})", f"< {dry_threshold:.1f} mm")
 
-                    # Aquí puedes pegar el resto de la visualización de percentiles si la tenías
-                    # (el gráfico y las tablas de eventos)
-                else:
-                    st.warning("No hay datos de precipitación > 0 para calcular el umbral seco.")
+                    # LÓGICA DE GRÁFICOS Y TABLAS DE PERCENTILES QUE FALTABA
+                    df_wet_events = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] > wet_threshold]
+                    df_dry_events = df_station_perc[df_station_perc[Config.PRECIPITATION_COL] < dry_threshold]
+
+                    st.markdown("#### Distribución Temporal de Eventos Extremos")
+                    fig_perc = go.Figure()
+                    fig_perc.add_trace(go.Bar(x=df_station_perc[Config.DATE_COL], y=df_station_perc[Config.PRECIPITATION_COL], name='Precipitación Mensual', marker_color='lightblue'))
+                    if not df_wet_events.empty:
+                        fig_perc.add_trace(go.Scatter(x=df_wet_events[Config.DATE_COL], y=df_wet_events[Config.PRECIPITATION_COL], mode='markers', name='Eventos Húmedos', marker=dict(color='blue', size=10, symbol='circle')))
+                    if not df_dry_events.empty:
+                        fig_perc.add_trace(go.Scatter(x=df_dry_events[Config.DATE_COL], y=df_dry_events[Config.PRECIPITATION_COL], mode='markers', name='Eventos Secos', marker=dict(color='red', size=10, symbol='circle')))
+                    fig_perc.add_hline(y=wet_threshold, line_dash="dash", line_color="blue", annotation_text=f"Umbral Húmedo")
+                    fig_perc.add_hline(y=dry_threshold, line_dash="dash", line_color="red", annotation_text=f"Umbral Seco")
+                    fig_perc.update_layout(title=f"Eventos Extremos para: {station_to_analyze_perc}", xaxis_title="Fecha", yaxis_title="Precipitación (mm)", height=600)
+                    st.plotly_chart(fig_perc, use_container_width=True)
 
     # --- Lógica para la sub-pestaña de SPI ---
     with spi_sub_tab:
-        st.subheader("Análisis con el Índice Estandarizado de Precipitación (SPI)")
         col1_spi, col2_spi = st.columns([1, 2])
-        
         with col1_spi:
-            station_to_analyze_spi = st.selectbox(
-                "Seleccione una estación para el análisis SPI:",
-                options=sorted(stations_for_analysis),
-                key="spi_station_select",
-            )
-            spi_window = st.select_slider(
-                "Seleccione la escala de tiempo del SPI (meses):",
-                options=[3, 6, 9, 12, 24], value=12, key="spi_window_slider",
-                help="Una escala corta (3 meses) refleja sequías agrícolas. Una escala larga (12-24 meses) refleja sequías hidrológicas."
-            )
+            station_to_analyze_spi = st.selectbox("Seleccione una estación para el análisis SPI:", options=sorted(stations_for_analysis), key="spi_station_select")
+            spi_window = st.select_slider("Seleccione la escala de tiempo del SPI (meses):", options=[3, 6, 9, 12, 24], value=12, key="spi_window_slider", help="Una escala corta (3 meses) refleja sequías agrícolas. Una escala larga (12-24 meses) refleja sequías hidrológicas.")
 
         if station_to_analyze_spi:
             df_station_spi = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_spi].copy()
@@ -1054,17 +1049,12 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
                 ]
                 colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
                 df_plot['color'] = np.select(conditions, colors, default='grey')
-
                 fig = go.Figure()
                 fig.add_trace(go.Bar(x=df_plot.index, y=df_plot['spi'], marker_color=df_plot['color'], name='SPI'))
-                fig.update_layout(
-                    title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze_spi}",
-                    yaxis_title="Valor SPI", xaxis_title="Fecha", height=600
-                )
-                
+                fig.update_layout(title=f"Índice Estandarizado de Precipitación (SPI-{spi_window}) para {station_to_analyze_spi}",
+                                  yaxis_title="Valor SPI", xaxis_title="Fecha", height=600)
                 with col2_spi:
                     st.plotly_chart(fig, use_container_width=True)
-                
                 with st.expander("Ver tabla de datos SPI"):
                     st.dataframe(df_plot[['spi']].style.format("{:.2f}"))
 
