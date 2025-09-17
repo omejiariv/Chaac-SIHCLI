@@ -721,27 +721,30 @@ def main():
 
             gdf_filtered = st.session_state.gdf_stations[st.session_state.gdf_stations[Config.STATION_NAME_COL].isin(stations_for_analysis)].copy()
 
-            # Pestañas principales
-            tab_inicio, tab_espacial, tab_analisis, tab_avanzado, tab_tendencias = st.tabs(["Inicio", "Distribución Espacial", "Análisis de Datos", "Mapas Avanzados", "Tendencias y Pronósticos"])
+          # ... (código anterior) ...
 
-            with tab_inicio:
-                display_welcome_tab()
-            
-            with tab_espacial:
-                display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
-            
-            with tab_analisis:
-                display_analysis_tab(df_monthly_filtered, stations_for_analysis)
-                
-            with tab_avanzado:
-                display_advanced_maps_tab(gdf_filtered, df_monthly_filtered, stations_for_analysis)
-            
-            with tab_tendencias:
-                display_trends_forecast_tab(df_monthly_filtered, stations_for_analysis)
-            
-            else:
-                st.warning("Por favor, suba todos los archivos requeridos en la barra lateral para comenzar.")
-                display_welcome_tab()
+# Pestañas principales
+tab_inicio, tab_espacial, tab_analisis, tab_avanzado, tab_tendencias = st.tabs(["Inicio", "Distribución Espacial", "Análisis de Datos", "Mapas Avanzados", "Tendencias y Pronósticos"])
+
+with tab_inicio:
+    display_welcome_tab()
+
+with tab_espacial:
+    display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
+
+with tab_analisis:
+    display_analysis_tab(df_monthly_filtered, stations_for_analysis)
+    
+with tab_avanzado:
+    display_advanced_maps_tab(gdf_filtered, df_monthly_filtered, stations_for_analysis)
+
+with tab_tendencias:
+    display_trends_forecast_tab(df_monthly_filtered, stations_for_analysis)
+
+# Asegúrate de que este 'else' esté al mismo nivel que el 'if st.session_state.data_loaded:'
+else:
+    st.warning("Por favor, suba todos los archivos requeridos en la barra lateral para comenzar.")
+    display_welcome_tab()
 
 if __name__ == "__main__":
-    main()
+    main()  
