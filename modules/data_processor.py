@@ -9,6 +9,7 @@ import os
 import io
 
 from modules.config import Config
+from scipy.stats import gamma, norm
 
 @st.cache_data
 def parse_spanish_dates(date_series):
