@@ -625,6 +625,7 @@ def main():
                     st.session_state.data_loaded = False
                     st.error("Error al cargar los archivos. Por favor, revise el formato y vuelva a intentarlo.")
 
+        # Lógica de la barra lateral que solo se muestra si los datos están cargados
         if st.session_state.data_loaded:
             st.markdown("---")
             st.subheader("2. Opciones de Análisis")
@@ -710,41 +711,44 @@ def main():
             
             start_month, end_month = st.select_slider("Rango de Meses", options=list(range(1, 13)), value=(1, 12), key='month_range')
             
-            # Aplicar filtros
-            df_monthly_filtered = st.session_state.df_monthly_processed[
-                (st.session_state.df_monthly_processed[Config.YEAR_COL].between(st.session_state.year_range[0], st.session_state.year_range[1])) &
-                (st.session_state.df_monthly_processed[Config.MONTH_COL].between(start_month, end_month)) &
-                (st.session_state.df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis))
-            ].copy()
+    # Lógica de las pestañas principales fuera de la barra lateral
+    if st.session_state.data_loaded:
+        # Aplicar filtros
+        df_monthly_filtered = st.session_state.df_monthly_processed[
+            (st.session_state.df_monthly_processed[Config.YEAR_COL].between(st.session_state.year_range[0], st.session_state.year_range[1])) &
+            (st.session_state.df_monthly_processed[Config.MONTH_COL].between(start_month, end_month)) &
+            (st.session_state.df_monthly_processed[Config.STATION_NAME_COL].isin(st.session_state.station_multiselect))
+        ].copy()
+        
+        df_anual_melted = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL])[Config.PRECIPITATION_COL].sum().reset_index()
+
+        gdf_filtered = st.session_state.gdf_stations[st.session_state.gdf_stations[Config.STATION_NAME_COL].isin(st.session_state.station_multiselect)].copy()
+        
+        stations_for_analysis = st.session_state.station_multiselect
+
+        # Pestañas principales
+        tab_inicio, tab_espacial, tab_analisis, tab_avanzado, tab_tendencias = st.tabs(["Inicio", "Distribución Espacial", "Análisis de Datos", "Mapas Avanzados", "Tendencias y Pronósticos"])
+
+        with tab_inicio:
+            display_welcome_tab()
+        
+        with tab_espacial:
+            display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
+        
+        with tab_analisis:
+            display_analysis_tab(df_monthly_filtered, stations_for_analysis)
             
-            df_anual_melted = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL])[Config.PRECIPITATION_COL].sum().reset_index()
-
-            gdf_filtered = st.session_state.gdf_stations[st.session_state.gdf_stations[Config.STATION_NAME_COL].isin(stations_for_analysis)].copy()
-
-          # ... (código anterior) ...
-
-# Pestañas principales
-tab_inicio, tab_espacial, tab_analisis, tab_avanzado, tab_tendencias = st.tabs(["Inicio", "Distribución Espacial", "Análisis de Datos", "Mapas Avanzados", "Tendencias y Pronósticos"])
-
-with tab_inicio:
-    display_welcome_tab()
-
-with tab_espacial:
-    display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
-
-with tab_analisis:
-    display_analysis_tab(df_monthly_filtered, stations_for_analysis)
+        with tab_avanzado:
+            display_advanced_maps_tab(gdf_filtered, df_monthly_filtered, stations_for_analysis)
+        
+        with tab_tendencias:
+            display_trends_forecast_tab(df_monthly_filtered, stations_for_analysis)
     
-with tab_avanzado:
-    display_advanced_maps_tab(gdf_filtered, df_monthly_filtered, stations_for_analysis)
+    # Bloque `else` para el estado inicial de no carga
+    else:
+        st.warning("Por favor, suba todos los archivos requeridos en la barra lateral para comenzar.")
+        display_welcome_tab()
 
-with tab_tendencias:
-    display_trends_forecast_tab(df_monthly_filtered, stations_for_analysis)
-
-# Asegúrate de que este 'else' esté al mismo nivel que el 'if st.session_state.data_loaded:'
-else:
-    st.warning("Por favor, suba todos los archivos requeridos en la barra lateral para comenzar.")
-    display_welcome_tab()
 
 if __name__ == "__main__":
     main()
