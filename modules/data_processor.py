@@ -227,3 +227,40 @@ def calculate_spi(series, window):
     spi = spi.replace([np.inf, -np.inf], np.nan)
     
     return spi
+
+def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
+    """
+    Realiza una interpolación por Distancia Inversa Ponderada (IDW).
+    """
+    nx, ny = len(grid_lon), len(grid_lat)
+    grid_z = np.zeros((ny, nx))
+    
+    for i in range(nx):
+        for j in range(ny):
+            x, y = grid_lon[i], grid_lat[j]
+            distances = np.sqrt((lons - x)**2 + (lats - y)**2)
+            
+            # Si un punto de la grilla coincide con un punto de datos, usa ese valor.
+            if np.any(distances < 1e-10):
+                grid_z[j, i] = vals[np.argmin(distances)]
+                continue
+
+            weights = 1.0 / (distances**power)
+            weighted_sum = np.sum(weights * vals)
+            total_weight = np.sum(weights)
+            
+            if total_weight > 0:
+                grid_z[j, i] = weighted_sum / total_weight
+            else:
+                grid_z[j, i] = np.nan # O un valor por defecto
+
+    return grid_z.T # Transponer para que coincida con la orientación de plotly
+
+def interpolate_rbf_spline(lons, lats, vals, grid_lon, grid_lat, function='thin_plate'):
+    """
+    Realiza una interpolación usando Radial Basis Function (Spline).
+    """
+    grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+    rbf = Rbf(lons, lats, vals, function=function)
+    z = rbf(grid_x, grid_y)
+    return z.T # Transponer para que coincida con la orientación de plotly
