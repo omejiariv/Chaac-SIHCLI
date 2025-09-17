@@ -30,6 +30,20 @@ import base64
 import pymannkendall as mk
 from modules.config import Config 
 from modules.data_processor import load_and_process_all_data
+from modules.visualizer import (
+    display_welcome_tab,
+    display_spatial_distribution_tab,
+    display_graphs_tab,
+    display_advanced_maps_tab,
+    display_anomalies_tab,
+    display_drought_analysis_tab,
+    display_stats_tab,
+    display_correlation_tab,
+    display_enso_tab,
+    display_trends_and_forecast_tab,
+    display_downloads_tab,
+    display_station_table_tab
+)
 
 # Desactivar UserWarning de scipy/statsmodels que son comunes durante el fitting de distribución
 warnings.filterwarnings("ignore", category=UserWarning)
