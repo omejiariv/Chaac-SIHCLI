@@ -29,6 +29,7 @@ from modules.utils import add_folium_download_button, add_plotly_download_button
 from modules.data_processor import calculate_spi, interpolate_idw, interpolate_rbf_spline
 
 # --- Funciones de Creación de Gráficos y Mapas ---
+
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
         return go.Figure()
@@ -114,7 +115,7 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                      transparent=layer_config.get("transparent", False), overlay=True, control=True,
                      name=layer_config.get("attr", "Overlay")).add_to(m)
     return m
-
+    
 # --- Funciones para las Pestañas de la UI ---
 
 def display_welcome_tab():
