@@ -1,3 +1,5 @@
+# modules/visualizer.py
+
 # --- Importaciones ---
 import streamlit as st
 import pandas as pd
@@ -128,6 +130,7 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
     return m
 
 # --- Funciones para las Pestañas de la UI ---
+
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
     st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
@@ -135,9 +138,7 @@ def display_welcome_tab():
         st.image(Config.LOGO_PATH, width=400, caption="Corporación Cuenca Verde")
 
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered):
-    # (El código de esta función va aquí, sin cambios)
     st.header("Distribución espacial de las Estaciones de Lluvia")
-    
     if len(stations_for_analysis) == 0:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
@@ -262,9 +263,9 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                         var_name='Tipo de Dato', value_name='Porcentaje')
                     
                     fig_comp = px.bar(df_plot, x=Config.STATION_NAME_COL, y='Porcentaje', color='Tipo de Dato',
-                                     title='Composición de Datos por Estación',
-                                     labels={Config.STATION_NAME_COL: 'Estación', 'Porcentaje': '% del Período'},
-                                     color_discrete_map={'% Original': '#1f77b4', '% Completado': '#ff7f0e'}, text_auto='.1f')
+                                      title='Composición de Datos por Estación',
+                                      labels={Config.STATION_NAME_COL: 'Estación', 'Porcentaje': '% del Período'},
+                                      color_discrete_map={'% Original': '#1f77b4', '% Completado': '#ff7f0e'}, text_auto='.1f')
                     fig_comp.update_layout(height=600, xaxis={'categoryorder': 'trace'})
                     st.plotly_chart(fig_comp, use_container_width=True)
             else:
