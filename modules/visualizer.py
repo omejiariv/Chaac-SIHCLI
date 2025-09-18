@@ -23,7 +23,7 @@ from prophet import Prophet
 from prophet.plot import plot_plotly
 import pymannkendall as mk
 
-# --- Importaciones de Módulos Propios ---
+# --- Importaciones de Módulos Propios (LÍNEA CORREGIDA) ---
 from modules.config import Config
 from modules.utils import add_folium_download_button, add_plotly_download_buttons
 from modules.data_processor import calculate_spi, interpolate_idw, interpolate_rbf_spline
