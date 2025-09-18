@@ -566,7 +566,6 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
             st.warning("No se encontró el archivo GIF. Verifique la ruta en config.py")
 
     with mapa_interactivo_tab:
-        with mapa_interactivo_tab:
         st.subheader("Visualización de una Estación con Mini-gráfico de Precipitación")
         if len(stations_for_analysis) == 0:
             st.warning("Por favor, seleccione al menos una estación en el panel lateral para ver esta sección.")
