@@ -563,12 +563,12 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
                 data_url = base64.b64encode(contents).decode("utf-8")
             st.markdown(f'<img src="data:image/gif;base64,{data_url}" alt="Animación PPAM" style="width:100%;">', unsafe_allow_html=True)
         else:
-            st.warning("No se encontró el archivo GIF. Verifique la ruta en config.py")
+            st.warning(f"No se encontró el archivo GIF en la ruta especificada: {Config.GIF_PATH}")
 
     with mapa_interactivo_tab:
         st.subheader("Visualización de una Estación con Mini-gráfico de Precipitación")
         if len(stations_for_analysis) == 0:
-            st.warning("Por favor, seleccione al menos una estación en el panel lateral para ver esta sección.")
+            st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         else:
             station_to_show = st.selectbox("Seleccione la estación a visualizar:", options=sorted(stations_for_analysis), key="station_map_select")
             if station_to_show:
@@ -606,14 +606,6 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
                                 {popup_html_chart}
                             """
                             folium.Marker(location=[station_data[Config.LATITUDE_COL], station_data[Config.LONGITUDE_COL]], popup=folium.Popup(html_popup, max_width=400)).add_to(m)
-                        else:
-                            st.warning(f"No hay datos mensuales para {station_to_show}. Se mostrará un marcador básico.")
-                            html_popup = f"""
-                                <h4>{station_data[Config.STATION_NAME_COL]}</h4>
-                                <p><b>Municipio:</b> {station_data.get(Config.MUNICIPALITY_COL, 'N/A')}</p>
-                                <p><b>Altitud:</b> {station_data.get(Config.ALTITUDE_COL, 'N/A')} m</p>
-                            """
-                            folium.Marker(location=[station_data[Config.LATITUDE_COL], station_data[Config.LONGITUDE_COL]], popup=html_popup).add_to(m)
                         
                         folium.LayerControl().add_to(m)
                         folium_static(m, height=700, width="100%")
@@ -782,11 +774,13 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
 
     with kriging_tab:
         st.subheader("Comparación de Superficies de Interpolación Anual")
+        
         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
         if df_anual_non_na.empty or len(df_anual_non_na[Config.YEAR_COL].unique()) == 0:
             st.warning("No hay suficientes datos anuales para realizar la interpolación.")
         else:
             min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
+            
             control_col, map_col1, map_col2 = st.columns([1, 2, 2])
             
             with control_col:
