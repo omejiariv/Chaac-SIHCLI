@@ -548,9 +548,8 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         st.dataframe(df_regional_avg.round(1), use_container_width=True)
 
 def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analysis, df_monthly_filtered):
-    st.header("Mapas Avanzados")
-    st.info(f"Mostrando análisis para {len(stations_for_analysis)} estaciones en el período {st.session_state.year_range[0]} - {st.session_state.year_range[1]}.")
-
+    st.title("✅ ESTA ES LA NUEVA VERSIÓN DE PRUEBA")
+    st.info("Si puedes ver este mensaje, la conexión de archivos funciona correctamente.")
     tab_names = ["Animación GIF (Antioquia)", "Mapa Interactivo de Estaciones", "Visualización Temporal", 
                  "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas", "Interpolación Comparativa"]
     gif_tab, mapa_interactivo_tab, temporal_tab, race_tab, anim_tab, compare_tab, kriging_tab = st.tabs(tab_names)
