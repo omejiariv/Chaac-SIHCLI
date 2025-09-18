@@ -548,8 +548,9 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         st.dataframe(df_regional_avg.round(1), use_container_width=True)
 
 def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analysis, df_monthly_filtered):
-    st.title("✅ ESTA ES LA NUEVA VERSIÓN DE PRUEBA")
-    st.info("Si puedes ver este mensaje, la conexión de archivos funciona correctamente.")
+    st.header("Mapas Avanzados")
+    st.info(f"Mostrando análisis para {len(stations_for_analysis)} estaciones en el período {st.session_state.year_range[0]} - {st.session_state.year_range[1]}.")
+
     tab_names = ["Animación GIF (Antioquia)", "Mapa Interactivo de Estaciones", "Visualización Temporal", 
                  "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas", "Interpolación Comparativa"]
     gif_tab, mapa_interactivo_tab, temporal_tab, race_tab, anim_tab, compare_tab, kriging_tab = st.tabs(tab_names)
@@ -566,8 +567,8 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
 
     with mapa_interactivo_tab:
         st.subheader("Visualización de una Estación con Mini-gráfico de Precipitación")
-        if len(stations_for_analysis) == 0:
-            st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
+        if not stations_for_analysis.any():
+            st.warning("Por favor, seleccione al menos una estación en el panel lateral para ver esta sección.")
         else:
             station_to_show = st.selectbox("Seleccione la estación a visualizar:", options=sorted(stations_for_analysis), key="station_map_select")
             if station_to_show:
@@ -608,7 +609,6 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
                         
                         folium.LayerControl().add_to(m)
                         folium_static(m, height=700, width="100%")
-        
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         if len(stations_for_analysis) == 0:
@@ -787,12 +787,13 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
                 st.markdown("**Mapa 1**")
                 year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
                 method1 = st.selectbox("Método de interpolación", options=["Kriging Ordinario", "IDW", "Spline (Thin Plate)"], key="interp_method1")
+                
                 st.markdown("---")
                 st.markdown("**Mapa 2**")
                 year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
                 method2 = st.selectbox("Método de interpolación", options=["Kriging Ordinario", "IDW", "Spline (Thin Plate)"], index=1, key="interp_method2")
 
-            def generate_interpolation_map(year, method, gdf_filtered):
+            def generate_interpolation_map(year, method, gdf_filtered_map):
                 data_year = df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year].copy()
                 
                 if len(data_year) < 4:
@@ -801,7 +802,7 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
                     return fig
 
                 lons, lats, vals = data_year[Config.LONGITUDE_COL], data_year[Config.LATITUDE_COL], data_year[Config.PRECIPITATION_COL]
-                bounds = gdf_filtered.total_bounds
+                bounds = gdf_filtered_map.total_bounds
                 grid_lon = np.linspace(bounds[0] - 0.1, bounds[2] + 0.1, 100)
                 grid_lat = np.linspace(bounds[1] - 0.1, bounds[3] + 0.1, 100)
                 z_grid = None
@@ -835,7 +836,7 @@ def display_advanced_maps_tab(gdf_filtered, df_anual_melted, stations_for_analys
                 with st.spinner(f"Generando mapa 2 ({year2}, {method2})..."):
                     fig2 = generate_interpolation_map(year2, method2, gdf_filtered)
                     st.plotly_chart(fig2, use_container_width=True)
-
+                    
 def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Extremos Hidrológicos")
     st.markdown("Esta sección ofrece dos metodologías para identificar eventos extremos: el **análisis de percentiles** para extremos puntuales y el **Índice Estandarizado de Precipitación (SPI)** para evaluar la intensidad de la sequía o humedad.")
