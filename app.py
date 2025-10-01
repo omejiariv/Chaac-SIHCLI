@@ -65,7 +65,7 @@ def main():
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
             try:
-                st.image(Config.LOGO_PATH, width=50) # Simplificado para usar la ruta directamente
+                st.image(Config.LOGO_PATH, width=50)
             except Exception:
                 pass 
     with title_col2:
@@ -104,7 +104,6 @@ def main():
             st.rerun()
 
         with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
-            # ... (código de filtros sin cambios)
             min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0), key='min_data_perc_slider')
             altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
             selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges, key='altitude_multiselect')
@@ -115,11 +114,14 @@ def main():
                 temp_gdf_for_mun = temp_gdf_for_mun[temp_gdf_for_mun[Config.REGION_COL].isin(selected_regions)]
             municipios_list = sorted(temp_gdf_for_mun[Config.MUNICIPALITY_COL].dropna().unique())
             selected_municipios = st.multiselect('Filtrar por Municipio', options=municipios_list, key='municipios_multiselect')
-            
-        gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, [])
+            celdas_list = []
+            if Config.CELL_COL in temp_gdf_for_mun.columns:
+                 celdas_list = sorted(temp_gdf_for_mun[Config.CELL_COL].dropna().unique())
+            selected_celdas = st.multiselect('Filtrar por Celda_XY', options=celdas_list, key='celdas_multiselect')
+
+        gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
 
         with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
-            # ... (código de selección de estaciones y período sin cambios)
             stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
             st.session_state['filtered_station_options'] = stations_options
             st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, value=st.session_state.get('select_all_checkbox', True))
@@ -135,62 +137,31 @@ def main():
             meses_nombres = st.multiselect("Seleccionar Meses", list(meses_dict.keys()), default=list(meses_dict.keys()), key='meses_nombres')
             meses_numeros = [meses_dict[m] for m in meses_nombres]
 
-        # ORDEN DE EXPANDERS CORREGIDO
         with st.sidebar.expander("Opciones de Preprocesamiento de Datos"):
             st.radio("Análisis de Series Mensuales", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
             st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
             st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-        # --- LÓGICA DE DEM ---
         with st.sidebar.expander("Opciones de Modelo Digital de Elevación (DEM)"):
-            dem_source = st.radio("Fuente de DEM para KED (Kriging):", ("No usar DEM", "Subir DEM propio (GeoTIFF)", "Cargar DEM desde Servidor"), key="dem_source")
-            
+            dem_source = st.radio("Fuente de DEM para KED (Kriging):", ("No usar DEM", "Subir DEM propio (GeoTIFF)"), key="dem_source")
             uploaded_dem_file = None
             if dem_source == "Subir DEM propio (GeoTIFF)":
                 uploaded_dem_file = st.file_uploader("Cargar GeoTIFF (.tif) para elevación", type=["tif", "tiff"], key="dem_uploader")
-            
-            if dem_source == "Cargar DEM desde Servidor":
-                if st.button("Descargar y Usar DEM Remoto", key="download_dem_button"):
-                    with st.spinner("Descargando DEM del servidor..."):
-                        try:
-                            # La función de descarga está en data_processor.py
-                            st.session_state.dem_raster = download_and_load_remote_dem(Config.DEM_SERVER_URL) 
-                            st.success("DEM remoto cargado y listo para KED.")
-                        except Exception as e:
-                            st.error(f"Error al cargar DEM remoto: {e}. Verifique la URL en Config.py")
-                            st.session_state.dem_raster = None
-
-            # Procesamiento del DEM (aplica altitud a gdf_stations)
-            if dem_source == "No usar DEM":
-                st.session_state.dem_raster = None 
-
-            if uploaded_dem_file or st.session_state.get('dem_raster') is not None:
-                if f'original_{Config.ALTITUDE_COL}' not in st.session_state:
-                    st.session_state[f'original_{Config.ALTITUDE_COL}'] = st.session_state.gdf_stations.get(Config.ALTITUDE_COL, None)
-
-                dem_data = uploaded_dem_file if uploaded_dem_file else st.session_state.dem_raster
-                
-                st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations.copy(), dem_data)
+            if uploaded_dem_file:
+                st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations.copy(), uploaded_dem_file)
                 st.sidebar.success("Altitud de estaciones actualizada.")
-            else:
-                if st.session_state.get(f'original_{Config.ALTITUDE_COL}') is not None and Config.ALTITUDE_COL in st.session_state.gdf_stations.columns:
-                     st.session_state.gdf_stations[Config.ALTITUDE_COL] = st.session_state[f'original_{Config.ALTITUDE_COL}']
 
         # --- PREPARACIÓN DE DATAFRAMES FINALES ---
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         st.session_state.meses_numeros = meses_numeros
 
-        # Aplicar el modo de análisis (interpolación o no)
+        df_monthly_processed = st.session_state.df_long.copy()
         if st.session_state.analysis_mode == "Completar series (interpolación)":
-            # La función complete_series debe estar importada desde data_processor
-            df_monthly_processed = complete_series(st.session_state.df_long.copy())
-        else:
-            df_monthly_processed = st.session_state.df_long.copy()
-            
+            df_monthly_processed = complete_series(df_monthly_processed)
+        
         st.session_state.df_monthly_processed = df_monthly_processed
 
-        # Filtrar datos mensuales por tiempo y estación
         df_monthly_filtered = df_monthly_processed[
             (df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
             (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
@@ -198,30 +169,23 @@ def main():
             (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
         ].copy()
 
-        # Filtrar datos anuales para agregación
         annual_data_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
             (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
             (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
         ].copy()
 
-        # Aplicar exclusión de NaN/Ceros
         if st.session_state.get('exclude_na', False):
             df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
             annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-
         if st.session_state.get('exclude_zeros', False):
             df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-            annual_data_filtered = \
-                annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
 
-        # Agregación anual (para series anuales)
-        annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL,
-                                                     Config.YEAR_COL]).agg(
+        annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
             precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
             meses_validos=(Config.PRECIPITATION_COL, 'count')
         ).reset_index()
-
         annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
         df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
@@ -232,52 +196,29 @@ def main():
             "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
             "Descargas", "Tabla de Estaciones"
         ]
-        
         tabs = st.tabs(tab_names)
 
-        # CRÍTICO: Verificar que haya datos para evitar fallos en funciones downstream
         if df_anual_melted.empty or df_monthly_filtered.empty or gdf_filtered.empty:
             with tabs[0]:
-                 st.warning("No hay datos disponibles para los filtros aplicados. Ajuste la selección de años, meses o estaciones.")
+                display_welcome_tab()
+                st.warning("No hay datos disponibles para los filtros aplicados. Ajuste la selección de años, meses o estaciones.")
             return
 
-        with tabs[0]:
-            display_welcome_tab()
-        with tabs[1]:
-            display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                             df_monthly_filtered)
-        with tabs[2]:
-            display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis,
-                               gdf_filtered)
-        with tabs[3]:
-            display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                      df_monthly_filtered)
-        with tabs[4]:
-            display_anomalies_tab(st.session_state.df_long, df_monthly_filtered, stations_for_analysis)
-        with tabs[5]:
-            display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for_analysis)
-        with tabs[6]:
-            # 💥 Se añadió gdf_filtered como 5to argumento 💥
-            display_stats_tab(st.session_state.df_long, df_anual_melted, df_monthly_filtered,
-                              stations_for_analysis, gdf_filtered) 
-        with tabs[7]:
-            display_correlation_tab(df_monthly_filtered, stations_for_analysis)
-        with tabs[8]:
-            display_enso_tab(df_monthly_filtered, st.session_state.df_enso, gdf_filtered,
-                             stations_for_analysis)
-        with tabs[9]:
-            display_trends_and_forecast_tab(df_anual_melted,
-                                            st.session_state.df_monthly_processed, stations_for_analysis)
-        with tabs[10]:
-            display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
-        with tabs[11]:
-            display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis)
-
+        with tabs[0]: display_welcome_tab()
+        with tabs[1]: display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
+        with tabs[2]: display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered)
+        with tabs[3]: display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
+        with tabs[4]: display_anomalies_tab(st.session_state.df_long, df_monthly_filtered, stations_for_analysis)
+        with tabs[5]: display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for_analysis)
+        with tabs[6]: display_stats_tab(st.session_state.df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered) 
+        with tabs[7]: display_correlation_tab(df_monthly_filtered, stations_for_analysis)
+        with tabs[8]: display_enso_tab(df_monthly_filtered, st.session_state.df_enso, gdf_filtered, stations_for_analysis)
+        with tabs[9]: display_trends_and_forecast_tab(df_anual_melted, st.session_state.df_monthly_processed, stations_for_analysis)
+        with tabs[10]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
+        with tabs[11]: display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis)
     else:
-        # Si los datos no se han cargado, mostrar la pantalla de bienvenida
         display_welcome_tab()
-        st.info("Para comenzar, por favor cargue los 3 archivos requeridos en el panel de la izquierda y haga clic en 'Procesar y Almacenar Datos'.")
-
+        st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
 
 if __name__ == "__main__":
     main()
