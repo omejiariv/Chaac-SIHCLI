@@ -1,72 +1,85 @@
 # modules/config.py
 
+import os
 import streamlit as st
 import pandas as pd
-import os
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# 2. Ahora, definir la clase. Ya puede "ver" y usar la variable BASE_DIR.
 class Config:
-    # Nombres de Columnas de Datos
-    STATION_NAME_COL = 'nom_est'
-    PRECIPITATION_COL = 'precipitation'
-    # ... (el resto de tus nombres de columnas) ...
-    
-    # Rutas de Archivos (usando la ruta absoluta)
-    LOGO_PATH = os.path.join(BASE_DIR, "data", "CuencaVerde Logo.jpg")
-    LOGO_DROP_PATH = os.path.join(BASE_DIR, "data", "CuencaVerdeGoticaLogo.JPG")
-    GIF_PATH = os.path.join(BASE_DIR, "data", "PPAM.gif")
-    
-    # Mensajes de la UI
-    APP_TITLE = "Sistema de información de las lluvias y el Clima en el norte de la región Andina"
-    # ... (el resto de tu clase Config se mantiene igual) ...
+    # --- Configuración de la Aplicación ---
+    APP_TITLE = "Sistema de Información de Lluvias y Clima en el norte de la región Andina"
+    # --- RUTAS ROBUSTAS A LOS ARCHIVOS DEL PROYECTO ---
+    # 1. Obtenemos la ruta a la carpeta donde está este archivo (la carpeta 'modules')
+    _MODULES_DIR = os.path.dirname(__file__)
+
+    # 2. Subimos un nivel para llegar a la raíz del proyecto
+    _PROJECT_ROOT = os.path.abspath(os.path.join(_MODULES_DIR, '..'))
+
+    # 3. Construimos las rutas completas y correctas a los archivos
+    GIF_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'PPAM.gif')
+    LOGO_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'CuencaVerde_Logo.jpg')
+
     WELCOME_TEXT = """
-    Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de precipitación y su
-    relación con el fenómeno ENSO en el norte de la región Andina.
-    
-    **¿Cómo empezar?**
-    1.  **Cargue sus archivos**: Si es la primera vez que usa la aplicación, el panel de la izquierda le solicitará cargar los archivos de estaciones,
-    precipitación y el shapefile de municipios. La aplicación recordará estos archivos en su sesión.
-    2.  **Filtre los datos**: Una vez cargados los datos, utilice el **Panel de Control** en la barra lateral para filtrar las estaciones por ubicación (región, municipio), altitud,
-    porcentaje de datos disponibles, y para seleccionar el período de análisis (años y meses).
-    3.  **Explore las pestañas**: Cada pestaña ofrece una perspectiva diferente de los datos. Navegue a través de ellas para descubrir:
-        - **Distribución Espacial**: Mapas interactivos de las estaciones.
-        - **Gráficos**: Series de tiempo anuales, mensuales, comparaciones y distribuciones.
-        - **Mapas Avanzados**: Animaciones y mapas de interpolación.
-        - **Análisis de Anomalías**: Desviaciones de la precipitación respecto a la media histórica.
-        - **Tendencias y Pronósticos**: Análisis de tendencias a largo plazo y modelos de pronóstico.
-    
-    Utilice el botón **🧹 Limpiar Filtros** en el panel lateral para reiniciar su selección en cualquier momento.
-    
-    ¡Esperamos que esta herramienta le sea de gran utilidad para sus análisis climáticos!
+    "El futuro, también depende del pasado y de nuestra capacidad presente para anticiparlo" -- omr.
+
+    Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de precipitación y su relación con el fenómeno ENSO en el norte de la región Andina.
+
+    #### ¿Cómo empezar?
+    1. **Cargar Archivos:** En el panel de la izquierda, suba los archivos de estaciones, precipitación y el shapefile de municipios.
+    2. **Aplicar Filtros:** Utilice el **Panel de Control** para filtrar las estaciones y seleccionar el período de análisis.
+    3. **Explorar Análisis:** Navegue a través de las pestañas para visualizar los datos.
     """
+
+    # --- Nombres de Columnas Estándar (deben coincidir con la lógica de data_processor.py) ---
+    DATE_COL = 'fecha_mes_año'
+    PRECIPITATION_COL = 'precipitation'
+    STATION_NAME_COL = 'nom_est'
+    ALTITUDE_COL = 'alt_est'
+    LATITUDE_COL = 'latitud_wgs84'
+    LONGITUDE_COL = 'longitud_wgs84'
+    MUNICIPALITY_COL = 'municipio'
+    REGION_COL = 'depto_region'
+    PERCENTAGE_COL = 'porc_datos'
+    YEAR_COL = 'año'
+    MONTH_COL = 'mes'
+    ORIGIN_COL = 'origin'
+    CELL_COL = 'celda_xy'
+    ET_COL = 'et_mmy' # Evapotranspiración
+    ELEVATION_COL = 'elevation_dem' # Usado para KED desde DEM
+    
+    # Índices Climáticos
+    ENSO_ONI_COL = 'anomalia_oni'
+    SOI_COL = 'soi'
+    IOD_COL = 'iod'
+    
+    # --- Configuración para DEM ---
+    # 💥 CORRECCIÓN DEM_SERVER_URL 💥
+    DEM_SERVER_URL = "https://tu-bucket.storage.com/srtm_antioquia.tif" 
     
     @staticmethod
     def initialize_session_state():
-        # ... (este método se mantiene igual) ...
-        state_defaults = {
-            'data_loaded': False,
-            'analysis_mode': "Usar datos originales",
-            'select_all_stations_state': False,
-            'df_monthly_processed': pd.DataFrame(),
-            'gdf_stations': None,
-            'df_precip_anual': None,
-            'gdf_municipios': None,
-            'df_long': None,
-            'df_enso': None,
-            'min_data_perc_slider': 0,
-            'altitude_multiselect': [],
-            'regions_multiselect': [],
-            'municipios_multiselect': [],
-            'celdas_multiselect': [],
-            'station_multiselect': [],
-            'exclude_na': False,
-            'exclude_zeros': False,
-            'uploaded_forecast': None,
-            'sarima_forecast': None, 
-            'prophet_forecast': None 
-        }
-        for key, value in state_defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
+        if 'data_loaded' not in st.session_state:
+            st.session_state.data_loaded = False
+        if 'gdf_stations' not in st.session_state:
+            st.session_state.gdf_stations = None
+        if 'df_long' not in st.session_state:
+            st.session_state.df_long = None
+        if 'df_enso' not in st.session_state:
+            st.session_state.df_enso = None
+        if 'gdf_municipios' not in st.session_state:
+            st.session_state.gdf_municipios = None
+        if 'df_monthly_processed' not in st.session_state:
+            st.session_state.df_monthly_processed = pd.DataFrame()
+        if 'meses_numeros' not in st.session_state:
+            st.session_state.meses_numeros = list(range(1, 13))
+        if 'year_range' not in st.session_state:
+            st.session_state.year_range = (2000, 2020)
+        if 'dem_source' not in st.session_state:
+            st.session_state.dem_source = "No usar DEM"
+        if 'dem_raster' not in st.session_state:
+            st.session_state.dem_raster = None
+        if 'sarima_forecast' not in st.session_state:
+            st.session_state.sarima_forecast = None
+        if 'prophet_forecast' not in st.session_state:
+            st.session_state.prophet_forecast = None
+        if 'gif_reload_key' not in st.session_state:
+            st.session_state.gif_reload_key = 0
