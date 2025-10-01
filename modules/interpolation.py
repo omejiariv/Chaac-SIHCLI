@@ -31,6 +31,7 @@ def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
                 grid_z[j, i] = np.nan
     return grid_z.T
 
+@st.cache_data
 def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map, df_anual_non_na):
     # Prepara los datos del año específico, asegurando que la altitud esté presente
     df_year = pd.merge(
