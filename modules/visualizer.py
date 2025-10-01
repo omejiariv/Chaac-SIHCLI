@@ -1056,6 +1056,7 @@ def display_event_analysis(index_values, index_type):
 
     with col2:
         st.markdown("##### 🌧️ **Resumen de Períodos Húmedos**")
+        # CORRECCIÓN: Comprobación robusta de que el DataFrame no está vacío
         if not wet_periods_df.empty:
             longest_wet = wet_periods_df.loc[wet_periods_df['Duración (meses)'].idxmax()]
             most_intense_wet = wet_periods_df.loc[wet_periods_df['Pico'].idxmax()]
