@@ -1,5 +1,6 @@
 # modules/interpolation.py
 
+import streamlit as st
 import pandas as pd
 import numpy as np
 import gstools as gs
@@ -9,7 +10,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.model_selection import LeaveOneOut
 from sklearn.metrics import mean_squared_error
-import streamlit as st
 
 from modules.config import Config
 
@@ -33,17 +33,10 @@ def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
     return grid_z.T
 
 @st.cache_data
-def create_interpolation_surface(year, method, variogram_model, _gdf_filtered_map, df_anual_non_na):
-    """
-    Crea una superficie de interpolación y calcula el error RMSE.
-    El argumento _gdf_filtered_map tiene un guion bajo para ser ignorado por el caché de Streamlit.
-    """
-    fig_var = None
-    error_msg = None
-    
+def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_metadata, df_anual_non_na):
     df_year = pd.merge(
         df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year],
-        _gdf_filtered_map.drop_duplicates(subset=[Config.STATION_NAME_COL]),
+        gdf_metadata,
         on=Config.STATION_NAME_COL
     )
 
