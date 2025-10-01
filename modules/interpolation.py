@@ -1,6 +1,5 @@
 # modules/interpolation.py
 
-import streamlit as st
 import pandas as pd
 import numpy as np
 import gstools as gs
@@ -10,6 +9,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.model_selection import LeaveOneOut
 from sklearn.metrics import mean_squared_error
+import streamlit as st
 
 from modules.config import Config
 
@@ -33,15 +33,20 @@ def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
     return grid_z.T
 
 @st.cache_data
-def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map, df_anual_non_na):
-    # Prepara los datos del año específico, asegurando que la altitud esté presente
+def create_interpolation_surface(year, method, variogram_model, _gdf_filtered_map, df_anual_non_na):
+    """
+    Crea una superficie de interpolación y calcula el error RMSE.
+    El argumento _gdf_filtered_map tiene un guion bajo para ser ignorado por el caché de Streamlit.
+    """
+    fig_var = None
+    error_msg = None
+    
     df_year = pd.merge(
         df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year],
-        gdf_filtered_map.drop_duplicates(subset=[Config.STATION_NAME_COL]),
+        _gdf_filtered_map.drop_duplicates(subset=[Config.STATION_NAME_COL]),
         on=Config.STATION_NAME_COL
     )
 
-    # Limpia los datos, eliminando filas con valores no finitos en columnas clave
     clean_cols = [Config.LONGITUDE_COL, Config.LATITUDE_COL, Config.PRECIPITATION_COL, Config.ALTITUDE_COL]
     if method == "Kriging con Deriva Externa (KED)":
         clean_cols.append(Config.ELEVATION_COL)
@@ -59,15 +64,12 @@ def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map
     lats = df_clean[Config.LATITUDE_COL].values
     vals = df_clean[Config.PRECIPITATION_COL].values
     
-    # --- CÁLCULO DEL ERROR (RMSE) MEDIANTE VALIDACIÓN CRUZADA (Leave-One-Out) ---
     rmse = None
     if len(vals) > 1 and method in ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]:
         loo = LeaveOneOut()
-        true_values = []
-        predicted_values = []
+        true_values, predicted_values = [], []
         
         for train_index, test_index in loo.split(lons):
-            # Separar datos de entrenamiento y prueba para esta iteración
             lons_train, lons_test = lons[train_index], lons[test_index]
             lats_train, lats_test = lats[train_index], lats[test_index]
             vals_train, vals_test = vals[train_index], vals[test_index]
@@ -75,30 +77,28 @@ def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map
             try:
                 z_pred = None
                 if method == "Kriging Ordinario":
-                    model_cv = gs.Spherical(dim=2) # Usamos un modelo simple para la validación
+                    model_cv = gs.Spherical(dim=2)
                     bin_center_cv, gamma_cv = gs.vario_estimate((lons_train, lats_train), vals_train)
                     model_cv.fit_variogram(bin_center_cv, gamma_cv, nugget=True)
                     krig_cv = gs.krige.Ordinary(model_cv, (lons_train, lats_train), vals_train)
                     z_pred, _ = krig_cv((lons_test[0], lats_test[0]))
-                
                 elif method == "IDW":
                     z_pred = interpolate_idw(lons_train, lats_train, vals_train, lons_test, lats_test)[0, 0]
-
                 elif method == "Spline (Thin Plate)":
-                    rbf_cv = Rbf(lons_train, lats_train, vals_train, function='thin_plate')
-                    z_pred = rbf_cv(lons_test, lats_test)[0]
+                    if len(lons_train) > 0: # Rbf necesita al menos un punto
+                        rbf_cv = Rbf(lons_train, lats_train, vals_train, function='thin_plate')
+                        z_pred = rbf_cv(lons_test, lats_test)[0]
 
                 if z_pred is not None:
                     predicted_values.append(z_pred)
                     true_values.append(vals_test[0])
             except Exception:
-                continue # Si un pliegue de validación falla, lo saltamos
+                continue
         
         if true_values and predicted_values:
             rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
 
-    # --- LÓGICA DE INTERPOLACIÓN PARA EL MAPA COMPLETO ---
-    bounds = gdf_filtered_map.total_bounds
+    bounds = _gdf_filtered_map.total_bounds
     grid_lon = np.linspace(bounds[0] - 0.1, bounds[2] + 0.1, 100)
     grid_lat = np.linspace(bounds[1] - 0.1, bounds[3] + 0.1, 100)
     z_grid, fig_variogram, error_message = None, None, None
@@ -118,12 +118,11 @@ def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map
 
             if method == "Kriging Ordinario":
                 krig = gs.krige.Ordinary(model, (lons, lats), vals)
-            else: # KED
+            else:
                 drift_vals = df_clean[Config.ELEVATION_COL].values
                 krig = gs.krige.ExtDrift(model, (lons, lats), vals, drift_src=drift_vals)
             
             z_grid, _ = krig.structured([grid_lon, grid_lat])
-
         elif method == "IDW":
             z_grid = interpolate_idw(lons, lats, vals, grid_lon, grid_lat)
         elif method == "Spline (Thin Plate)":
@@ -147,7 +146,6 @@ def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map
         fig.add_trace(go.Scatter(
             x=lons, y=lats, mode='markers', marker=dict(color='red', size=5, line=dict(width=1, color='black')), name='Estaciones',
             hoverinfo='text',
-            # MEJORA: Texto del popup con Altitud
             text=[f"<b>{row[Config.STATION_NAME_COL]}</b><br>" +
                   f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>" +
                   f"Altitud: {row[Config.ALTITUDE_COL]} m<br>" +
@@ -155,7 +153,6 @@ def create_interpolation_surface(year, method, variogram_model, gdf_filtered_map
                   for _, row in df_clean.iterrows()]
         ))
 
-        # MEJORA: Añadir anotación con el error RMSE
         if rmse is not None:
             fig.add_annotation(
                 x=0.01, y=0.99, xref="paper", yref="paper",
