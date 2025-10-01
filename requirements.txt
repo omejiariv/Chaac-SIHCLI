@@ -4,7 +4,6 @@ altair
 folium
 plotly
 geopandas
-pykrige
 scipy
 prophet
 streamlit-folium
@@ -18,5 +17,5 @@ rioxarray
 statsmodels
 scikit-learn
 pymannkendall
-kaleido
-climate-indices
+gstools
+rasterio
