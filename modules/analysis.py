@@ -83,3 +83,55 @@ def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_uppe
     is_wet = (df_station_extremes[Config.PRECIPITATION_COL] > df_station_extremes['p_upper'])
     df_station_extremes.loc[is_wet, 'event_type'] = f'Húmedo Extremo (> P{p_upper}%)'
     return df_station_extremes.dropna(subset=[Config.PRECIPITATION_COL]), df_thresholds
+
+# --- NUEVA FUNCIÓN PARA ANÁLISIS DE EVENTOS ---
+def analyze_events(index_series, threshold, event_type='drought'):
+    """
+    Identifica y caracteriza eventos de sequía o humedad en una serie de tiempo de índices.
+
+    Args:
+        index_series (pd.Series): Serie de tiempo con índices (SPI, SPEI).
+        threshold (float): Umbral para definir el inicio de un evento.
+        event_type (str): 'drought' (eventos < umbral) o 'wet' (eventos > umbral).
+
+    Returns:
+        pd.DataFrame: DataFrame con las características de cada evento.
+    """
+    if event_type == 'drought':
+        is_event = index_series < threshold
+    else: # 'wet'
+        is_event = index_series > threshold
+
+    # Asigna un ID único a cada bloque consecutivo de eventos
+    event_blocks = (is_event.diff() != 0).cumsum()
+    
+    # Filtra solo los bloques que son eventos
+    active_events = is_event[is_event]
+    if active_events.empty:
+        return pd.DataFrame()
+
+    events = []
+    # Agrupa por los IDs de bloque para analizar cada evento por separado
+    for event_id, group in active_events.groupby(event_blocks):
+        start_date = group.index.min()
+        end_date = group.index.max()
+        duration = len(group)
+        
+        # Extrae los valores del índice para el evento actual
+        event_values = index_series.loc[start_date:end_date]
+        
+        magnitude = event_values.sum()
+        intensity = event_values.mean()
+        peak = event_values.min() if event_type == 'drought' else event_values.max()
+
+        events.append({
+            'Fecha Inicio': start_date,
+            'Fecha Fin': end_date,
+            'Duración (meses)': duration,
+            'Magnitud': magnitude,
+            'Intensidad': intensity,
+            'Pico': peak
+        })
+
+    events_df = pd.DataFrame(events)
+    return events_df.sort_values(by='Fecha Inicio').reset_index(drop=True)
