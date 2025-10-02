@@ -16,14 +16,12 @@ import os
 import branca.colormap as cm
 import matplotlib.pyplot as plt
 from scipy import stats
-import pymannkendall as mk
-from prophet.plot import plot_plotly
 import io
-
 from modules.analysis import (
     calculate_spi, calculate_spei, calculate_monthly_anomalies,
-    calculate_percentiles_and_extremes, analyze_events # <-- Importación añadida
+    calculate_percentiles_and_extremes, analyze_events
 )
+
 from modules.config import Config
 from modules.utils import add_folium_download_button
 from modules.interpolation import create_interpolation_surface
