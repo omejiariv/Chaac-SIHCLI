@@ -1,6 +1,5 @@
 # modules/visualizer.py
-
-# --- Importaciones Estándar y de Terceros ---
+#--- Importaciones Estándar y de Terceros
 import streamlit as st
 import pandas as pd
 import base64
@@ -20,8 +19,7 @@ import pymannkendall as mk
 from scipy import stats
 from prophet.plot import plot_plotly
 import io
-
-# --- Importaciones de Módulos Propios ---
+#--- Importaciones de Módulos Propios
 from modules.analysis import (
     calculate_spi, calculate_spei, calculate_monthly_anomalies,
     calculate_percentiles_and_extremes, analyze_events,
@@ -34,18 +32,15 @@ from modules.forecasting import (
     generate_sarima_forecast, generate_prophet_forecast,
     get_decomposition_results, create_acf_chart, create_pacf_chart
 )
-
-# --- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN ---
-
-def display_filter_summary(total_stations_count, selected_stations_count, year_range, selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
+#--- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN
+def display_filter_summary(total_stations_count, selected_stations_count, year_range,
+                           selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
     """Muestra una caja informativa con un resumen de todos los filtros aplicados."""
     if isinstance(year_range, tuple) and len(year_range) == 2:
         year_text = f"{year_range[0]}-{year_range[1]}"
     else:
         year_text = "N/A"
-    
     mode_text = "Serie Completada" if "Completar" in analysis_mode else "Serie Original"
-    
     summary_parts = [
         f"**Estaciones:** {selected_stations_count}/{total_stations_count}",
         f"**Período:** {year_text}",
@@ -57,7 +52,6 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
         summary_parts.append(f"**Municipio:** {', '.join(selected_municipios)}")
     if selected_altitudes:
         summary_parts.append(f"**Altitud:** {', '.join(selected_altitudes)}")
-
     st.info(" | ".join(summary_parts))
 
 def get_map_options():
@@ -306,30 +300,33 @@ def display_welcome_tab():
         except Exception:
             st.warning("No se pudo cargar el logo de bienvenida.")
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered):
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
     display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros)
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
     gdf_display = gdf_filtered.copy()
-    if not df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL]).empty:
-        summary_stats = df_anual_melted.groupby(Config.STATION_NAME_COL)[Config.PRECIPITATION_COL].agg(['mean', 'count']).reset_index()
+    if not df_anual_melted.dropna (subset=[Config. PRECIPITATION_COL]).empty:
+        summary_stats = df_anual_melted.groupby (Config.STATION_NAME_COL) [Config.PRECIPITATION_COL].agg(['mean', 'count']).reset_index()
         summary_stats.rename(columns={'mean': 'precip_media_anual', 'count': 'años_validos'}, inplace=True)
         gdf_display = gdf_display.merge(summary_stats, on=Config.STATION_NAME_COL, how='left')
     else:
         gdf_display['precip_media_anual'] = np.nan
         gdf_display['años_validos'] = 0
-    
     gdf_display['precip_media_anual'] = gdf_display['precip_media_anual'].fillna(0)
     gdf_display['años_validos'] = gdf_display['años_validos'].fillna(0).astype(int)
-
     sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
-
     with sub_tab_mapa:
         controls_col, map_col = st.columns([1, 3])
         with controls_col:
@@ -342,9 +339,8 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 if os.path.exists(Config.LOGO_PATH):
                     try:
                         with open(Config.LOGO_PATH, "rb") as f: logo_bytes = f.read()
-                        st.image(logo_bytes, width=70)
+                        st.image(logo_bytes, width = 70)
                     except Exception: st.warning("No se pudo cargar el logo.")
-
         with map_col:
             if not gdf_display.empty:
                 m = create_folium_map(location=[4.57, -74.29], zoom=5, base_map_config=selected_base_map_config, overlays_config=selected_overlays_config, fit_bounds_data=gdf_display)
@@ -360,7 +356,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 add_folium_download_button(m, "mapa_distribucion.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
-
+                
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
         if not gdf_display.empty:
