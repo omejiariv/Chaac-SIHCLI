@@ -1235,6 +1235,37 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
+        # --- NUEVOS CONTROLES PARA TIPO DE ANOMALÍA ---
+    st.subheader("Configuración del Análisis")
+    analysis_type = st.radio(
+        "Calcular anomalía con respecto a:",
+        ("El promedio del período seleccionado", "Una Normal Climatológica (período base fijo)"),
+        key="anomaly_type"
+    )
+
+    df_anomalias = pd.DataFrame()
+
+    if analysis_type == "Una Normal Climatológica (período base fijo)":
+        years_in_long = sorted(df_long[Config.YEAR_COL].unique())
+        default_start = 1991 if 1991 in years_in_long else years_in_long[0]
+        default_end = 2020 if 2020 in years_in_long else years_in_long[-1]
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            baseline_start = st.selectbox("Año de inicio del período base:", years_in_long, index=years_in_long.index(default_start))
+        with c2:
+            baseline_end = st.selectbox("Año de fin del período base:", years_in_long, index=years_in_long.index(default_end))
+
+        if baseline_start >= baseline_end:
+            st.error("El año de inicio del período base debe ser anterior al año de fin.")
+            return
+        
+        with st.spinner(f"Calculando anomalías vs. normal climatológica ({baseline_start}-{baseline_end})..."):
+            df_anomalias = calculate_climatological_anomalies(df_monthly_filtered, df_long, baseline_start, baseline_end)
+    else:
+        with st.spinner("Calculando anomalías vs. promedio del período..."):
+            df_anomalias = calculate_monthly_anomalies(df_monthly_filtered, df_long)
+
     if df_long is None or df_long.empty:
         st.warning("No se puede realizar el análisis de anomalías. El DataFrame base no está disponible.")
         return
