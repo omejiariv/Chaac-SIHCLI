@@ -356,7 +356,6 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 add_folium_download_button(m, "mapa_distribucion.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
-                
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
         if not gdf_display.empty:
@@ -400,11 +399,17 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         else:
             st.warning("No hay estaciones seleccionadas para mostrar el gráfico.")
 
-def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered):
+def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Visualizaciones de Precipitación")
     display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros)
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
@@ -692,19 +697,20 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                 df_regional_avg_display = df_regional_avg.rename(columns={'Precipitación Promedio': 'Precipitación Promedio Regional (mm)'})
                 st.dataframe(df_regional_avg_display.round(1), use_container_width=True)
 
-def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered):
+def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
-    
-    # CORRECCIÓN: Verificar que 'gdf_stations' existe en session_state antes de usarlo.
     if 'gdf_stations' not in st.session_state or 'year_range' not in st.session_state or 'meses_numeros' not in st.session_state:
         st.warning("Los datos de sesión no están completamente inicializados. Por favor, cargue y procese los datos primero.")
         return
-        
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
         year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección."); return
@@ -1098,12 +1104,21 @@ def display_event_analysis(index_values, index_type):
         else:
             st.info("No hay datos de períodos húmedos para mostrar.")
 
-def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for_analysis):
+def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Extremos Hidrológicos")
     if 'gdf_stations' not in st.session_state: st.warning("Cargue los datos para continuar."); return
-    display_filter_summary(len(st.session_state.gdf_stations), len(stations_for_analysis), st.session_state.year_range, len(st.session_state.meses_numeros))
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
     if not stations_for_analysis: st.warning("Seleccione al menos una estación."); return
-
+        
     percentile_sub_tab, indices_sub_tab = st.tabs(["Análisis por Percentiles", "Índices de Sequía (SPI/SPEI)"])
 
     with percentile_sub_tab:
@@ -1210,18 +1225,22 @@ def display_event_analysis(index_values, index_type):
             with st.expander("Ver tabla de datos de períodos húmedos"): st.dataframe(wet_periods_df.style.format({'Fecha Inicio':'{:%Y-%m}','Fecha Fin':'{:%Y-%m}','Magnitud':'{:.2f}','Intensidad':'{:.2f}','Pico':'{:.2f}'}))
         else: st.info("No hay datos de períodos húmedos para mostrar.")
                 
-def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
+def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Anomalías de Precipitación")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
         year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-
+        
         # --- NUEVOS CONTROLES PARA TIPO DE ANOMALÍA ---
     st.subheader("Configuración del Análisis")
     analysis_type = st.radio(
@@ -1318,9 +1337,18 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
                 'precip_promedio_mes': 'Ppt. Media (mm)'
             }).round(0), use_container_width=True)
 
-def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, **kwargs):
+def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Estadísticas de Precipitación")
-    display_filter_summary(len(st.session_state.gdf_stations), len(stations_for_analysis), st.session_state.year_range, len(st.session_state.meses_numeros), **kwargs)
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
     if not stations_for_analysis: st.warning("Por favor, seleccione al menos una estación."); return
 
     matriz_tab, resumen_mensual_tab, series_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Datos Series Pptn", "Síntesis General"])
@@ -1521,13 +1549,17 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         else:
             st.info("No hay datos para mostrar la síntesis general.")
 
-def display_correlation_tab(df_monthly_filtered, stations_for_analysis):
+def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Correlación")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
         year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
@@ -1690,13 +1722,17 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis):
                 else:
                     st.warning("No hay suficientes datos superpuestos entre la estación y el índice para calcular la correlación.")
 
-def display_enso_tab(df_monthly_filtered, df_enso, gdf_filtered, stations_for_analysis):
+def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Precipitación y el Fenómeno ENSO")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
         year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
