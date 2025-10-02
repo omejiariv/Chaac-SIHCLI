@@ -14,6 +14,7 @@ from sklearn.metrics import mean_squared_error
 from modules.config import Config
 
 def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
+    """Realiza una interpolación por el método IDW."""
     nx, ny = len(grid_lon), len(grid_lat)
     grid_z = np.zeros((ny, nx))
     for i in range(nx):
@@ -34,14 +35,23 @@ def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
 
 @st.cache_data
 def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_metadata, df_anual_non_na):
+    """
+    Crea una superficie de interpolación y calcula el error RMSE.
+    Usa argumentos simples (gdf_bounds, gdf_metadata) para ser compatible con el caché de Streamlit.
+    """
+    fig_var = None
+    error_msg = None
+    
+    # Une los datos anuales con los metadatos de las estaciones (que ahora es un DataFrame simple)
     df_year = pd.merge(
         df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year],
         gdf_metadata,
         on=Config.STATION_NAME_COL
     )
 
+    # Define las columnas necesarias y limpia los datos
     clean_cols = [Config.LONGITUDE_COL, Config.LATITUDE_COL, Config.PRECIPITATION_COL, Config.ALTITUDE_COL]
-    if method == "Kriging con Deriva Externa (KED)":
+    if method == "Kriging con Deriva Externa (KED)" and Config.ELEVATION_COL in df_year.columns:
         clean_cols.append(Config.ELEVATION_COL)
 
     df_clean = df_year.dropna(subset=clean_cols).copy()
@@ -69,7 +79,7 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
             try:
                 z_pred = None
-                if method == "Kriging Ordinario":
+                if method == "Kriging Ordinario" and len(lons_train) > 0:
                     model_cv = gs.Spherical(dim=2)
                     bin_center_cv, gamma_cv = gs.vario_estimate((lons_train, lats_train), vals_train)
                     model_cv.fit_variogram(bin_center_cv, gamma_cv, nugget=True)
@@ -77,10 +87,9 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
                     z_pred, _ = krig_cv((lons_test[0], lats_test[0]))
                 elif method == "IDW":
                     z_pred = interpolate_idw(lons_train, lats_train, vals_train, lons_test, lats_test)[0, 0]
-                elif method == "Spline (Thin Plate)":
-                    if len(lons_train) > 0: # Rbf necesita al menos un punto
-                        rbf_cv = Rbf(lons_train, lats_train, vals_train, function='thin_plate')
-                        z_pred = rbf_cv(lons_test, lats_test)[0]
+                elif method == "Spline (Thin Plate)" and len(lons_train) > 2:
+                    rbf_cv = Rbf(lons_train, lats_train, vals_train, function='thin_plate')
+                    z_pred = rbf_cv(lons_test, lats_test)[0]
 
                 if z_pred is not None:
                     predicted_values.append(z_pred)
@@ -91,9 +100,10 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
         if true_values and predicted_values:
             rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
 
-    bounds = _gdf_filtered_map.total_bounds
-    grid_lon = np.linspace(bounds[0] - 0.1, bounds[2] + 0.1, 100)
-    grid_lat = np.linspace(bounds[1] - 0.1, bounds[3] + 0.1, 100)
+    # --- CORRECCIÓN CLAVE ---
+    # Usar 'gdf_bounds' (la lista de números) en lugar de '_gdf_filtered_map.total_bounds'
+    grid_lon = np.linspace(gdf_bounds[0] - 0.1, gdf_bounds[2] + 0.1, 100)
+    grid_lat = np.linspace(gdf_bounds[1] - 0.1, gdf_bounds[3] + 0.1, 100)
     z_grid, fig_variogram, error_message = None, None, None
 
     try:
@@ -111,10 +121,9 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
             if method == "Kriging Ordinario":
                 krig = gs.krige.Ordinary(model, (lons, lats), vals)
-            else:
+            else: # KED
                 drift_vals = df_clean[Config.ELEVATION_COL].values
                 krig = gs.krige.ExtDrift(model, (lons, lats), vals, drift_src=drift_vals)
-            
             z_grid, _ = krig.structured([grid_lon, grid_lat])
         elif method == "IDW":
             z_grid = interpolate_idw(lons, lats, vals, grid_lon, grid_lat)
@@ -122,7 +131,6 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
             rbf = Rbf(lons, lats, vals, function='thin_plate')
             grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
             z_grid = rbf(grid_x, grid_y)
-
     except Exception as e:
         error_message = f"Error al calcular {method}: {e}"
         fig = go.Figure().update_layout(title=error_message, xaxis_visible=False, yaxis_visible=False)
@@ -135,7 +143,6 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
             colorbar_title='Precipitación (mm)',
             contours=dict(showlabels=True, labelfont=dict(size=10, color='white'), labelformat=".0f")
         ))
-        
         fig.add_trace(go.Scatter(
             x=lons, y=lats, mode='markers', marker=dict(color='red', size=5, line=dict(width=1, color='black')), name='Estaciones',
             hoverinfo='text',
@@ -145,7 +152,6 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
                   f"Precipitación: {row[Config.PRECIPITATION_COL]:.0f} mm"
                   for _, row in df_clean.iterrows()]
         ))
-
         if rmse is not None:
             fig.add_annotation(
                 x=0.01, y=0.99, xref="paper", yref="paper",
@@ -153,7 +159,6 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
                 showarrow=False, font=dict(size=12, color="black"),
                 bgcolor="rgba(255, 255, 255, 0.7)", bordercolor="black", borderwidth=1
             )
-            
         fig.update_layout(
             title=f"Precipitación en {year} ({method})",
             xaxis_title="Longitud", yaxis_title="Latitud", height=600,
