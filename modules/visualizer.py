@@ -1848,41 +1848,56 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
             
         available_regressors = [col for col in df_monthly_to_process.columns if col in [Config.ENSO_ONI_COL]]
         selected_regressors = st.multiselect("Seleccionar regresores externos (opcional):", options=available_regressors, key="sarima_regressors")
-        st.info("Para un pronóstico real a futuro, el modelo asume que el último valor conocido del regresor se mantiene constante.", icon="ℹ️")
+        
+        if selected_regressors:
+            st.info("Para un pronóstico real a futuro, el modelo asume que el último valor conocido del regresor se mantiene constante.", icon="ℹ️")
 
         with st.expander("Ajuste de Parámetros SARIMA"):
-            # ... (código de los sliders de p,d,q,P,D,Q sin cambios)
+            col_p, col_d, col_q = st.columns(3)
+            p = col_p.slider("p (AR no estacional)", 0, 3, 1, key="sarima_p")
+            d = col_d.slider("d (I no estacional)", 0, 2, 1, key="sarima_d")
+            q = col_q.slider("q (MA no estacional)", 0, 3, 1, key="sarima_q")
+            col_P, col_D, col_Q = st.columns(3)
+            P = col_P.slider("P (AR estacional)", 0, 2, 1, key="sarima_P")
+            D = col_D.slider("D (I estacional)", 0, 2, 1, key="sarima_D")
+            Q = col_Q.slider("Q (MA estacional)", 0, 2, 1, key="sarima_Q")
         
-        if station_to_forecast:
+        if station_to_forecast: # Esta línea ahora está correctamente indentada
             ts_data_sarima = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast].copy()
-            ts_data_sarima = ts_data_sarima.rename(columns={Config.DATE_COL: 'ds', Config.PRECIPITATION_COL: 'y'})
-
+            
             regressors_df = None
             if selected_regressors:
-                regressors_df = ts_data_sarima[['ds'] + selected_regressors].dropna()
+                regressors_df = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast][
+                    [Config.DATE_COL] + selected_regressors
+                ].dropna()
 
-            if len(ts_data_sarima.dropna()) < test_size + 24:
+            if len(ts_data_sarima.dropna(subset=[Config.PRECIPITATION_COL])) < test_size + 24:
                 st.warning(f"Se necesitan al menos {test_size + 24} meses de datos para un pronóstico y evaluación confiables.")
             else:
                 try:
-                    ts_hist, forecast_mean, forecast_ci, metrics = generate_sarima_forecast(
-                        ts_data_sarima, (p,d,q), (P,D,Q,12), forecast_horizon, test_size, regressors_df
-                    )
-                    st.session_state['sarima_results'] = {'forecast': forecast_mean, 'metrics': metrics}
+                    with st.spinner("Entrenando y evaluando modelo SARIMA..."):
+                        ts_hist, forecast_mean, forecast_ci, metrics, sarima_df_export = generate_sarima_forecast(
+                            ts_data_sarima, (p,d,q), (P,D,Q,12), forecast_horizon, test_size, regressors_df
+                        )
+                    st.session_state['sarima_results'] = {'forecast': sarima_df_export, 'metrics': metrics, 'history': ts_hist}
                     
                     st.markdown("##### Resultados del Pronóstico")
-                    # ... (código para mostrar el gráfico de pronóstico sin cambios)
+                    fig_pronostico = go.Figure()
+                    fig_pronostico.add_trace(go.Scatter(x=ts_hist.index, y=ts_hist, mode='lines', name='Datos Históricos'))
+                    fig_pronostico.add_trace(go.Scatter(x=forecast_mean.index, y=forecast_mean, mode='lines', name='Pronóstico SARIMA', line=dict(color='red', dash='dash')))
+                    fig_pronostico.add_trace(go.Scatter(x=forecast_ci.index, y=forecast_ci.iloc[:, 0], mode='lines', line=dict(width=0), showlegend=False))
+                    fig_pronostico.add_trace(go.Scatter(x=forecast_ci.index, y=forecast_ci.iloc[:, 1], mode='lines', line=dict(width=0), fill='tonexty', fillcolor='rgba(255,0,0,0.2)', name='Intervalo de Confianza'))
+                    st.plotly_chart(fig_pronostico, use_container_width=True)
                     
                     st.markdown("##### Evaluación del Modelo")
                     st.info(f"El modelo se evaluó usando los últimos **{test_size} meses** de datos históricos como conjunto de prueba.")
                     m1, m2 = st.columns(2)
                     m1.metric("RMSE (Error Cuadrático Medio)", f"{metrics['RMSE']:.2f}")
                     m2.metric("MAE (Error Absoluto Medio)", f"{metrics['MAE']:.2f}")
-
                 except Exception as e:
-                    st.error(f"No se pudo generar el pronóstico SARIMA. Error: {e}")
-    
-    # --- PESTAÑA PROPHET ACTUALIZADA ---
+                    st.error(f"No se pudo generar el pronóstico SARIMA. Verifique los parámetros o la continuidad de los datos. Error: {e}")
+
+    # --- PESTAÑA PROPHET CORREGIDA ---
     with pronostico_prophet_tab:
         st.subheader("Pronóstico (Modelo Prophet)")
         station_to_forecast_prophet = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="prophet_station_select")
@@ -1895,10 +1910,37 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
             
         available_regressors_prophet = [col for col in df_monthly_to_process.columns if col in [Config.ENSO_ONI_COL]]
         selected_regressors_prophet = st.multiselect("Seleccionar regresores externos (opcional):", options=available_regressors_prophet, key="prophet_regressors")
-        
-        # ... (lógica similar a SARIMA para procesar y mostrar resultados) ...
-        # ... (se llama a generate_prophet_forecast con los nuevos argumentos) ...
-        # ... (se muestran las métricas de la misma forma) ...
+
+        if station_to_forecast_prophet:
+            ts_data_prophet = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast_prophet].copy()
+            
+            regressors_df_prophet = None
+            if selected_regressors_prophet:
+                regressors_df_prophet = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast_prophet][
+                    [Config.DATE_COL] + selected_regressors_prophet
+                ].dropna()
+
+            if len(ts_data_prophet.dropna(subset=[Config.PRECIPITATION_COL])) < test_size_prophet + 24:
+                st.warning(f"Se necesitan al menos {test_size_prophet + 24} meses de datos para un pronóstico y evaluación confiables.")
+            else:
+                try:
+                    with st.spinner("Entrenando y evaluando modelo Prophet..."):
+                        model, forecast, metrics = generate_prophet_forecast(
+                            ts_data_prophet, forecast_horizon_prophet, test_size_prophet, regressors_df_prophet
+                        )
+                    st.session_state['prophet_results'] = {'forecast': forecast[['ds', 'yhat']], 'metrics': metrics}
+                    
+                    st.markdown("##### Resultados del Pronóstico")
+                    fig_prophet = plot_plotly(model, forecast)
+                    st.plotly_chart(fig_prophet, use_container_width=True)
+
+                    st.markdown("##### Evaluación del Modelo")
+                    st.info(f"El modelo se evaluó usando los últimos **{test_size_prophet} meses** de datos históricos como conjunto de prueba.")
+                    m1, m2 = st.columns(2)
+                    m1.metric("RMSE (Error Cuadrático Medio)", f"{metrics['RMSE']:.2f}")
+                    m2.metric("MAE (Error Absoluto Medio)", f"{metrics['MAE']:.2f}")
+                except Exception as e:
+                    st.error(f"No se pudo generar el pronóstico con Prophet. Error: {e}")
 
     # --- PESTAÑA DE COMPARACIÓN ACTUALIZADA ---
     with compare_forecast_tab:
