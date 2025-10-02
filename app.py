@@ -5,7 +5,6 @@ import numpy as np
 import warnings
 import os
 
-# --- Importaciones de Módulos ---
 from modules.config import Config
 from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem
 from modules.visualizer import (
@@ -15,7 +14,6 @@ from modules.visualizer import (
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
 )
 
-# Desactivar Warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -53,20 +51,19 @@ def main():
     st.markdown("""
     <style>
     div.block-container {padding-top: 2rem;}
-    .sidebar .sidebar-content {font-size: 13px; }
-    [data-testid="stMetricValue"] {font-size: 1.8rem; }
-    [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom: 5px; }
-    button[data-baseweb="tab"] {font-size: 16px; font-weight: bold; color: #333; }
-    </style>
-    """, unsafe_allow_html=True)
+    [data-testid="stMetricValue"] {font-size: 1.8rem;}
+    [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom: 5px;}
+    button[data-baseweb="tab"] {font-size: 16px; font-weight: bold; color: #333;}
+    </style>""", unsafe_allow_html=True)
 
     Config.initialize_session_state()
 
-    title_col1, title_col2 = st.columns([0.07, 0.93])
+        # --- CÓDIGO DEL LOGO RESTAURADO ---
+    title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
             try:
-                st.image(Config.LOGO_PATH, width=50)
+                st.image(Config.LOGO_PATH, width=60)
             except Exception:
                 pass 
     with title_col2:
