@@ -1,4 +1,5 @@
 # modules/analysis.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,27 +11,19 @@ def calculate_spi(series, window):
     """
     Calcula el Índice de Precipitación Estandarizado (SPI).
     """
-    # Asegura que la serie esté ordenada por fecha
     series = series.sort_index()
-    # Calcula la suma móvil
     rolling_sum = series.rolling(window, min_periods=window).sum()
-    # Filtra los valores nulos o no finitos antes de ajustar la distribución
     data_for_fit = rolling_sum.dropna()
     data_for_fit = data_for_fit[np.isfinite(data_for_fit)]
     
-    # Ajusta la distribución Gamma solo si hay datos válidos
     if len(data_for_fit) > 0:
         params = gamma.fit(data_for_fit, floc=0)
         shape, loc, scale = params
-        # Calcula la función de distribución acumulada (CDF)
         cdf = gamma.cdf(rolling_sum, shape, loc=loc, scale=scale)
     else:
-        # Si no hay datos, devuelve una serie vacía
         return pd.Series(dtype=float)
 
-    # Transforma la CDF a la distribución normal estándar
     spi = norm.ppf(cdf)
-    # Reemplaza valores infinitos (comunes en los extremos de la distribución) con NaN
     spi = np.where(np.isinf(spi), np.nan, spi)
     return pd.Series(spi, index=rolling_sum.index)
 
@@ -40,43 +33,36 @@ def calculate_spei(precip_series, et_series, scale):
     Calcula el Índice de Precipitación y Evapotranspiración Estandarizado (SPEI).
     """
     from scipy.stats import loglaplace
-    
     scale = int(scale)
-    
     df = pd.DataFrame({'precip': precip_series, 'et': et_series})
-    df = df.sort_index().asfreq('MS') # Asegura una frecuencia mensual completa
+    df = df.sort_index().asfreq('MS')
     df.dropna(inplace=True)
-    
     if len(df) < scale * 2:
         return pd.Series(dtype=float)
 
-    # Calcula el balance hídrico
     water_balance = df['precip'] - df['et']
-    
-    # Acumula el balance hídrico en la escala de tiempo deseada
     rolling_balance = water_balance.rolling(window=scale, min_periods=scale).sum()
-
     data_for_fit = rolling_balance.dropna()
     data_for_fit = data_for_fit[np.isfinite(data_for_fit)]
 
     if len(data_for_fit) > 0:
-        # Ajusta una distribución Log-Laplace (equivalente a Log-Logística)
         params = loglaplace.fit(data_for_fit)
         cdf = loglaplace.cdf(rolling_balance, *params)
     else:
         return pd.Series(dtype=float)
         
-    # Transforma a la distribución normal estándar
     spei = norm.ppf(cdf)
     spei = np.where(np.isinf(spei), np.nan, spei)
-    
     return pd.Series(spei, index=rolling_balance.index)
     
 @st.cache_data
-def calculate_monthly_anomalies(df_monthly_filtered, df_long):
+def calculate_monthly_anomalies(_df_monthly_filtered, _df_long):
     """
-    Calcula las anomalías mensuales de precipitación con respecto a la climatología.
+    Calcula las anomalías mensuales con respecto al promedio de todo el período de datos.
     """
+    df_monthly_filtered = _df_monthly_filtered.copy()
+    df_long = _df_long.copy()
+    
     df_climatology = df_long[
         df_long[Config.STATION_NAME_COL].isin(df_monthly_filtered[Config.STATION_NAME_COL].unique())
     ].groupby([Config.STATION_NAME_COL, Config.MONTH_COL])[Config.PRECIPITATION_COL].mean() \
@@ -101,12 +87,7 @@ def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_uppe
         p_upper=lambda x: np.nanpercentile(x.dropna(), p_upper),
         mean_monthly='mean'
     ).reset_index()
-    df_station_extremes = pd.merge(
-        df_station_full,
-        df_thresholds,
-        on=Config.MONTH_COL,
-        how='left'
-    )
+    df_station_extremes = pd.merge(df_station_full, df_thresholds, on=Config.MONTH_COL, how='left')
     df_station_extremes['event_type'] = 'Normal'
     is_dry = (df_station_extremes[Config.PRECIPITATION_COL] < df_station_extremes['p_lower'])
     df_station_extremes.loc[is_dry, 'event_type'] = f'Sequía Extrema (< P{p_lower}%)'
@@ -114,30 +95,25 @@ def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_uppe
     df_station_extremes.loc[is_wet, 'event_type'] = f'Húmedo Extremo (> P{p_upper}%)'
     return df_station_extremes.dropna(subset=[Config.PRECIPITATION_COL]), df_thresholds
 
-# --- NUEVA FUNCIÓN PARA ANÁLISIS DE ANOMALÏAS CLIMATICAS ---
 @st.cache_data
 def calculate_climatological_anomalies(_df_monthly_filtered, _df_long, baseline_start, baseline_end):
     """
     Calcula las anomalías mensuales con respecto a un período base climatológico fijo.
     """
-    # Crea una copia para evitar advertencias de SettingWithCopyWarning
     df_monthly_filtered = _df_monthly_filtered.copy()
     df_long = _df_long.copy()
 
-    # Filtra los datos históricos para obtener solo el período base
     baseline_df = df_long[
         (df_long[Config.YEAR_COL] >= baseline_start) & 
         (df_long[Config.YEAR_COL] <= baseline_end)
     ]
 
-    # Calcula la climatología (promedio por mes y estación) SOLO del período base
     df_climatology = baseline_df.groupby(
         [Config.STATION_NAME_COL, Config.MONTH_COL]
     )[Config.PRECIPITATION_COL].mean().reset_index().rename(
         columns={Config.PRECIPITATION_COL: 'precip_promedio_climatologico'}
     )
 
-    # Une la climatología fija con los datos filtrados que se quieren analizar
     df_anomalias = pd.merge(
         df_monthly_filtered,
         df_climatology,
@@ -145,45 +121,30 @@ def calculate_climatological_anomalies(_df_monthly_filtered, _df_long, baseline_
         how='left'
     )
 
-    # Calcula la anomalía
     df_anomalias['anomalia'] = df_anomalias[Config.PRECIPITATION_COL] - df_anomalias['precip_promedio_climatologico']
     return df_anomalias
 
-# --- NUEVA FUNCIÓN PARA ANÁLISIS DE EVENTOS ---
 @st.cache_data
 def analyze_events(index_series, threshold, event_type='drought'):
     """
     Identifica y caracteriza eventos de sequía o humedad en una serie de tiempo de índices.
-
-    Args:
-        index_series (pd.Series): Serie de tiempo con índices (SPI, SPEI).
-        threshold (float): Umbral para definir el inicio de un evento.
-        event_type (str): 'drought' (eventos < umbral) o 'wet' (eventos > umbral).
-
-    Returns:
-        pd.DataFrame: DataFrame con las características de cada evento.
     """
     if event_type == 'drought':
         is_event = index_series < threshold
     else: # 'wet'
         is_event = index_series > threshold
 
-    # Asigna un ID único a cada bloque consecutivo de eventos
     event_blocks = (is_event.diff() != 0).cumsum()
-    
-    # Filtra solo los bloques que son eventos
     active_events = is_event[is_event]
     if active_events.empty:
         return pd.DataFrame()
 
     events = []
-    # Agrupa por los IDs de bloque para analizar cada evento por separado
     for event_id, group in active_events.groupby(event_blocks):
         start_date = group.index.min()
         end_date = group.index.max()
         duration = len(group)
         
-        # Extrae los valores del índice para el evento actual
         event_values = index_series.loc[start_date:end_date]
         
         magnitude = event_values.sum()
