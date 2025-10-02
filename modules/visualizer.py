@@ -35,7 +35,8 @@ from modules.forecasting import (
     get_decomposition_results, create_acf_chart, create_pacf_chart
 )
 
-# --- DISPLAY UTILS
+# --- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN ---
+
 def display_filter_summary(total_stations_count, selected_stations_count, year_range, selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
     """Muestra una caja informativa con un resumen de todos los filtros aplicados."""
     if isinstance(year_range, tuple) and len(year_range) == 2:
@@ -174,30 +175,17 @@ def create_anomaly_chart(df_plot):
 
 # --- FUNCIONES AUXILIARES PARA POPUPS ---
 def generate_station_popup_html(row, df_anual_melted, include_chart=False, df_monthly_filtered=None):
-    """Generates the HTML content for a station's popup."""
-    full_html = ""
+    """Genera el contenido HTML para el popup de una estación, incluyendo un mini-gráfico opcional."""
     station_name = row.get(Config.STATION_NAME_COL, 'N/A')
-    
     try:
         year_range_val = st.session_state.get('year_range', (2000, 2020))
-        if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and isinstance(year_range_val[0], int):
-            year_min, year_max = year_range_val
-        else:
-            year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
-        
+        year_min, year_max = year_range_val
         total_years_in_period = year_max - year_min + 1
+        
         df_station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_name]
         
-        if not df_station_data.empty:
-            summary_data = df_station_data.groupby(Config.STATION_NAME_COL).agg(
-                precip_media_anual=('precipitation', 'mean'),
-                años_validos=('precipitation', 'count')
-            ).iloc[0]
-            valid_years = int(summary_data.get('años_validos', 0))
-            precip_media_anual = summary_data.get('precip_media_anual', 0)
-        else:
-            valid_years, precip_media_anual = 0, 0
-            
+        precip_media_anual = df_station_data['precipitation'].mean() if not df_station_data.empty else 0
+        valid_years = df_station_data['precipitation'].count() if not df_station_data.empty else 0
         precip_formatted = f"{precip_media_anual:.0f}" if pd.notna(precip_media_anual) else "N/A"
             
         text_html = f"<h4>{station_name}</h4>"
@@ -223,13 +211,13 @@ def generate_station_popup_html(row, df_anual_melted, include_chart=False, df_mo
             full_html = text_html + "<hr>" + f'<iframe srcdoc="{sanitized_chart_html}" width="370" height="270" frameborder="0"></iframe>'
             
     except Exception as e:
-        st.warning(f"Could not generate popup for '{station_name}'. Reason: {e}")
-        full_html = f"<h4>{station_name}</h4><p>Error loading data.</p>"
+        st.warning(f"No se pudo generar el popup para '{station_name}'. Razón: {e}")
+        full_html = f"<h4>{station_name}</h4><p>Error al cargar datos del popup.</p>"
             
     return folium.Popup(full_html, max_width=450)
 
 def generate_compare_map_popup_html(row, df_anual_melted_full_period):
-    """Generates a specific HTML popup for the map comparison tab."""
+    """Genera un popup específico para los mapas de comparación."""
     station_name = row.get(Config.STATION_NAME_COL, 'N/A')
     municipality = row.get(Config.MUNICIPALITY_COL, 'N/A')
     altitude = row.get(Config.ALTITUDE_COL, 'N/A')
@@ -258,7 +246,7 @@ def generate_compare_map_popup_html(row, df_anual_melted_full_period):
     return folium.Popup(html, max_width=300)
 
 def generate_temporal_map_popup_html(row, df_anual_melted_full_period):
-    """Generates a specific HTML popup for the temporal map explorer tab."""
+    """Genera un popup específico para el mapa de visualización temporal."""
     station_name = row.get(Config.STATION_NAME_COL, 'N/A')
     municipality = row.get(Config.MUNICIPALITY_COL, 'N/A')
     altitude = row.get(Config.ALTITUDE_COL, 'N/A')
