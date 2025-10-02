@@ -296,14 +296,13 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
     return m
 
 # --- MAIN TAB DISPLAY FUNCTIONS
+
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
     st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
     if os.path.exists(Config.LOGO_PATH):
         try:
-            with open(Config.LOGO_PATH, "rb") as f:
-                logo_bytes = f.read()
-            st.image(logo_bytes, width=250, caption="Corporación Cuenca Verde")
+            st.image(Config.LOGO_PATH, width=250, caption="Corporación Cuenca Verde")
         except Exception:
             st.warning("No se pudo cargar el logo de bienvenida.")
 
@@ -1937,9 +1936,28 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
     # --- PESTAÑA DE COMPARACIÓN ACTUALIZADA ---
     with compare_forecast_tab:
         st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")
-        # ... (código para mostrar el gráfico comparativo sin cambios) ...
+        sarima_results = st.session_state.get('sarima_results')
+        prophet_results = st.session_state.get('prophet_results')
 
-        st.markdown("#### Comparación de Precisión (sobre el conjunto de prueba)")
+        if not sarima_results or not prophet_results:
+            st.warning("Debe generar un pronóstico SARIMA y Prophet en las pestañas anteriores para poder compararlos.")
+        else:
+            fig_compare = go.Figure()
+            if sarima_results.get('history') is not None:
+                hist_data = sarima_results['history']
+                fig_compare.add_trace(go.Scatter(x=hist_data.index, y=hist_data, mode='lines', name='Histórico', line=dict(color='gray')))
+            if sarima_results.get('forecast') is not None:
+                sarima_fc = sarima_results['forecast']
+                fig_compare.add_trace(go.Scatter(x=sarima_fc['ds'], y=sarima_fc['yhat'], mode='lines', name='Pronóstico SARIMA', line=dict(color='red', dash='dash')))
+            if prophet_results.get('forecast') is not None:
+                prophet_fc = prophet_results['forecast']
+                fig_compare.add_trace(go.Scatter(x=prophet_fc['ds'], y=prophet_fc['yhat'], mode='lines', name='Pronóstico Prophet', line=dict(color='blue', dash='dash')))
+            
+            fig_compare.update_layout(title="Pronóstico Comparativo", xaxis_title="Fecha", yaxis_title="Precipitación (mm)", height=500, legend=dict(x=0.01, y=0.99))
+            st.plotly_chart(fig_compare, use_container_width=True)
+
+            st.markdown("#### Comparación de Precisión (sobre el conjunto de prueba)")
+            # ... (código de la tabla de métricas) ...
         sarima_metrics = st.session_state.get('sarima_results', {}).get('metrics')
         prophet_metrics = st.session_state.get('prophet_results', {}).get('metrics')
 
