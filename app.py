@@ -43,7 +43,8 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
         if conditions: stations_filtered = stations_filtered[pd.concat(conditions, axis=1).any(axis=1)]
     if regions: stations_filtered = stations_filtered[stations_filtered[Config.REGION_COL].isin(regions)]
     if municipios: stations_filtered = stations_filtered[stations_filtered[Config.MUNICIPALITY_COL].isin(municipios)]
-    if celdas: stations_filtered = stations_filtered[stations_filtered[Config.CELL_COL].isin(celdas)]
+    if celdas and Config.CELL_COL in stations_filtered.columns:
+        stations_filtered = stations_filtered[stations_filtered[Config.CELL_COL].isin(celdas)]
     return stations_filtered
 
 def main():
@@ -94,10 +95,10 @@ def main():
                 else:
                     st.error("Hubo un error al procesar los archivos. Verifique el formato de los datos.")
 
-    if st.session_state.get('data_loaded', False) and st.session_state.get('df_long') is not None:
-        st.sidebar.success("✅ Datos base cargados y persistentes.")
+    if st.session_state.get('data_loaded', False) and 'df_long' in st.session_state and not st.session_state.df_long.empty:
+        st.sidebar.success("✅ Datos base cargados.")
         
-        if st.sidebar.button("Limpiar Caché y Recargar App"):
+        if st.sidebar.button("Limpiar Caché y Reiniciar App"):
             keys_to_clear = list(st.session_state.keys())
             for key in keys_to_clear:
                 del st.session_state[key]
@@ -109,11 +110,13 @@ def main():
             selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges, key='altitude_multiselect')
             regions_list = sorted(st.session_state.gdf_stations[Config.REGION_COL].dropna().unique())
             selected_regions = st.multiselect('Filtrar por Depto/Región', options=regions_list, key='regions_multiselect')
+            
             temp_gdf_for_mun = st.session_state.gdf_stations.copy()
             if selected_regions:
                 temp_gdf_for_mun = temp_gdf_for_mun[temp_gdf_for_mun[Config.REGION_COL].isin(selected_regions)]
             municipios_list = sorted(temp_gdf_for_mun[Config.MUNICIPALITY_COL].dropna().unique())
             selected_municipios = st.multiselect('Filtrar por Municipio', options=municipios_list, key='municipios_multiselect')
+            
             celdas_list = []
             if Config.CELL_COL in temp_gdf_for_mun.columns:
                  celdas_list = sorted(temp_gdf_for_mun[Config.CELL_COL].dropna().unique())
@@ -125,7 +128,7 @@ def main():
             stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
             st.session_state['filtered_station_options'] = stations_options
             st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, value=st.session_state.get('select_all_checkbox', True))
-            if st.session_state.get('select_all_checkbox', True) and st.session_state.get('station_multiselect') != stations_options:
+            if 'station_multiselect' not in st.session_state:
                 st.session_state.station_multiselect = stations_options
             selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect')
             years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
@@ -151,7 +154,6 @@ def main():
                 st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations.copy(), uploaded_dem_file)
                 st.sidebar.success("Altitud de estaciones actualizada.")
 
-        # --- PREPARACIÓN DE DATAFRAMES FINALES ---
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         st.session_state.meses_numeros = meses_numeros
@@ -189,13 +191,7 @@ def main():
         annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
         df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
-        # --- DESPLIEGUE DE PESTAÑAS ---
-        tab_names = [
-            "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
-            "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas",
-            "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
-            "Descargas", "Tabla de Estaciones"
-        ]
+        tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
         tabs = st.tabs(tab_names)
 
         if df_anual_melted.empty or df_monthly_filtered.empty or gdf_filtered.empty:
