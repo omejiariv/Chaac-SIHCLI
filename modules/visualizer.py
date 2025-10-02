@@ -1322,20 +1322,21 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
                 'precip_promedio_mes': 'Ppt. Media (mm)'
             }).round(0), use_container_width=True)
 
-def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered):
+def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, **kwargs):
     st.header("Estadísticas de Precipitación")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
-    )
-    if not stations_for_analysis:
-        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
-        return
+    display_filter_summary(len(st.session_state.gdf_stations), len(stations_for_analysis), st.session_state.year_range, len(st.session_state.meses_numeros), **kwargs)
+    if not stations_for_analysis: st.warning("Por favor, seleccione al menos una estación."); return
 
-    matriz_tab, resumen_mensual_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Síntesis General"])
+    matriz_tab, resumen_mensual_tab, series_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Datos Series Pptn", "Síntesis General"])
     
+    with series_tab:
+        st.subheader("Series de Precipitación Anual por Estación (mm)")
+        if not df_anual_melted.empty:
+            ppt_series_df = df_anual_melted.pivot_table(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values=Config.PRECIPITATION_COL)
+            st.dataframe(ppt_series_df.style.format("{:.0f}", na_rep="-").background_gradient(cmap='viridis', axis=1))
+        else:
+            st.info("No hay datos anuales para mostrar en la tabla.")
+  
     with matriz_tab:
         st.subheader("Matriz de Disponibilidad de Datos Anual")
         df_base_raw = st.session_state.get('df_monthly_processed', pd.DataFrame())
