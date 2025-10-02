@@ -71,22 +71,6 @@ def main():
 
     st.sidebar.header("Panel de Control")
 
-# --- INICIO DEL BLOQUE DE DIAGNÓSTICO DEL LOGO ---
-with st.sidebar.expander("🔬 Diagnóstico del Logo", expanded=True):
-    logo_path_config = Config.LOGO_PATH
-    st.write("La ruta configurada en `Config.LOGO_PATH` es:")
-    st.code(logo_path_config, language="text")
-    
-    if os.path.exists(logo_path_config):
-        st.success("✅ ¡ÉXITO! El archivo del logo SÍ fue encontrado en esa ruta.")
-        st.write("Intentando mostrar el logo aquí:")
-        st.image(logo_path_config)
-    else:
-        st.error("❌ ¡ERROR! El archivo del logo NO fue encontrado en esa ruta.")
-        st.write("Asegúrate de que la ruta en tu archivo `config.py` sea correcta.")
-# --- FIN DEL BLOQUE DE DIAGNÓSTICO ---
-
-    
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
         uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
