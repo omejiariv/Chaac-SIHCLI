@@ -6,50 +6,74 @@ from scipy.stats import gamma, norm
 from modules.config import Config
 
 def calculate_spi(series, window):
-    rolling_sum = series.sort_index().rolling(window, min_periods=window).sum()
-    params = gamma.fit(rolling_sum.dropna(), floc=0)
-    shape, loc, scale = params
-    cdf = gamma.cdf(rolling_sum, shape, loc=loc, scale=scale)
+    """
+    Calcula el Índice de Precipitación Estandarizado (SPI).
+    """
+    # Asegura que la serie esté ordenada por fecha
+    series = series.sort_index()
+    # Calcula la suma móvil
+    rolling_sum = series.rolling(window, min_periods=window).sum()
+    # Filtra los valores nulos o no finitos antes de ajustar la distribución
+    data_for_fit = rolling_sum.dropna()
+    data_for_fit = data_for_fit[np.isfinite(data_for_fit)]
+    
+    # Ajusta la distribución Gamma solo si hay datos válidos
+    if len(data_for_fit) > 0:
+        params = gamma.fit(data_for_fit, floc=0)
+        shape, loc, scale = params
+        # Calcula la función de distribución acumulada (CDF)
+        cdf = gamma.cdf(rolling_sum, shape, loc=loc, scale=scale)
+    else:
+        # Si no hay datos, devuelve una serie vacía
+        return pd.Series(dtype=float)
+
+    # Transforma la CDF a la distribución normal estándar
     spi = norm.ppf(cdf)
+    # Reemplaza valores infinitos (comunes en los extremos de la distribución) con NaN
     spi = np.where(np.isinf(spi), np.nan, spi)
     return pd.Series(spi, index=rolling_sum.index)
 
 def calculate_spei(precip_series, et_series, scale):
     """
-    Calculates the SPEI using a direct implementation with SciPy.
+    Calcula el Índice de Precipitación y Evapotranspiración Estandarizado (SPEI).
     """
     from scipy.stats import loglaplace
     
     scale = int(scale)
     
     df = pd.DataFrame({'precip': precip_series, 'et': et_series})
-    df = df.sort_index().asfreq('MS')
+    df = df.sort_index().asfreq('MS') # Asegura una frecuencia mensual completa
     df.dropna(inplace=True)
     
     if len(df) < scale * 2:
         return pd.Series(dtype=float)
 
-    # Calculate the water balance (Precipitation - Evapotranspiration)
+    # Calcula el balance hídrico
     water_balance = df['precip'] - df['et']
     
-    # Accumulate the water balance over the desired timescale
+    # Acumula el balance hídrico en la escala de tiempo deseada
     rolling_balance = water_balance.rolling(window=scale, min_periods=scale).sum()
 
-    # Fit a Log-Laplace distribution (equivalent to Log-Logistic)
-    params = loglaplace.fit(rolling_balance.dropna())
-    
-    # Calculate the cumulative distribution function (CDF)
-    cdf = loglaplace.cdf(rolling_balance, *params)
-    
-    # Transform to a Z-score of the normal distribution
+    data_for_fit = rolling_balance.dropna()
+    data_for_fit = data_for_fit[np.isfinite(data_for_fit)]
+
+    if len(data_for_fit) > 0:
+        # Ajusta una distribución Log-Laplace (equivalente a Log-Logística)
+        params = loglaplace.fit(data_for_fit)
+        cdf = loglaplace.cdf(rolling_balance, *params)
+    else:
+        return pd.Series(dtype=float)
+        
+    # Transforma a la distribución normal estándar
     spei = norm.ppf(cdf)
-    
-    # Handle infinite values
     spei = np.where(np.isinf(spei), np.nan, spei)
     
     return pd.Series(spei, index=rolling_balance.index)
     
 def calculate_monthly_anomalies(df_monthly_filtered, df_long):
+    """
+    Calcula las anomalías mensuales de precipitación con respecto a la climatología.
+    """
     df_climatology = df_long[
         df_long[Config.STATION_NAME_COL].isin(df_monthly_filtered[Config.STATION_NAME_COL].unique())
     ].groupby([Config.STATION_NAME_COL, Config.MONTH_COL])[Config.PRECIPITATION_COL].mean() \
@@ -65,6 +89,9 @@ def calculate_monthly_anomalies(df_monthly_filtered, df_long):
     return df_anomalias.copy()
 
 def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_upper=90):
+    """
+    Calcula umbrales de percentiles y clasifica eventos extremos para una estación.
+    """
     df_station_full = df_long[df_long[Config.STATION_NAME_COL] == station_name].copy()
     df_thresholds = df_station_full.groupby(Config.MONTH_COL)[Config.PRECIPITATION_COL].agg(
         p_lower=lambda x: np.nanpercentile(x.dropna(), p_lower),
@@ -132,6 +159,9 @@ def analyze_events(index_series, threshold, event_type='drought'):
             'Intensidad': intensity,
             'Pico': peak
         })
+
+    if not events:
+        return pd.DataFrame()
 
     events_df = pd.DataFrame(events)
     return events_df.sort_values(by='Fecha Inicio').reset_index(drop=True)
