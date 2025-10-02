@@ -1,10 +1,11 @@
 # modules/analysis.py
-
+import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy.stats import gamma, norm
 from modules.config import Config
 
+@st.cache_data
 def calculate_spi(series, window):
     """
     Calcula el Índice de Precipitación Estandarizado (SPI).
@@ -33,6 +34,7 @@ def calculate_spi(series, window):
     spi = np.where(np.isinf(spi), np.nan, spi)
     return pd.Series(spi, index=rolling_sum.index)
 
+@st.cache_data
 def calculate_spei(precip_series, et_series, scale):
     """
     Calcula el Índice de Precipitación y Evapotranspiración Estandarizado (SPEI).
@@ -70,6 +72,7 @@ def calculate_spei(precip_series, et_series, scale):
     
     return pd.Series(spei, index=rolling_balance.index)
     
+@st.cache_data
 def calculate_monthly_anomalies(df_monthly_filtered, df_long):
     """
     Calcula las anomalías mensuales de precipitación con respecto a la climatología.
@@ -88,6 +91,7 @@ def calculate_monthly_anomalies(df_monthly_filtered, df_long):
     df_anomalias['anomalia'] = df_anomalias[Config.PRECIPITATION_COL] - df_anomalias['precip_promedio_mes']
     return df_anomalias.copy()
 
+@st.cache_data
 def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_upper=90):
     """
     Calcula umbrales de percentiles y clasifica eventos extremos para una estación.
@@ -112,6 +116,7 @@ def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_uppe
     return df_station_extremes.dropna(subset=[Config.PRECIPITATION_COL]), df_thresholds
 
 # --- NUEVA FUNCIÓN PARA ANÁLISIS DE EVENTOS ---
+@st.cache_data
 def analyze_events(index_series, threshold, event_type='drought'):
     """
     Identifica y caracteriza eventos de sequía o humedad en una serie de tiempo de índices.
