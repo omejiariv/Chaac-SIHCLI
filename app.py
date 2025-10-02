@@ -70,6 +70,7 @@ def main():
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
     st.sidebar.header("Panel de Control")
+
 # --- INICIO DEL BLOQUE DE DIAGNÓSTICO DEL LOGO ---
 with st.sidebar.expander("🔬 Diagnóstico del Logo", expanded=True):
     logo_path_config = Config.LOGO_PATH
@@ -143,7 +144,7 @@ with st.sidebar.expander("🔬 Diagnóstico del Logo", expanded=True):
             selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect')
             years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
             if not years_with_data:
-                st.error("No hay datos de año válidos en el archivo de precipitación."); return
+                st.error("No hay datos de año válidos en el archivo de precipitación.")
             year_range_default = (min(years_with_data), max(years_with_data))
             year_range = st.slider("Seleccionar Rango de Años", min_value=min(years_with_data), max_value=max(years_with_data), value=st.session_state.get('year_range', year_range_default), key='year_range')
             meses_dict = {'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12}
