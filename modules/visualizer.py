@@ -1,5 +1,6 @@
 # modules/visualizer.py
 
+# --- Importaciones Estándar y de Terceros ---
 import streamlit as st
 import pandas as pd
 import base64
@@ -24,7 +25,7 @@ import io
 from modules.analysis import (
     calculate_spi, calculate_spei, calculate_monthly_anomalies,
     calculate_percentiles_and_extremes, analyze_events,
-    calculate_climatological_anomalies  # <-- IMPORTACIÓN AÑADIDA
+    calculate_climatological_anomalies
 )
 from modules.config import Config
 from modules.utils import add_folium_download_button
@@ -35,48 +36,47 @@ from modules.forecasting import (
 )
 
 # --- DISPLAY UTILS
-def display_filter_summary(total_stations_count, selected_stations_count, year_range,
-                           selected_months_count):
-    """Muestra una caja informativa con un resumen de los filtros aplicados."""
+def display_filter_summary(total_stations_count, selected_stations_count, year_range, selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
+    """Muestra una caja informativa con un resumen de todos los filtros aplicados."""
     if isinstance(year_range, tuple) and len(year_range) == 2:
         year_text = f"{year_range[0]}-{year_range[1]}"
     else:
         year_text = "N/A"
-    summary_text = (
-        f"**Estaciones Seleccionadas:** {selected_stations_count} de {total_stations_count} | "
-        f"**Período:** {year_text} | "
-        f"**Meses:** {selected_months_count} de 12"
-    )
-    st.info(summary_text)
+    
+    mode_text = "Serie Completada" if "Completar" in analysis_mode else "Serie Original"
+    
+    summary_parts = [
+        f"**Estaciones:** {selected_stations_count}/{total_stations_count}",
+        f"**Período:** {year_text}",
+        f"**Datos:** {mode_text}"
+    ]
+    if selected_regions:
+        summary_parts.append(f"**Región:** {', '.join(selected_regions)}")
+    if selected_municipios:
+        summary_parts.append(f"**Municipio:** {', '.join(selected_municipios)}")
+    if selected_altitudes:
+        summary_parts.append(f"**Altitud:** {', '.join(selected_altitudes)}")
+
+    st.info(" | ".join(summary_parts))
 
 def get_map_options():
+    """Retorna un diccionario con las configuraciones de los mapas base y capas."""
     return {
         "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
-        "Topografía (Open TopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright"> OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">Open Topo Map</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)', "overlay": False},
-        "Relieve y Océanos (GEBCO)": {"url": "https://www.gebco.net/data_and_products/gebco_web_service/web_map_service/web_map_service.php", "layers": "GEBCO_2021_Surface", "transparent": False, "attr": "GEBCO 2021", "overlay": True},
+        "Topografía (Open TopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright"> OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
         "Mapa de Colombia (WMS IDEAM)": {"url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", "layers": "ideam:col_admin", "transparent": True, "attr": "IDEAM", "overlay": True},
-        "Cobertura de la Tierra (WMS IGAC)": {"url": "https://servicios.igac.gov.co/server/services/IDEAM/IDEAM_Cobertura_Corine/MapServer/WMSServer", "layers": "IDEAM_Cobertura_Corine_Web", "transparent": True, "attr": "IGAC", "overlay": True}
     }
 
 def display_map_controls(container_object, key_prefix):
+    """Muestra los controles para seleccionar mapa base y capas en Streamlit."""
     map_options = get_map_options()
     base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
     overlays = {k: v for k, v in map_options.items() if v.get("overlay")}
     
-    selected_base_map_name = container_object.selectbox(
-        "Seleccionar Mapa Base",
-        list(base_maps.keys()),
-        key=f"{key_prefix}_base_map"
-    )
-    
+    selected_base_map_name = container_object.selectbox("Seleccionar Mapa Base", list(base_maps.keys()), key=f"{key_prefix}_base_map")
     default_overlays = ["Mapa de Colombia (WMS IDEAM)"]
-    selected_overlays_names = container_object.multiselect(
-        "Seleccionar Capas Adicionales",
-        list(overlays.keys()),
-        default=default_overlays,
-        key=f"{key_prefix}_overlays"
-    )
+    selected_overlays_names = container_object.multiselect("Seleccionar Capas Adicionales", list(overlays.keys()), default=default_overlays, key=f"{key_prefix}_overlays")
     
     selected_overlays_config = [overlays[k] for k in selected_overlays_names]
     return base_maps[selected_base_map_name], selected_overlays_config
