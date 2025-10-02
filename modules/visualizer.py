@@ -961,8 +961,15 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
                     variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2", variogram_options, key="var_model_2")
 
-            fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_filtered, df_anual_non_na)
-            fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_filtered, df_anual_non_na)
+            # --- CORRECCIÓN CLAVE ---
+            # Preparamos los argumentos simples y "hasheables" para la función en caché
+            gdf_bounds = gdf_filtered.total_bounds.tolist() # Una lista simple de números
+            # Un DataFrame de pandas normal (sin geometrías)
+            gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore')) 
+
+            # Llamamos a la función con los nuevos argumentos simples
+            fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
+            fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
             
             with map_col1:
                 if fig1: st.plotly_chart(fig1, use_container_width=True)
@@ -981,26 +988,20 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     buf = io.BytesIO()
                     fig_var1.savefig(buf, format="png")
                     st.image(buf)
-                    st.download_button(
-                        label="Descargar Variograma 1 (PNG)", data=buf.getvalue(),
-                        file_name=f"variograma_1_{year1}_{method1}_{variogram_model1}.png", mime="image/png"
-                    )
+                    st.download_button(label="Descargar Variograma 1 (PNG)", data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png", mime="image/png")
                     plt.close(fig_var1)
                 else:
-                    st.info("El variograma no está disponible para este método o no hay suficientes datos.")
+                    st.info("El variograma no está disponible para este método.")
             
             with col4:
                 if fig_var2:
                     buf = io.BytesIO()
                     fig_var2.savefig(buf, format="png")
                     st.image(buf)
-                    st.download_button(
-                        label="Descargar Variograma 2 (PNG)", data=buf.getvalue(),
-                        file_name=f"variograma_2_{year2}_{method2}_{variogram_model2}.png", mime="image/png"
-                    )
+                    st.download_button(label="Descargar Variograma 2 (PNG)", data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png", mime="image/png")
                     plt.close(fig_var2)
                 else:
-                    st.info("El variograma no está disponible para este método o no hay suficientes datos.")
+                    st.info("El variograma no está disponible para este método.")
 
 # --- NUEVA FUNCIÓN PARA MOSTRAR EL ANÁLISIS DE EVENTOS ---
 def display_event_analysis(index_values, index_type):
