@@ -91,7 +91,6 @@ def calculate_monthly_anomalies(df_monthly_filtered, df_long):
     df_anomalias['anomalia'] = df_anomalias[Config.PRECIPITATION_COL] - df_anomalias['precip_promedio_mes']
     return df_anomalias.copy()
 
-@st.cache_data
 def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_upper=90):
     """
     Calcula umbrales de percentiles y clasifica eventos extremos para una estación.
