@@ -155,8 +155,7 @@ def main():
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         st.session_state.meses_numeros = meses_numeros
-        st.session_state.year_range = year_range
-
+        
         df_monthly_processed = st.session_state.df_long.copy()
         if st.session_state.analysis_mode == "Completar series (interpolación)":
             df_monthly_processed = complete_series(df_monthly_processed)
