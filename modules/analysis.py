@@ -114,6 +114,41 @@ def calculate_percentiles_and_extremes(df_long, station_name, p_lower=10, p_uppe
     df_station_extremes.loc[is_wet, 'event_type'] = f'Húmedo Extremo (> P{p_upper}%)'
     return df_station_extremes.dropna(subset=[Config.PRECIPITATION_COL]), df_thresholds
 
+# --- NUEVA FUNCIÓN PARA ANÁLISIS DE ANOMALÏAS CLIMATICAS ---
+@st.cache_data
+def calculate_climatological_anomalies(_df_monthly_filtered, _df_long, baseline_start, baseline_end):
+    """
+    Calcula las anomalías mensuales con respecto a un período base climatológico fijo.
+    """
+    # Crea una copia para evitar advertencias de SettingWithCopyWarning
+    df_monthly_filtered = _df_monthly_filtered.copy()
+    df_long = _df_long.copy()
+
+    # Filtra los datos históricos para obtener solo el período base
+    baseline_df = df_long[
+        (df_long[Config.YEAR_COL] >= baseline_start) & 
+        (df_long[Config.YEAR_COL] <= baseline_end)
+    ]
+
+    # Calcula la climatología (promedio por mes y estación) SOLO del período base
+    df_climatology = baseline_df.groupby(
+        [Config.STATION_NAME_COL, Config.MONTH_COL]
+    )[Config.PRECIPITATION_COL].mean().reset_index().rename(
+        columns={Config.PRECIPITATION_COL: 'precip_promedio_climatologico'}
+    )
+
+    # Une la climatología fija con los datos filtrados que se quieren analizar
+    df_anomalias = pd.merge(
+        df_monthly_filtered,
+        df_climatology,
+        on=[Config.STATION_NAME_COL, Config.MONTH_COL],
+        how='left'
+    )
+
+    # Calcula la anomalía
+    df_anomalias['anomalia'] = df_anomalias[Config.PRECIPITATION_COL] - df_anomalias['precip_promedio_climatologico']
+    return df_anomalias
+
 # --- NUEVA FUNCIÓN PARA ANÁLISIS DE EVENTOS ---
 @st.cache_data
 def analyze_events(index_series, threshold, event_type='drought'):
