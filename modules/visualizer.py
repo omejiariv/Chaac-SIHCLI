@@ -1195,24 +1195,6 @@ def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for
                         fig.update_layout(title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}", yaxis_title=f"Valor {index_type}", xaxis_title="Fecha", height=500)
                         st.plotly_chart(fig, use_container_width=True)
                 
-                # Llamada a la función de análisis de eventos, que se mostrará debajo de las columnas
-                display_event_analysis(index_values, index_type)
-            else:
-                # Si el cálculo del índice falló, el mensaje de advertencia ya se mostró arriba
-                pass
-            
-            with col2_idx:
-                # ... (La lógica para calcular SPI/SPEI y mostrar el gráfico de barras permanece igual)
-                if not index_values.empty:
-                    # ... (código del gráfico de barras del índice)
-                    st.plotly_chart(fig, use_container_width=True)
-
-        # --- INICIO DE LA INTEGRACIÓN ---
-        # Si se calculó un índice válido, llamamos a la nueva función de análisis de eventos
-        if not index_values.empty:
-            display_event_analysis(index_values, index_type)
-        # --- FIN DE LA INTEGRACIÓN ---
-
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Anomalías de Precipitación")
     display_filter_summary(
