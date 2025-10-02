@@ -1113,85 +1113,115 @@ def display_event_analysis(index_values, index_type):
 
 def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for_analysis):
     st.header("Análisis de Extremos Hidrológicos")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
-    )
-    if not stations_for_analysis:
-        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
-        return
+    if 'gdf_stations' not in st.session_state: st.warning("Cargue los datos para continuar."); return
+    display_filter_summary(len(st.session_state.gdf_stations), len(stations_for_analysis), st.session_state.year_range, len(st.session_state.meses_numeros))
+    if not stations_for_analysis: st.warning("Seleccione al menos una estación."); return
 
     percentile_sub_tab, indices_sub_tab = st.tabs(["Análisis por Percentiles", "Índices de Sequía (SPI/SPEI)"])
 
     with percentile_sub_tab:
         st.subheader("Análisis de Eventos Extremos por Percentiles Mensuales")
-        station_to_analyze_perc = st.selectbox(
-            "Seleccione una estación para el análisis:",
-            options=sorted(stations_for_analysis),
-            key="percentile_station_select"
-        )
+        station_to_analyze_perc = st.selectbox("Seleccione una estación:", options=sorted(stations_for_analysis), key="percentile_station_select")
         if station_to_analyze_perc:
             display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_perc)
-            
-        with indices_sub_tab:
-            st.subheader("Análisis con Índices Estandarizados")
-            col1_idx, col2_idx = st.columns([1, 2])
-            index_values = pd.Series(dtype=float)
-            
-            # --- COLUMNA 1: CONTROLES DE USUARIO ---
-            with col1_idx:
-                index_type = st.radio("Seleccione el índice a Calcular:", ("SPI", "SPEI"), key="index_type_radio")
-                station_to_analyze_idx = st.selectbox("Seleccione una estación para el análisis:", options=sorted(stations_for_analysis), key="index_station_select")
-                index_window = st.select_slider("Seleccione la escala de tiempo (meses):", options=[3, 6, 9, 12, 24], value=12, key="index_window_slider")
-            
-            # --- LÓGICA DE CÁLCULO Y VISUALIZACIÓN ---
-            if station_to_analyze_idx:
-                df_station_idx = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_idx].copy().set_index(Config.DATE_COL).sort_index()
-                
-                # Cálculo del índice seleccionado
-                if index_type == "SPI":
-                    precip_series = df_station_idx[Config.PRECIPITATION_COL]
-                    if len(precip_series.dropna()) < index_window * 2:
-                        with col2_idx:
-                            st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{index_window}.")
-                    else:
-                        with st.spinner(f"Calculando SPI-{index_window}..."):
-                            index_values = calculate_spi(precip_series, index_window)
-                
-                elif index_type == "SPEI":
-                    if Config.ET_COL not in df_station_idx.columns or df_station_idx[Config.ET_COL].isnull().all():
-                        with col2_idx:
-                            st.error(f"No hay datos de evapotranspiración ('{Config.ET_COL}') disponibles. No se puede calcular el SPEI.")
-                    else:
-                        precip_series = df_station_idx[Config.PRECIPITATION_COL]
-                        et_series = df_station_idx[Config.ET_COL]
-                        if len(precip_series.dropna()) < index_window * 2 or len(et_series.dropna()) < index_window * 2:
-                            with col2_idx:
-                                st.warning(f"No hay suficientes datos de precipitación o ETP para calcular el SPEI-{index_window}.")
-                        else:
-                            with st.spinner(f"Calculando SPEI-{index_window}..."):
-                                index_values = calculate_spei(precip_series, et_series, index_window)
 
-                # Si el cálculo del índice fue exitoso, mostrar resultados
+    with indices_sub_tab:
+        st.subheader("Análisis con Índices Estandarizados")
+        col1_idx, col2_idx = st.columns([1, 3])
+        index_values = pd.Series(dtype=float)
+        
+        with col1_idx:
+            index_type = st.radio("Índice a Calcular:", ("SPI", "SPEI"), key="index_type_radio")
+            station_to_analyze_idx = st.selectbox("Estación para análisis:", options=sorted(stations_for_analysis), key="index_station_select")
+            index_window = st.select_slider("Escala de tiempo (meses):", options=[3, 6, 9, 12, 24], value=12, key="index_window_slider")
+        
+        if station_to_analyze_idx:
+            df_station_idx = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_idx].copy().set_index(Config.DATE_COL).sort_index()
+            
+            with col2_idx:
+                with st.spinner(f"Calculando {index_type}-{index_window}..."):
+                    if index_type == "SPI":
+                        precip_series = df_station_idx[Config.PRECIPITATION_COL]
+                        if len(precip_series.dropna()) < index_window * 2:
+                            st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{index_window}.")
+                        else:
+                            index_values = calculate_spi(precip_series, index_window)
+                    
+                    elif index_type == "SPEI":
+                        if Config.ET_COL not in df_station_idx.columns or df_station_idx[Config.ET_COL].isnull().all():
+                            st.error(f"No hay datos de evapotranspiración ('{Config.ET_COL}') disponibles.")
+                        else:
+                            precip_series, et_series = df_station_idx[Config.PRECIPITATION_COL], df_station_idx[Config.ET_COL]
+                            if len(precip_series.dropna()) < index_window * 2 or len(et_series.dropna()) < index_window * 2:
+                                st.warning(f"No hay suficientes datos de precipitación o ETP para calcular el SPEI-{index_window}.")
+                            else:
+                                index_values = calculate_spei(precip_series, et_series, index_window)
+            
                 if not index_values.empty and not index_values.isnull().all():
-                    # --- COLUMNA 2: GRÁFICO PRINCIPAL ---
                     with col2_idx:
                         df_plot = pd.DataFrame({'index_val': index_values}).dropna()
-                        conditions = [
-                            df_plot['index_val'] <= -2.0, (df_plot['index_val'] > -2.0) & (df_plot['index_val'] <= -1.5),
-                            (df_plot['index_val'] > -1.5) & (df_plot['index_val'] <= -1.0), (df_plot['index_val'] > -1.0) & (df_plot['index_val'] < 1.0),
-                            (df_plot['index_val'] >= 1.0) & (df_plot['index_val'] < 1.5), (df_plot['index_val'] >= 1.5) & (df_plot['index_val'] < 2.0),
-                            df_plot['index_val'] >= 2.0
-                        ]
+                        conditions = [df_plot['index_val']<=-2.0, (df_plot['index_val']>-2.0)&(df_plot['index_val']<=-1.5), (df_plot['index_val']>-1.5)&(df_plot['index_val']<=-1.0), (df_plot['index_val']>-1.0)&(df_plot['index_val']<1.0), (df_plot['index_val']>=1.0)&(df_plot['index_val']<1.5), (df_plot['index_val']>=1.5)&(df_plot['index_val']<2.0), df_plot['index_val']>=2.0]
                         colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
                         df_plot['color'] = np.select(conditions, colors, default='grey')
-                        
-                        fig = go.Figure()
-                        fig.add_trace(go.Bar(x=df_plot.index, y=df_plot['index_val'], marker_color=df_plot['color'], name=index_type))
+                        fig = go.Figure(go.Bar(x=df_plot.index, y=df_plot['index_val'], marker_color=df_plot['color'], name=index_type))
                         fig.update_layout(title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}", yaxis_title=f"Valor {index_type}", xaxis_title="Fecha", height=500)
                         st.plotly_chart(fig, use_container_width=True)
+                    
+                    display_event_analysis(index_values, index_type)
+
+def display_event_analysis(index_values, index_type):
+    st.markdown("---"); st.subheader(f"Análisis de Eventos de Sequía y Humedad ({index_type})")
+    c1, c2 = st.columns(2)
+    with c1:
+        drought_threshold = st.slider("Umbral de Sequía", -2.0, 0.0, -1.0, 0.1, key=f"drought_thresh_{index_type}", help="Un evento de sequía comienza cuando el índice cae por debajo de este valor.")
+        extreme_drought_threshold = st.slider("Umbral de Sequía Extrema", -3.0, -1.0, -1.5, 0.1, key=f"extreme_drought_thresh_{index_type}", help="Eventos que alcanzan un pico por debajo de este valor se consideran extremos.")
+    with c2:
+        wet_threshold = st.slider("Umbral Húmedo", 0.0, 2.0, 1.0, 0.1, key=f"wet_thresh_{index_type}", help="Un período húmedo comienza cuando el índice supera este valor.")
+        extreme_wet_threshold = st.slider("Umbral Húmedo Extremo", 1.0, 3.0, 1.5, 0.1, key=f"extreme_wet_thresh_{index_type}", help="Eventos que alcanzan un pico por encima de este valor se consideran extremos.")
+    
+    droughts_df, wet_periods_df = analyze_events(index_values, drought_threshold, 'drought'), analyze_events(index_values, wet_threshold, 'wet')
+    
+    st.markdown("#### Panel Informativo de Eventos"); c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("##### 💧 **Resumen de Sequías**")
+        if not droughts_df.empty:
+            if not droughts_df['Duración (meses)'].isnull().all():
+                longest = droughts_df.loc[droughts_df['Duración (meses)'].idxmax()]
+                st.metric("Sequía más Larga", f"{longest['Duración (meses)']} meses", f"Inició: {longest['Fecha Inicio'].strftime('%Y-%m')}")
+            if not droughts_df['Pico'].isnull().all():
+                most_intense = droughts_df.loc[droughts_df['Pico'].idxmin()]
+                st.metric("Sequía más Intensa (Pico)", f"{most_intense['Pico']:.2f}", f"Inició: {most_intense['Fecha Inicio'].strftime('%Y-%m')}")
+            extreme_count = (droughts_df['Pico'] < extreme_drought_threshold).sum()
+            st.metric(f"Nº Eventos de Sequía (<{drought_threshold})", len(droughts_df))
+            st.metric(f"Nº Eventos Extremos (<{extreme_drought_threshold})", extreme_count)
+        else: st.info("No se identificaron eventos de sequía.")
+    with c2:
+        st.markdown("##### 🌧️ **Resumen de Períodos Húmedos**")
+        if not wet_periods_df.empty:
+            if not wet_periods_df['Duración (meses)'].isnull().all():
+                longest = wet_periods_df.loc[wet_periods_df['Duración (meses)'].idxmax()]
+                st.metric("Período Húmedo más Largo", f"{longest['Duración (meses)']} meses", f"Inició: {longest['Fecha Inicio'].strftime('%Y-%m')}")
+            if not wet_periods_df['Pico'].isnull().all():
+                most_intense = wet_periods_df.loc[wet_periods_df['Pico'].idxmax()]
+                st.metric("Período Húmedo más Intenso (Pico)", f"{most_intense['Pico']:.2f}", f"Inició: {most_intense['Fecha Inicio'].strftime('%Y-%m')}")
+            extreme_count = (wet_periods_df['Pico'] > extreme_wet_threshold).sum()
+            st.metric(f"Nº Eventos Húmedos (>{wet_threshold})", len(wet_periods_df))
+            st.metric(f"Nº Eventos Extremos (>{extreme_wet_threshold})", extreme_count)
+        else: st.info("No se identificaron períodos húmedos.")
+    
+    st.markdown("---"); st.subheader("Visualización y Datos de Eventos"); tab_drought, tab_wet = st.tabs(["Eventos de Sequía", "Períodos Húmedos"])
+    with tab_drought:
+        if not droughts_df.empty:
+            fig = px.bar(droughts_df, x='Fecha Inicio', y='Duración (meses)', color='Intensidad', title='Duración e Intensidad de Eventos de Sequía', hover_data=['Magnitud','Pico','Fecha Fin'], color_continuous_scale=px.colors.sequential.Reds_r)
+            fig.update_layout(coloraxis_colorbar=dict(title=f"Intensidad<br>({index_type})")); st.plotly_chart(fig, use_container_width=True)
+            with st.expander("Ver tabla de datos de sequías"): st.dataframe(droughts_df.style.format({'Fecha Inicio':'{:%Y-%m}','Fecha Fin':'{:%Y-%m}','Magnitud':'{:.2f}','Intensidad':'{:.2f}','Pico':'{:.2f}'}))
+        else: st.info("No hay datos de sequía para mostrar.")
+    with tab_wet:
+        if not wet_periods_df.empty:
+            fig = px.bar(wet_periods_df, x='Fecha Inicio', y='Duración (meses)', color='Intensidad', title='Duración e Intensidad de Períodos Húmedos', hover_data=['Magnitud','Pico','Fecha Fin'], color_continuous_scale=px.colors.sequential.Blues)
+            fig.update_layout(coloraxis_colorbar=dict(title=f"Intensidad<br>({index_type})")); st.plotly_chart(fig, use_container_width=True)
+            with st.expander("Ver tabla de datos de períodos húmedos"): st.dataframe(wet_periods_df.style.format({'Fecha Inicio':'{:%Y-%m}','Fecha Fin':'{:%Y-%m}','Magnitud':'{:.2f}','Intensidad':'{:.2f}','Pico':'{:.2f}'}))
+        else: st.info("No hay datos de períodos húmedos para mostrar.")
                 
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis):
     st.header("Análisis de Anomalías de Precipitación")
