@@ -1147,6 +1147,49 @@ def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for
         if station_to_analyze_idx:
             df_station_idx = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_idx].copy().set_index(Config.DATE_COL).sort_index()
             
+            if index_type == "SPI":
+                precip_series = df_station_idx[Config.PRECIPITATION_COL]
+                if len(precip_series.dropna()) < index_window * 2:
+                    with col2_idx:
+                        st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{index_window}.")
+                else:
+                    with st.spinner(f"Calculando SPI-{index_window}..."):
+                        index_values = calculate_spi(precip_series, index_window)
+            
+            elif index_type == "SPEI":
+                if Config.ET_COL not in df_station_idx.columns or df_station_idx[Config.ET_COL].isnull().all():
+                    with col2_idx:
+                        st.error(f"No hay datos de evapotranspiración ('{Config.ET_COL}') disponibles. No se puede calcular el SPEI.")
+                else:
+                    precip_series = df_station_idx[Config.PRECIPITATION_COL]
+                    et_series = df_station_idx[Config.ET_COL]
+                    if len(precip_series.dropna()) < index_window * 2 or len(et_series.dropna()) < index_window * 2:
+                        with col2_idx:
+                            st.warning(f"No hay suficientes datos de precipitación o ETP para calcular el SPEI-{index_window}.")
+                    else:
+                        with st.spinner(f"Calculando SPEI-{index_window}..."):
+                            index_values = calculate_spei(precip_series, et_series, index_window)
+
+            if not index_values.empty and not index_values.isnull().all():
+                with col2_idx:
+                    df_plot = pd.DataFrame({'index_val': index_values}).dropna()
+                    conditions = [
+                        df_plot['index_val'] <= -2.0, (df_plot['index_val'] > -2.0) & (df_plot['index_val'] <= -1.5),
+                        (df_plot['index_val'] > -1.5) & (df_plot['index_val'] <= -1.0), (df_plot['index_val'] > -1.0) & (df_plot['index_val'] < 1.0),
+                        (df_plot['index_val'] >= 1.0) & (df_plot['index_val'] < 1.5), (df_plot['index_val'] >= 1.5) & (df_plot['index_val'] < 2.0),
+                        df_plot['index_val'] >= 2.0
+                    ]
+                    colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
+                    df_plot['color'] = np.select(conditions, colors, default='grey')
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(x=df_plot.index, y=df_plot['index_val'], marker_color=df_plot['color'], name=index_type))
+                    fig.update_layout(title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}", yaxis_title=f"Valor {index_type}", xaxis_title="Fecha", height=600)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # Llamada a la función de análisis de eventos
+                display_event_analysis(index_values, index_type)
+            
             with col2_idx:
                 # ... (La lógica para calcular SPI/SPEI y mostrar el gráfico de barras permanece igual)
                 if not index_values.empty:
