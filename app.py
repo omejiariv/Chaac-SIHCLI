@@ -110,13 +110,11 @@ def main():
             selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges, key='altitude_multiselect')
             regions_list = sorted(st.session_state.gdf_stations[Config.REGION_COL].dropna().unique())
             selected_regions = st.multiselect('Filtrar por Depto/Región', options=regions_list, key='regions_multiselect')
-            
             temp_gdf_for_mun = st.session_state.gdf_stations.copy()
             if selected_regions:
                 temp_gdf_for_mun = temp_gdf_for_mun[temp_gdf_for_mun[Config.REGION_COL].isin(selected_regions)]
             municipios_list = sorted(temp_gdf_for_mun[Config.MUNICIPALITY_COL].dropna().unique())
             selected_municipios = st.multiselect('Filtrar por Municipio', options=municipios_list, key='municipios_multiselect')
-            
             celdas_list = []
             if Config.CELL_COL in temp_gdf_for_mun.columns:
                  celdas_list = sorted(temp_gdf_for_mun[Config.CELL_COL].dropna().unique())
@@ -157,6 +155,7 @@ def main():
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         st.session_state.meses_numeros = meses_numeros
+        st.session_state.year_range = year_range
 
         df_monthly_processed = st.session_state.df_long.copy()
         if st.session_state.analysis_mode == "Completar series (interpolación)":
@@ -194,10 +193,10 @@ def main():
         tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
         tabs = st.tabs(tab_names)
 
-        if df_anual_melted.empty or df_monthly_filtered.empty or gdf_filtered.empty:
+        if not stations_for_analysis or df_monthly_filtered.empty:
             with tabs[0]:
                 display_welcome_tab()
-                st.warning("No hay datos disponibles para los filtros aplicados. Ajuste la selección de años, meses o estaciones.")
+                st.warning("No hay estaciones seleccionadas o datos disponibles para los filtros aplicados. Por favor, ajuste la selección.")
             return
 
         with tabs[0]: display_welcome_tab()
