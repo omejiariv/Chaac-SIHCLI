@@ -709,6 +709,12 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
 
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered):
     st.header("Mapas Avanzados")
+    
+    # CORRECCIÓN: Verificar que 'gdf_stations' existe en session_state antes de usarlo.
+    if 'gdf_stations' not in st.session_state or 'year_range' not in st.session_state or 'meses_numeros' not in st.session_state:
+        st.warning("Los datos de sesión no están completamente inicializados. Por favor, cargue y procese los datos primero.")
+        return
+        
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -716,9 +722,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         selected_months_count=len(st.session_state.meses_numeros)
     )
     if not stations_for_analysis:
-        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
-        return
-    
+        st.warning("Por favor, seleccione al menos una estación para ver esta sección."); return
+
     tab_names = ["Animación GIF (Antioquia)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas", "Interpolación Comparativa"]
     gif_tab, temporal_tab, race_tab, anim_tab, compare_tab, kriging_tab = st.tabs(tab_names)
 
@@ -727,11 +732,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         col_controls, col_gif = st.columns([1, 3])
         with col_controls:
             if st.button("Reiniciar Animación", key="reset_gif_button"):
-                st.session_state.gif_reload_key = st.session_state.get('gif_reload_key', 0) + 1
                 st.rerun()
 
         with col_gif:
-            
             gif_path = Config.GIF_PATH
             if os.path.exists(gif_path):
                 try:
@@ -740,12 +743,11 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     gif_b64 = base64.b64encode(gif_bytes).decode("utf-8")
                     html_string = f'<img src="data:image/gif;base64,{gif_b64}" width="600" alt="Animación PPAM">'
                     st.markdown(html_string, unsafe_allow_html=True)
-                    
                 except Exception as e:
                     st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
             else:
                 st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
-
+                
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
