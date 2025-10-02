@@ -1,5 +1,4 @@
 # modules/visualizer.py
-
 import streamlit as st
 import pandas as pd
 import base64
@@ -17,6 +16,7 @@ import branca.colormap as cm
 import matplotlib.pyplot as plt
 from scipy import stats
 import io
+import pymannkendall as mk
 from modules.analysis import (
     calculate_spi, calculate_spei, calculate_monthly_anomalies,
     calculate_percentiles_and_extremes, analyze_events
