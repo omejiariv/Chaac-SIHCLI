@@ -209,8 +209,7 @@ with st.sidebar.expander("🔬 Diagnóstico del Logo", expanded=True):
             with tabs[0]:
                 display_welcome_tab()
                 st.warning("No hay estaciones seleccionadas o datos disponibles para los filtros aplicados. Por favor, ajuste la selección.")
-            return
-
+           
         with tabs[0]: display_welcome_tab()
         with tabs[1]: display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered)
         with tabs[2]: display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered)
