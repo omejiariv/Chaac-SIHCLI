@@ -38,11 +38,6 @@ from modules.data_processor import complete_series
 
 #--- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN ---
 
-@st.cache_data
-def convert_df_to_csv(df):
-    """Convierte un DataFrame a un objeto CSV codificado en utf-8."""
-    return df.to_csv(index=False).encode('utf-8')
-
 def display_filter_summary(total_stations_count, selected_stations_count, year_range,
                            selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
     if isinstance(year_range, tuple) and len(year_range) == 2:
@@ -2126,39 +2121,25 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para activar las descargas.")
         return
-    
+
     st.markdown("Aquí puedes descargar los datos actualmente visualizados, según los filtros aplicados en el panel de control.")
     st.markdown("---")
-    
+
     st.markdown("#### Datos de Precipitación Anual (Filtrados)")
     if not df_anual_melted.empty:
         csv_anual = convert_df_to_csv(df_anual_melted)
         st.download_button(
-            label="Descargar CSV Anual",
+            label="📥 Descargar CSV Anual",
             data=csv_anual,
             file_name='precipitacion_anual_filtrada.csv',
             mime='text/csv',
-            key='download-anual'
+            key='download-anual'  # Esta clave es única para este botón
         )
     else:
         st.info("No hay datos anuales para descargar con los filtros actuales.")
-        
-    st.markdown("---")
-    
-    st.markdown("#### Datos de Precipitación Mensual (Filtrados)")
-    if not df_monthly_filtered.empty:
-        csv_mensual = convert_df_to_csv(df_monthly_filtered)
-        st.download_button(
-            label="Descargar CSV Mensual",
-            data=csv_mensual,
-            file_name='precipitacion_mensual_filtrada.csv',
-            mime='text/csv',
-            key='download-mensual'
-        )
-    else:
-        st.info("No hay datos mensuales para descargar con los filtros actuales.")
 
     st.markdown("---")
+
     st.markdown("#### Datos de Precipitación Mensual (Filtrados)")
     if not df_monthly_filtered.empty:
         csv_mensual = convert_df_to_csv(df_monthly_filtered)
@@ -2167,13 +2148,12 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
             data=csv_mensual,
             file_name='precipitacion_mensual_filtrada.csv',
             mime='text/csv',
-            key='download-mensual'
+            key='download-mensual' # Esta clave es única para este botón
         )
     else:
         st.info("No hay datos mensuales para descargar con los filtros actuales.")
-    
-    st.info("Nota: La opción para descargar series completadas se ha eliminado para optimizar el rendimiento de la aplicación. Las series se completan bajo demanda en la pestaña de Pronósticos.")
 
+    st.info("Nota: La opción para descargar series completadas se ha eliminado para optimizar el rendimiento de la aplicación. Las series se completan bajo demanda en la pestaña de Pronósticos.")
 # -----------------------------------------------------------------------------
 # Tu función auxiliar para las estadísticas (SIN CAMBIOS)
 # -----------------------------------------------------------------------------
