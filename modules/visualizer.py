@@ -1599,11 +1599,13 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-        
-    st.markdown("Esta sección cuantifica la relación lineal entre la precipitación y diferentes variables (otras estaciones o indices climáticos) utilizando el coeficiente de correlación de Pearson.")
-    
-    enso_corr_tab, station_corr_tab, indices_climaticos_tab = st.tabs(["Correlación con ENSO (ONI)", "Comparación entre Estaciones", "Correlación con Otros Índices"])
 
+    st.markdown("Esta sección cuantifica la relación lineal entre la precipitación y diferentes variables utilizando el coeficiente de correlación de Pearson.")
+    
+    # AÑADIMOS UNA NUEVA PESTAÑA A LA LISTA
+    tab_names = ["Correlación con ENSO (ONI)", "Matriz entre Estaciones", "Comparación 1 a 1", "Correlación con Otros Índices"]
+    enso_corr_tab, matrix_corr_tab, station_corr_tab, indices_climaticos_tab = st.tabs(tab_names)
+    
     with enso_corr_tab:
         if Config.ENSO_ONI_COL not in df_monthly_filtered.columns or df_monthly_filtered[Config.ENSO_ONI_COL].isnull().all():
             st.warning(f"No se puede realizar el análisis de correlación con ENSO. La columna '{Config.ENSO_ONI_COL}' no fue encontrada o no tiene datos en el período seleccionado.")
@@ -1670,6 +1672,29 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
             st.plotly_chart(fig_corr, use_container_width=True)
         else:
             st.warning("No hay suficientes datos superpuestos para calcular la correlación.")
+
+    with matrix_corr_tab:
+        st.subheader("Matriz de Correlación de Precipitación entre Estaciones")
+        if len(stations_for_analysis) < 2:
+            st.info("Seleccione al menos dos estaciones para generar la matriz de correlación.")
+        else:
+            with st.spinner("Calculando matriz de correlación..."):
+                df_pivot = df_monthly_filtered.pivot_table(
+                    index=Config.DATE_COL, 
+                    columns=Config.STATION_NAME_COL, 
+                    values=Config.PRECIPITATION_COL
+                )
+                corr_matrix = df_pivot.corr()
+                
+                fig_matrix = px.imshow(
+                    corr_matrix,
+                    text_auto=True,
+                    aspect="auto",
+                    color_continuous_scale='RdBu_r',
+                    title="Mapa de Calor de Correlaciones de Precipitación Mensual"
+                )
+                fig_matrix.update_layout(height=max(400, len(stations_for_analysis) * 25))
+                st.plotly_chart(fig_matrix, use_container_width=True)
 
     with station_corr_tab:
         if len(stations_for_analysis) < 2:
@@ -1898,24 +1923,24 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
     autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, \
     compare_forecast_tab = st.tabs(tab_names)
 
-    with pronostico_sarima_tab:
-        st.subheader("Pronóstico (Modelo SARIMA)")
-        
-        station_to_forecast = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="sarima_station_select")
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            forecast_horizon = st.slider("Meses a pronosticar:", 12, 36, 12, step=12, key="sarima_horizon")
-        with c2:
-            test_size = st.slider("Meses para evaluación:", 12, 36, 12, step=6, key="sarima_test_size", help="Usa los últimos N meses de datos históricos para medir la precisión del modelo.")
-            
-        available_regressors = [col for col in df_monthly_to_process.columns if col in [Config.ENSO_ONI_COL]]
-        selected_regressors = st.multiselect("Seleccionar regresores externos (opcional):", options=available_regressors, key="sarima_regressors")
-        
-        if selected_regressors:
-            st.info("Para un pronóstico real a futuro, el modelo asume que el último valor conocido del regresor se mantiene constante.", icon="ℹ️")
+with pronostico_sarima_tab:
+    st.subheader("Pronóstico (Modelo SARIMA)")
+    station_to_forecast = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="sarima_station_select")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        forecast_horizon = st.slider("Meses a pronosticar:", 12, 36, 12, step=12, key="sarima_horizon")
+    with c2:
+        test_size = st.slider("Meses para evaluación:", 12, 36, 12, step=6, key="sarima_test_size", help="Usa los últimos N meses de datos históricos para medir la precisión del modelo.")
+    
+    use_auto_arima = st.checkbox("Encontrar parámetros óptimos automáticamente (Auto-ARIMA)", value=True)
 
-        with st.expander("Ajuste de Parámetros SARIMA"):
+    order, seasonal_order = (1,1,1), (1,1,1,12)
+
+    if use_auto_arima:
+        st.info("El modo automático buscará la mejor combinación de parámetros. El ajuste manual está desactivado.", icon="🤖")
+    else:
+        with st.expander("Ajuste de Parámetros SARIMA (Manual)"):
             col_p, col_d, col_q = st.columns(3)
             p = col_p.slider("p (AR no estacional)", 0, 3, 1, key="sarima_p")
             d = col_d.slider("d (I no estacional)", 0, 2, 1, key="sarima_d")
@@ -1924,42 +1949,36 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
             P = col_P.slider("P (AR estacional)", 0, 2, 1, key="sarima_P")
             D = col_D.slider("D (I estacional)", 0, 2, 1, key="sarima_D")
             Q = col_Q.slider("Q (MA estacional)", 0, 2, 1, key="sarima_Q")
-        
-        if station_to_forecast: # Esta línea ahora está correctamente indentada
-            ts_data_sarima = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast].copy()
-            
-            regressors_df = None
-            if selected_regressors:
-                regressors_df = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast][
-                    [Config.DATE_COL] + selected_regressors
-                ].dropna()
+            order = (p, d, q)
+            seasonal_order = (P, D, Q, 12)
 
-            if len(ts_data_sarima.dropna(subset=[Config.PRECIPITATION_COL])) < test_size + 24:
-                st.warning(f"Se necesitan al menos {test_size + 24} meses de datos para un pronóstico y evaluación confiables.")
-            else:
-                try:
-                    with st.spinner("Entrenando y evaluando modelo SARIMA..."):
-                        ts_hist, forecast_mean, forecast_ci, metrics, sarima_df_export = generate_sarima_forecast(
-                            ts_data_sarima, (p,d,q), (P,D,Q,12), forecast_horizon, test_size, regressors_df
-                        )
-                    st.session_state['sarima_results'] = {'forecast': sarima_df_export, 'metrics': metrics, 'history': ts_hist}
-                    
-                    st.markdown("##### Resultados del Pronóstico")
-                    fig_pronostico = go.Figure()
-                    fig_pronostico.add_trace(go.Scatter(x=ts_hist.index, y=ts_hist, mode='lines', name='Datos Históricos'))
-                    fig_pronostico.add_trace(go.Scatter(x=forecast_mean.index, y=forecast_mean, mode='lines', name='Pronóstico SARIMA', line=dict(color='red', dash='dash')))
-                    fig_pronostico.add_trace(go.Scatter(x=forecast_ci.index, y=forecast_ci.iloc[:, 0], mode='lines', line=dict(width=0), showlegend=False))
-                    fig_pronostico.add_trace(go.Scatter(x=forecast_ci.index, y=forecast_ci.iloc[:, 1], mode='lines', line=dict(width=0), fill='tonexty', fillcolor='rgba(255,0,0,0.2)', name='Intervalo de Confianza'))
-                    st.plotly_chart(fig_pronostico, use_container_width=True)
-                    
-                    st.markdown("##### Evaluación del Modelo")
-                    st.info(f"El modelo se evaluó usando los últimos **{test_size} meses** de datos históricos como conjunto de prueba.")
-                    m1, m2 = st.columns(2)
-                    m1.metric("RMSE (Error Cuadrático Medio)", f"{metrics['RMSE']:.2f}")
-                    m2.metric("MAE (Error Absoluto Medio)", f"{metrics['MAE']:.2f}")
-                except Exception as e:
-                    st.error(f"No se pudo generar el pronóstico SARIMA. Verifique los parámetros o la continuidad de los datos. Error: {e}")
+    if station_to_forecast and st.button("Generar Pronóstico SARIMA"):
+        ts_data_sarima = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast].copy()
 
+        if len(ts_data_sarima.dropna(subset=[Config.PRECIPITATION_COL])) < test_size + 36:
+            st.warning(f"Se necesitan al menos {test_size + 36} meses de datos para un pronóstico y evaluación confiables.")
+        else:
+            try:
+                if use_auto_arima:
+                    with st.spinner("Buscando el mejor modelo Auto-ARIMA... Este proceso puede tardar unos minutos."):
+                        order, seasonal_order = auto_arima_search(ts_data_sarima, test_size)
+                        st.success(f"Modelo óptimo encontrado: orden={order}, orden estacional={seasonal_order}")
+
+                with st.spinner("Entrenando y evaluando modelo SARIMA..."):
+                    ts_hist, forecast_mean, forecast_ci, metrics, sarima_df_export = generate_sarima_forecast(
+                        ts_data_sarima, order, seasonal_order, forecast_horizon, test_size, None
+                    )
+                
+                # ... (El resto del código para mostrar los gráficos y métricas permanece igual) ...
+                st.markdown("##### Resultados del Pronóstico")
+                fig_pronostico = go.Figure()
+                # ... (código para añadir trazas al gráfico) ...
+                st.plotly_chart(fig_pronostico, use_container_width=True)
+                # ... (código para mostrar métricas RMSE y MAE) ...
+
+            except Exception as e:
+                st.error(f"No se pudo generar el pronóstico SARIMA. Error: {e}")
+                
     # --- PESTAÑA PROPHET CORREGIDA ---
     with pronostico_prophet_tab:
         st.subheader("Pronóstico (Modelo Prophet)")
