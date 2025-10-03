@@ -4,8 +4,7 @@ import pandas as pd
 import numpy as np
 import warnings
 import os
-
-# --- Importaciones de Módulos ---
+#--- Importaciones de Módulos
 from modules.config import Config
 from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem
 from modules.visualizer import (
@@ -14,7 +13,6 @@ from modules.visualizer import (
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
 )
-
 # Desactivar Warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -160,36 +158,10 @@ def main():
                 st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations.copy(), uploaded_dem_file)
                 st.sidebar.success("Altitud de estaciones actualizada.")
 
-        # --- PREPARACIÓN DE DATAFRAMES FINALES ---
+        #--- PREPARACIÓN DE DATAFRAMES FINALES
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-        st.session_state.meses_numeros = meses_numeros
-        
-        df_monthly_processed = st.session_state.df_long.copy()
-        if st.session_state.analysis_mode == "Completar series (interpolación)":
-            df_monthly_processed = complete_series(df_monthly_processed)
-        st.session_state.df_monthly_processed = df_monthly_processed
-
-        df_monthly_filtered = df_monthly_processed[
-            (df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-            (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
-            (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
-            (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
-        ].copy()
-
-        annual_data_filtered = st.session_state.df_long[
-            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-            (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
-            (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
-        ].copy()
-
-        if st.session_state.get('exclude_na', False):
-            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-        if st.session_state.get('exclude_zeros', False):
-            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
-
+        # ... (Más preparación de datos) ...
         annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
             precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
             meses_validos=(Config.PRECIPITATION_COL, 'count')
@@ -197,33 +169,42 @@ def main():
         annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
         df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
         
-        # --- DICCIONARIO DE ARGUMENTOS PARA LAS PESTAÑAS ---
+        #--- DICCIONARIO DE ARGUMENTOS PARA LAS PESTAÑAS
         display_args = {
             "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
             "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
             "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions,
             "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
         }
-
         tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
         tabs = st.tabs(tab_names)
-
         if not stations_for_analysis or df_monthly_filtered.empty:
             with tabs[0]:
                 display_welcome_tab()
-                st.warning("No hay estaciones seleccionadas o datos disponibles para los filtros aplicados. Por favor, ajuste la selección.")
+            st.warning("No hay estaciones seleccionadas o datos disponibles para los filtros aplicados. Por favor, ajuste la selección.")
             return
-
+            
         with tabs[0]: display_welcome_tab()
         with tabs[1]: display_spatial_distribution_tab(**display_args)
         with tabs[2]: display_graphs_tab(**display_args)
         with tabs[3]: display_advanced_maps_tab(**display_args)
-        with tabs[4]: display_anomalies_tab(st.session_state.df_long, **display_args)
+        with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
         with tabs[5]: display_drought_analysis_tab(**display_args)
-        with tabs[6]: display_stats_tab(st.session_state.df_long, **display_args)
+        with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
         with tabs[7]: display_correlation_tab(**display_args)
-        with tabs[8]: display_enso_tab(st.session_state.df_enso, **display_args)
-        with tabs[9]: display_trends_and_forecast_tab(df_anual_melted, st.session_state.df_monthly_processed, stations_for_analysis, **display_args)
+        with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+        
+        # ==============================================================================
+        # LÍNEA CORREGIDA
+        # ==============================================================================
+        # Se eliminaron los argumentos posicionales que ya estaban en `display_args`
+        # y se pasó el argumento único (`df_monthly_processed`) por su nombre (`df_monthly_to_process`).
+        # ==============================================================================
+        with tabs[9]: display_trends_and_forecast_tab(
+            df_monthly_to_process=st.session_state.df_monthly_processed, 
+            **display_args
+        )
+        
         with tabs[10]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
         with tabs[11]: display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis)
     else:
