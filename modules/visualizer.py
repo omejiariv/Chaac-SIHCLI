@@ -2070,21 +2070,12 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
             fig_tendencia.add_trace(go.Scatter(x=df_to_analyze['año_num'], y=df_to_analyze['tendencia'], mode='lines', name='Línea de Tendencia', line=dict(color='red')))
             fig_tendencia.update_layout(xaxis_title="Año", yaxis_title="Precipitación Anual (mm)")
             st.plotly_chart(fig_tendencia, use_container_width=True)
-            
-            csv_data = df_to_analyze.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Descargar datos de Tendencia Anual", data=csv_data,
-                file_name=f'tendencia_anual_{title_for_download}.csv', mime='text/csv',
-                key='download-anual-tendencia'
-            )
         else:
             st.warning("No hay suficientes datos en el período seleccionado para calcular una tendencia.")
 
     with mann_kendall_tab:
         st.subheader("Tendencia de Precipitación Anual (Prueba de Mann-Kendall)")
         with st.expander("¿Qué es la prueba de Mann-Kendall?"):
-            # --- BLOQUE CORREGIDO ---
-            # La indentación de este bloque de texto ha sido reparada.
             st.markdown("""
             La **Prueba de Mann-Kendall** es un método estadístico no paramétrico utilizado para detectar
             tendencias en series de tiempo. No asume que los datos sigan una distribución particular.
@@ -2194,7 +2185,7 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
                     st.plotly_chart(fig_pacf, use_container_width=True)
                 else:
                     st.warning(f"No hay suficientes datos (se requieren > {max_lag} meses) para el análisis de autocorrelación.")
-             
+    
     with pronostico_sarima_tab:
         st.subheader("Pronóstico (Modelo SARIMA)")
         station_to_forecast = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="sarima_station_select")
@@ -2213,6 +2204,130 @@ def display_trends_and_forecast_tab(df_anual_melted, df_monthly_to_process, stat
             st.info("El modo automático buscará la mejor combinación de parámetros. El ajuste manual está desactivado.", icon="🤖")
         else:
             with st.expander("Ajuste de Parámetros SARIMA (Manual)"):
+                col_p, col_d, col_q = st.columns(3)
+                p = col_p.slider("p (AR no estacional)", 0, 3, 1, key="sarima_p")
+                d = col_d.slider("d (I no estacional)", 0, 2, 1, key="sarima_d")
+                q = col_q.slider("q (MA no estacional)", 0, 3, 1, key="sarima_q")
+                col_P, col_D, col_Q = st.columns(3)
+                P = col_P.slider("P (AR estacional)", 0, 2, 1, key="sarima_P")
+                D = col_D.slider("D (I estacional)", 0, 2, 1, key="sarima_D")
+                Q = col_Q.slider("Q (MA estacional)", 0, 2, 1, key="sarima_Q")
+                order = (p, d, q)
+                seasonal_order = (P, D, Q, 12)
+
+        if station_to_forecast and st.button("Generar Pronóstico SARIMA"):
+            ts_data_sarima = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast].copy()
+            ts_data_sarima = ts_data_sarima.set_index(Config.DATE_COL).sort_index()
+
+            if len(ts_data_sarima.dropna(subset=[Config.PRECIPITATION_COL])) < test_size + 36:
+                st.warning(f"Se necesitan al menos {test_size + 36} meses de datos para un pronóstico y evaluación confiables.")
+            else:
+                try:
+                    if use_auto_arima:
+                        with st.spinner("Buscando el mejor modelo Auto-ARIMA... Este proceso puede tardar unos minutos."):
+                            from modules.forecasting import auto_arima_search
+                            order, seasonal_order = auto_arima_search(ts_data_sarima, test_size)
+                            st.success(f"Modelo óptimo encontrado: orden={order}, orden estacional={seasonal_order}")
+
+                    with st.spinner("Entrenando y evaluando modelo SARIMA..."):
+                        from modules.forecasting import generate_sarima_forecast
+                        ts_hist, forecast_mean, forecast_ci, metrics, sarima_df_export = generate_sarima_forecast(
+                            ts_data_sarima.reset_index(), order, seasonal_order, forecast_horizon, test_size, None
+                        )
+                    
+                    st.session_state['sarima_results'] = {'forecast': sarima_df_export, 'metrics': metrics, 'history': ts_hist}
+                    st.markdown("##### Resultados del Pronóstico")
+                    fig_pronostico = go.Figure()
+                    fig_pronostico.add_trace(go.Scatter(x=ts_hist.index, y=ts_hist, mode='lines', name='Datos Históricos'))
+                    fig_pronostico.add_trace(go.Scatter(x=forecast_mean.index, y=forecast_mean, mode='lines', name='Pronóstico SARIMA', line=dict(color='red', dash='dash')))
+                    fig_pronostico.add_trace(go.Scatter(x=forecast_ci.index, y=forecast_ci.iloc[:, 0], mode='lines', line=dict(width=0), showlegend=False))
+                    fig_pronostico.add_trace(go.Scatter(x=forecast_ci.index, y=forecast_ci.iloc[:, 1], mode='lines', line=dict(width=0), fill='tonexty', fillcolor='rgba(255,0,0,0.2)', name='Intervalo de Confianza'))
+                    st.plotly_chart(fig_pronostico, use_container_width=True)
+
+                    st.markdown("##### Evaluación del Modelo")
+                    st.info(f"El modelo se evaluó usando los últimos **{test_size} meses** de datos históricos como conjunto de prueba.")
+                    m1, m2 = st.columns(2)
+                    m1.metric("RMSE (Error Cuadrático Medio)", f"{metrics['RMSE']:.2f}")
+                    m2.metric("MAE (Error Absoluto Medio)", f"{metrics['MAE']:.2f}")
+
+                except Exception as e:
+                    st.error(f"No se pudo generar el pronóstico SARIMA. Error: {e}")
+
+    with pronostico_prophet_tab:
+        st.subheader("Pronóstico (Modelo Prophet)")
+        station_to_forecast_prophet = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="prophet_station_select")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            forecast_horizon_prophet = st.slider("Meses a pronosticar:", 12, 36, 12, step=12, key="prophet_horizon")
+        with c2:
+            test_size_prophet = st.slider("Meses para evaluación:", 12, 36, 12, step=6, key="prophet_test_size")
+            
+        if station_to_forecast_prophet:
+            ts_data_prophet = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast_prophet].copy()
+            if len(ts_data_prophet.dropna(subset=[Config.PRECIPITATION_COL])) < test_size_prophet + 24:
+                st.warning(f"Se necesitan al menos {test_size_prophet + 24} meses de datos para un pronóstico y evaluación confiables.")
+            else:
+                try:
+                    with st.spinner("Entrenando y evaluando modelo Prophet..."):
+                        from modules.forecasting import generate_prophet_forecast
+                        model, forecast, metrics = generate_prophet_forecast(
+                            ts_data_prophet, forecast_horizon_prophet, test_size_prophet, None
+                        )
+                    st.session_state['prophet_results'] = {'forecast': forecast[['ds', 'yhat']], 'metrics': metrics}
+                    
+                    st.markdown("##### Resultados del Pronóstico")
+                    fig_prophet = plot_plotly(model, forecast)
+                    st.plotly_chart(fig_prophet, use_container_width=True)
+
+                    st.markdown("##### Evaluación del Modelo")
+                    st.info(f"El modelo se evaluó usando los últimos **{test_size_prophet} meses** de datos históricos como conjunto de prueba.")
+                    m1, m2 = st.columns(2)
+                    m1.metric("RMSE (Error Cuadrático Medio)", f"{metrics['RMSE']:.2f}")
+                    m2.metric("MAE (Error Absoluto Medio)", f"{metrics['MAE']:.2f}")
+                except Exception as e:
+                    st.error(f"No se pudo generar el pronóstico con Prophet. Error: {e}")
+
+    with compare_forecast_tab:
+        st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")
+        sarima_results = st.session_state.get('sarima_results')
+        prophet_results = st.session_state.get('prophet_results')
+
+        if not sarima_results or not prophet_results:
+            st.warning("Debe generar un pronóstico SARIMA y Prophet en las pestañas anteriores para poder compararlos.")
+        else:
+            fig_compare = go.Figure()
+            if sarima_results.get('history') is not None:
+                hist_data = sarima_results['history']
+                fig_compare.add_trace(go.Scatter(x=hist_data.index, y=hist_data, mode='lines', name='Histórico', line=dict(color='gray')))
+            if sarima_results.get('forecast') is not None:
+                sarima_fc = sarima_results['forecast']
+                fig_compare.add_trace(go.Scatter(x=sarima_fc['ds'], y=sarima_fc['yhat'], mode='lines', name='Pronóstico SARIMA', line=dict(color='red', dash='dash')))
+            if prophet_results.get('forecast') is not None:
+                prophet_fc = prophet_results['forecast']
+                fig_compare.add_trace(go.Scatter(x=prophet_fc['ds'], y=prophet_fc['yhat'], mode='lines', name='Pronóstico Prophet', line=dict(color='blue', dash='dash')))
+            
+            fig_compare.update_layout(title="Pronóstico Comparativo", xaxis_title="Fecha", yaxis_title="Precipitación (mm)", height=500, legend=dict(x=0.01, y=0.99))
+            st.plotly_chart(fig_compare, use_container_width=True)
+
+            st.markdown("#### Comparación de Precisión (sobre el conjunto de prueba)")
+            sarima_metrics = st.session_state.get('sarima_results', {}).get('metrics')
+            prophet_metrics = st.session_state.get('prophet_results', {}).get('metrics')
+
+            if sarima_metrics and prophet_metrics:
+                m_data = {
+                    'Métrica': ['RMSE', 'MAE'],
+                    'SARIMA': [sarima_metrics['RMSE'], sarima_metrics['MAE']],
+                    'Prophet': [prophet_metrics['RMSE'], prophet_metrics['MAE']]
+                }
+                metrics_df = pd.DataFrame(m_data)
+                st.dataframe(metrics_df.style.format({'SARIMA': '{:.2f}', 'Prophet': '{:.2f}'}))
+                
+                rmse_winner = 'SARIMA' if sarima_metrics['RMSE'] < prophet_metrics['RMSE'] else 'Prophet'
+                mae_winner = 'SARIMA' if sarima_metrics['MAE'] < prophet_metrics['MAE'] else 'Prophet'
+                st.success(f"🏆 **Ganador (menor error):** **{rmse_winner}** basado en RMSE y **{mae_winner}** basado en MAE.")
+            else:
+                st.info("Genere ambos pronósticos (SARIMA y Prophet) en sus respectivas pestañas para ver la comparación de precisión.")
 
 def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis):
     st.header("Opciones de Descarga")
