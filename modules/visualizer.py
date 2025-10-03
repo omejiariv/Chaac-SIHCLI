@@ -2239,6 +2239,7 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
     with pronostico_prophet_tab:
         st.subheader("Pronóstico (Modelo Prophet)")
+        st.info("La interpolación de datos para llenar vacíos se realiza automáticamente solo para la estación seleccionada al generar el pronóstico.", icon="ℹ️")
         station_to_forecast_prophet = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="prophet_station_select")
         
         c1, c2 = st.columns(2)
@@ -2247,16 +2248,19 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
         with c2:
             test_size_prophet = st.slider("Meses para evaluación:", 12, 36, 12, step=6, key="prophet_test_size")
             
-        if station_to_forecast_prophet:
-            ts_data_prophet = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_forecast_prophet].copy()
+        if station_to_forecast_prophet and st.button("Generar Pronóstico Prophet"):
+            with st.spinner(f"Preparando y completando datos para {station_to_forecast_prophet}..."):
+                # CORRECCIÓN: Usar df_full_monthly
+                original_station_data = df_full_monthly[df_full_monthly[Config.STATION_NAME_COL] == station_to_forecast_prophet].copy()
+                ts_data_prophet = complete_series(original_station_data)
+
             if len(ts_data_prophet.dropna(subset=[Config.PRECIPITATION_COL])) < test_size_prophet + 24:
-                st.warning(f"Se necesitan al menos {test_size_prophet + 24} meses de datos para un pronóstico y evaluación confiables.")
+                st.warning(f"Incluso después de completar, no hay suficientes datos para un pronóstico confiable.")
             else:
                 try:
                     with st.spinner("Entrenando y evaluando modelo Prophet..."):
-                        from modules.forecasting import generate_prophet_forecast
                         model, forecast, metrics = generate_prophet_forecast(
-                            ts_data_prophet, forecast_horizon_prophet, test_size_prophet, None
+                            ts_data_prophet, forecast_horizon_prophet, test_size_prophet
                         )
                     st.session_state['prophet_results'] = {'forecast': forecast[['ds', 'yhat']], 'metrics': metrics}
                     
@@ -2267,14 +2271,13 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
                     st.markdown("##### Evaluación del Modelo")
                     st.info(f"El modelo se evaluó usando los últimos **{test_size_prophet} meses** de datos históricos como conjunto de prueba.")
                     m1, m2 = st.columns(2)
-                    m1.metric("RMSE (Error Cuadrático Medio)", f"{metrics['RMSE']:.2f}")
-                    m2.metric("MAE (Error Absoluto Medio)", f"{metrics['MAE']:.2f}")
+                    m1.metric("RMSE", f"{metrics['RMSE']:.2f}")
+                    m2.metric("MAE", f"{metrics['MAE']:.2f}")
                 except Exception as e:
                     st.error(f"No se pudo generar el pronóstico con Prophet. Error: {e}")
 
     with compare_forecast_tab:
-        st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")
-        sarima_results = st.session_state.get('sarima_results')
+        st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")        sarima_results = st.session_state.get('sarima_results')
         prophet_results = st.session_state.get('prophet_results')
 
         if not sarima_results or not prophet_results:
