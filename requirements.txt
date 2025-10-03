@@ -1,30 +1,20 @@
 requirements.txt
---- Core Libraries with Pinned Versions to Ensure Compatibility ---
+
 numpy==1.26.4
 pandas==2.2.2
 scipy==1.13.1
 statsmodels==0.14.2
 pmdarima==2.0.4
-
---- Streamlit and Components ---
 streamlit==1.35.0
 streamlit-folium==0.18.0
-
---- Geospatial Libraries ---
 geopandas==0.14.4
 rasterio==1.3.10
 folium==0.17.0
 pyproj==3.6.1
 shapely==2.0.4
-
---- Plotting and Visualization ---
 altair==5.3.0
 plotly==5.22.0
 matplotlib==3.8.4
-
---- Forecasting ---
 prophet==1.1.5
-
---- Other Utilities ---
 pymannkendall==1.5.3
 openpyxl
