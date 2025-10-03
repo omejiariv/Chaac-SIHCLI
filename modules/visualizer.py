@@ -2250,7 +2250,7 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
         csv_completado = convert_df_to_csv(df_completed_to_download)
         st.download_button("Descargar CSV con Series Completadas", csv_completado, 'precipitacion_mensual_completada.csv', 'text/csv', key='download-completado')
 
-ddef display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Información Detallada de las Estaciones")
     
     # This call now includes all the required arguments
