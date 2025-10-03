@@ -168,6 +168,12 @@ def main():
             (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
         ].copy()
 
+# Procesar series completas si el modo está activado
+if st.session_state.analysis_mode == "Completar series (interpolación)":
+    with st.spinner("Completando series de tiempo seleccionadas... Esta operación puede tardar unos momentos."):
+        # La función complete_series ya está importada desde data_processor
+        df_monthly_filtered = complete_series(df_monthly_filtered)
+
         annual_data_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
             (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
