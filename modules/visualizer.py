@@ -2250,7 +2250,6 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             
         if station_to_forecast_prophet and st.button("Generar Pronóstico Prophet"):
             with st.spinner(f"Preparando y completando datos para {station_to_forecast_prophet}..."):
-                # CORRECCIÓN: Usar df_full_monthly
                 original_station_data = df_full_monthly[df_full_monthly[Config.STATION_NAME_COL] == station_to_forecast_prophet].copy()
                 ts_data_prophet = complete_series(original_station_data)
 
@@ -2259,8 +2258,9 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             else:
                 try:
                     with st.spinner("Entrenando y evaluando modelo Prophet..."):
+                        # CORRECCIÓN: Se añade 'regressors=None' para que coincida con la definición de la función
                         model, forecast, metrics = generate_prophet_forecast(
-                            ts_data_prophet, forecast_horizon_prophet, test_size_prophet
+                            ts_data_prophet, forecast_horizon_prophet, test_size_prophet, regressors=None
                         )
                     st.session_state['prophet_results'] = {'forecast': forecast[['ds', 'yhat']], 'metrics': metrics}
                     
@@ -2277,7 +2277,7 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
                     st.error(f"No se pudo generar el pronóstico con Prophet. Error: {e}")
 
     with compare_forecast_tab:
-        st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")        sarima_results = st.session_state.get('sarima_results')
+        st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")
         prophet_results = st.session_state.get('prophet_results')
 
         if not sarima_results or not prophet_results:
