@@ -22,7 +22,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 def sync_station_selection(stations_options):
     """Sincroniza el multiselect basado en el checkbox 'Seleccionar todas'."""
-    if st.session_state.get('select_all_checkbox', False): # Default a False
+    # Esta función ahora se activa solo con la interacción del usuario
+    if st.session_state.get('select_all_checkbox', False):
         st.session_state.station_multiselect = stations_options
     else:
         st.session_state.station_multiselect = []
@@ -70,10 +71,10 @@ def main():
         uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
         uploaded_zip_shapefile = st.file_uploader("3. Cargar shapefile de municipios (.zip)", type="zip", key='uploaded_zip_shapefile')
         if st.button("Procesar y Almacenar Datos", key='process_data_button') and all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
+            # Limpieza completa del estado de la sesión para un reinicio limpio
             st.cache_data.clear()
             st.cache_resource.clear()
-            keys_to_clear = list(st.session_state.keys())
-            for key in keys_to_clear:
+            for key in list(st.session_state.keys()):
                 del st.session_state[key]
             
             with st.spinner("Procesando archivos y cargando datos..."):
@@ -96,11 +97,11 @@ def main():
 
     st.sidebar.success("Datos base cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar App"):
-        keys_to_clear = list(st.session_state.keys())
-        for key in keys_to_clear:
+        for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
 
+    # --- LÓGICA DE FILTROS ---
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
         min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0), key='min_data_perc_slider')
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
@@ -121,24 +122,19 @@ def main():
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
         
-        # ==============================================================================
-        # LÓGICA CLAVE PARA EVITAR LA SOBRECARGA INICIAL
-        # ==============================================================================
-        # Si las opciones de estaciones cambian (p. ej., por un filtro geográfico), 
-        # reiniciamos la selección a una lista vacía por defecto.
+        # Lógica clave: Si las opciones filtradas cambian, se resetea la selección a una lista vacía
         if 'filtered_station_options' not in st.session_state or st.session_state.filtered_station_options != stations_options:
             st.session_state.filtered_station_options = stations_options
             st.session_state.station_multiselect = []
-            st.session_state.select_all_checkbox = False # Asegura que el checkbox también se reinicie
+            st.session_state.select_all_checkbox = False
 
         st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, args=(stations_options,))
-        selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect')
-        # ==============================================================================
+        selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect', default=st.session_state.get('station_multiselect', []))
 
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
         year_range = st.slider("Seleccionar Rango de Años", min_value=year_range_default[0], max_value=year_range_default[1], value=st.session_state.get('year_range', year_range_default), key='year_range')
-        meses_dict = {'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12}
+        meses_dict = {m: i+1 for i, m in enumerate(['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'])}
         meses_nombres = st.multiselect("Seleccionar Meses", list(meses_dict.keys()), default=list(meses_dict.keys()), key='meses_nombres')
         meses_numeros = [meses_dict[m] for m in meses_nombres]
 
@@ -147,6 +143,7 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
+    # --- DEFINICIÓN DE PESTAÑAS Y CONTROL DE FLUJO ---
     tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
                  "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos",
                  "Estadísticas", "Análisis de Correlación", "Análisis ENSO", 
@@ -155,52 +152,56 @@ def main():
 
     stations_for_analysis = selected_stations
     if not stations_for_analysis:
-        with tabs[0]: display_welcome_tab()
-        st.warning("No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control para comenzar el análisis.")
-        return
+        with tabs[0]: 
+            display_welcome_tab()
+            st.warning("📊 No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control para comenzar el análisis.")
+        return # DETIENE LA EJECUCIÓN AQUÍ SI NO HAY ESTACIONES
         
-    gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-    
-    df_monthly_filtered = st.session_state.df_long[
-        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-        (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
-        (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
-        (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
-    ].copy()
+    # --- PREPARACIÓN FINAL DE DATOS (Solo se ejecuta si hay estaciones seleccionadas) ---
+    with st.spinner("Filtrando y preparando datos..."):
+        gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
+        
+        df_monthly_filtered = st.session_state.df_long[
+            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
+            (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
+            (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
+        ].copy()
 
-    annual_data_filtered = st.session_state.df_long[
-        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-        (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
-        (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
-    ].copy()
+        annual_data_filtered = st.session_state.df_long[
+            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
+            (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
+        ].copy()
 
-    if st.session_state.get('exclude_na', False):
-        df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-        annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-            
-    if st.session_state.get('exclude_zeros', False):
-        df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-        annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+        if st.session_state.get('exclude_na', False):
+            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+                
+        if st.session_state.get('exclude_zeros', False):
+            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+        
+        annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
+            precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
+            meses_validos=(Config.PRECIPITATION_COL, 'count')
+        ).reset_index()
+        annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
+        df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
+        
+        display_args = {
+            "gdf_filtered": gdf_filtered, 
+            "stations_for_analysis": stations_for_analysis,
+            "df_anual_melted": df_anual_melted, 
+            "df_monthly_filtered": df_monthly_filtered,
+            "analysis_mode": st.session_state.analysis_mode, 
+            "selected_regions": selected_regions,
+            "selected_municipios": selected_municipios, 
+            "selected_altitudes": selected_altitudes,
+            "df_full_monthly": st.session_state.df_long
+        }
     
-    annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
-        precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
-        meses_validos=(Config.PRECIPITATION_COL, 'count')
-    ).reset_index()
-    annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
-    df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
-    
-    display_args = {
-        "gdf_filtered": gdf_filtered, 
-        "stations_for_analysis": stations_for_analysis,
-        "df_anual_melted": df_anual_melted, 
-        "df_monthly_filtered": df_monthly_filtered,
-        "analysis_mode": st.session_state.analysis_mode, 
-        "selected_regions": selected_regions,
-        "selected_municipios": selected_municipios, 
-        "selected_altitudes": selected_altitudes,
-        "df_full_monthly": st.session_state.df_long
-    }
-    
+    # --- RENDERIZADO DE PESTAÑAS ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
