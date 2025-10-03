@@ -2285,10 +2285,85 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
         csv_completado = convert_df_to_csv(df_completed_to_download)
         st.download_button("Descargar CSV con Series Completadas", csv_completado, 'precipitacion_mensual_completada.csv', 'text/csv', key='download-completado')
 
-def display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+# Nueva función auxiliar para realizar todos los cálculos complejos.
+# La caché acelera la app, guardando el resultado de los cálculos.
+# -----------------------------------------------------------------------------
+@st.cache_data
+def calculate_comprehensive_stats(df_anual, df_monthly, stations):
+    """
+    Calcula un conjunto completo de estadísticas para cada estación seleccionada.
+    """
+    results = []
+    
+    # Pre-procesa los datos mensuales para la correlación
+    df_pivot_monthly = df_monthly.pivot_table(index='fecha_mes_año', columns='nom_est', values='precipitation')
+
+    for station in stations:
+        stats = {"Estación": station}
+        
+        # Filtra datos para la estación actual
+        station_anual = df_anual[df_anual['nom_est'] == station].dropna(subset=['precipitation'])
+        station_monthly = df_monthly[df_monthly['nom_est'] == station].dropna(subset=['precipitation'])
+
+        if not station_anual.empty:
+            # Cálculos anuales
+            stats['Años con Datos'] = int(station_anual['precipitation'].count())
+            stats['Ppt. Media Anual (mm)'] = station_anual['precipitation'].mean()
+            stats['Desv. Estándar Anual (mm)'] = station_anual['precipitation'].std()
+            
+            max_anual_row = station_anual.loc[station_anual['precipitation'].idxmax()]
+            stats['Ppt. Máxima Anual (mm)'] = max_anual_row['precipitation']
+            stats['Año Ppt. Máxima'] = int(max_anual_row['año'])
+            
+            min_anual_row = station_anual.loc[station_anual['precipitation'].idxmin()]
+            stats['Ppt. Mínima Anual (mm)'] = min_anual_row['precipitation']
+            stats['Año Ppt. Mínima'] = int(min_anual_row['año'])
+
+            # Cálculo de Tendencia (Mann-Kendall y Pendiente de Sen)
+            if len(station_anual) >= 4: # Se requieren al menos 4 puntos para la tendencia
+                mk_result = mk.original_test(station_anual['precipitation'])
+                stats['Tendencia (mm/año)'] = mk_result.slope
+                stats['Significancia (p-valor)'] = mk_result.p
+                # Proyección a 2040
+                last_year = station_anual['año'].max()
+                projected_change = mk_result.slope * (2040 - last_year)
+                stats['Cambio Proyectado a 2040 (mm)'] = projected_change
+            else:
+                stats['Tendencia (mm/año)'] = np.nan
+                stats['Significancia (p-valor)'] = np.nan
+                stats['Cambio Proyectado a 2040 (mm)'] = np.nan
+
+        if not station_monthly.empty:
+            # Cálculos mensuales
+            max_monthly_row = station_monthly.loc[station_monthly['precipitation'].idxmax()]
+            stats['Mes/Año Mayor Ppt.'] = max_monthly_row['fecha_mes_año'].strftime('%Y-%m')
+            
+            min_monthly_row = station_monthly.loc[station_monthly['precipitation'].idxmin()]
+            stats['Mes/Año Menor Ppt.'] = min_monthly_row['fecha_mes_año'].strftime('%Y-%m')
+
+            # Ppt media para cada mes
+            monthly_means = station_monthly.groupby(station_monthly['fecha_mes_año'].dt.month)['precipitation'].mean()
+            meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+            for i, mes in enumerate(meses, 1):
+                stats[f'Ppt Media {mes} (mm)'] = monthly_means.get(i, 0)
+        
+        # Cálculo de Correlación
+        if len(stations) > 1:
+            correlations = df_pivot_monthly.corrwith(df_pivot_monthly[station]).drop(station).dropna()
+            if not correlations.empty:
+                best_corr_station = correlations.idxmax()
+                best_corr_value = correlations.max()
+                stats['Estación Mejor Correlacionada'] = f"{best_corr_station} (r={best_corr_value:.2f})"
+            else:
+                stats['Estación Mejor Correlacionada'] = "N/A"
+        
+        results.append(stats)
+        
+    return pd.DataFrame(results)
+
+def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Información Detallada de las Estaciones")
     
-    # This call now includes all the required arguments
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -2304,22 +2379,62 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analys
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    st.info(f"Mostrando información para {len(stations_for_analysis)} estaciones.")
-    if gdf_filtered.empty:
-        st.info("No hay estaciones que cumplan con los filtros geográficos y de datos seleccionados.")
-        return
+    st.info("Presiona el botón para generar una tabla detallada con estadísticas calculadas para cada estación seleccionada.")
 
-    df_info_table = gdf_filtered[[Config.STATION_NAME_COL, Config.ALTITUDE_COL, Config.MUNICIPALITY_COL, Config.REGION_COL, Config.PERCENTAGE_COL]].copy()
-    
-    if not df_anual_melted.empty:
-        df_mean_precip = df_anual_melted.groupby(Config.STATION_NAME_COL)[Config.PRECIPITATION_COL].mean().round(0).reset_index()
-        df_mean_precip.rename(columns={Config.PRECIPITATION_COL: 'Precipitación media anual (mm)'}, inplace=True)
-        df_info_table = df_info_table.merge(df_mean_precip, on=Config.STATION_NAME_COL, how='left')
-    else:
-        df_info_table['Precipitación media anual (mm)'] = 'N/A'
-        
-    df_for_display = df_info_table.drop(columns=[Config.PERCENTAGE_COL]).set_index(Config.STATION_NAME_COL)
-    st.dataframe(df_for_display, use_container_width=True)
+    if st.button("📈 Calcular Estadísticas Detalladas"):
+        with st.spinner("Realizando cálculos, por favor espera..."):
+            try:
+                # Llama a la nueva función que realiza todos los cálculos
+                detailed_stats_df = calculate_comprehensive_stats(df_anual_melted, df_monthly_filtered, stations_for_analysis)
+                
+                # Une los resultados con la información geográfica básica
+                base_info_df = gdf_filtered[['nom_est', 'alt_est', 'municipio', 'depto_region']].copy()
+                base_info_df.rename(columns={'nom_est': 'Estación'}, inplace=True)
+                
+                final_df = pd.merge(base_info_df, detailed_stats_df, on="Estación", how="right")
+
+                # Define el orden y formato de las columnas para una mejor visualización
+                column_order = [
+                    'Estación', 'municipio', 'depto_region', 'alt_est', 'Años con Datos',
+                    'Ppt. Media Anual (mm)', 'Desv. Estándar Anual (mm)',
+                    'Ppt. Máxima Anual (mm)', 'Año Ppt. Máxima', 'Ppt. Mínima Anual (mm)', 'Año Ppt. Mínima',
+                    'Mes/Año Mayor Ppt.', 'Mes/Año Menor Ppt.',
+                    'Tendencia (mm/año)', 'Significancia (p-valor)', 'Cambio Proyectado a 2040 (mm)',
+                    'Estación Mejor Correlacionada',
+                    'Ppt Media Ene (mm)', 'Ppt Media Feb (mm)', 'Ppt Media Mar (mm)', 'Ppt Media Abr (mm)', 
+                    'Ppt Media May (mm)', 'Ppt Media Jun (mm)', 'Ppt Media Jul (mm)', 'Ppt Media Ago (mm)',
+                    'Ppt Media Sep (mm)', 'Ppt Media Oct (mm)', 'Ppt Media Nov (mm)', 'Ppt Media Dic (mm)'
+                ]
+                
+                # Filtra las columnas que existen en el DataFrame final
+                display_columns = [col for col in column_order if col in final_df.columns]
+                final_df_display = final_df[display_columns]
+
+                st.dataframe(final_df_display.style.format({
+                    'Ppt. Media Anual (mm)': '{:.1f}',
+                    'Desv. Estándar Anual (mm)': '{:.1f}',
+                    'Ppt. Máxima Anual (mm)': '{:.1f}',
+                    'Ppt. Mínima Anual (mm)': '{:.1f}',
+                    'Tendencia (mm/año)': '{:.2f}',
+                    'Significancia (p-valor)': '{:.3f}',
+                    'Cambio Proyectado a 2040 (mm)': '{:+.1f}',
+                    'Ppt Media Ene (mm)': '{:.1f}', 'Ppt Media Feb (mm)': '{:.1f}', 'Ppt Media Mar (mm)': '{:.1f}',
+                    'Ppt Media Abr (mm)': '{:.1f}', 'Ppt Media May (mm)': '{:.1f}', 'Ppt Media Jun (mm)': '{:.1f}',
+                    'Ppt Media Jul (mm)': '{:.1f}', 'Ppt Media Ago (mm)': '{:.1f}', 'Ppt Media Sep (mm)': '{:.1f}',
+                    'Ppt Media Oct (mm)': '{:.1f}', 'Ppt Media Nov (mm)': '{:.1f}', 'Ppt Media Dic (mm)': '{:.1f}'
+                }))
+
+                # Opción para descargar los datos
+                csv = final_df_display.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Descargar Tabla como CSV",
+                    data=csv,
+                    file_name='tabla_detallada_estaciones.csv',
+                    mime='text/csv',
+                )
+
+            except Exception as e:
+                st.error(f"Ocurrió un error al calcular las estadísticas: {e}")
 
 def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_perc):
     """Realiza y muestra el análisis de sequías y eventos extremos por percentiles mensuales para una estación."""
