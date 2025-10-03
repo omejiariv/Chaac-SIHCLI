@@ -1410,6 +1410,83 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
                 'precip_promedio_mes': 'Ppt. Media (mm)'
             }).round(0), use_container_width=True)
 
+def display_frequency_analysis_tab(df_anual_melted, stations_for_analysis, **kwargs):
+    st.header("Análisis de Frecuencia de Precipitaciones Anuales Máximas")
+    
+    st.markdown("""
+    Este análisis estima la probabilidad de ocurrencia de un evento de precipitación de cierta magnitud. 
+    Utiliza la distribución de Gumbel para modelar los valores máximos anuales y calcular los **períodos de retorno**.
+    """)
+
+    if not stations_for_analysis:
+        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
+        return
+
+    station_to_analyze = st.selectbox(
+        "Seleccione una estación para el análisis de frecuencia:",
+        options=sorted(stations_for_analysis),
+        key="freq_station_select"
+    )
+
+    if station_to_analyze:
+        station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze].copy()
+        annual_max_precip = station_data['precipitation'].dropna()
+
+        if len(annual_max_precip) < 10:
+            st.warning("Se recomiendan al menos 10 años de datos para un análisis de frecuencia confiable.")
+        else:
+            with st.spinner("Calculando períodos de retorno..."):
+                # Ajustar datos a la distribución Gumbel
+                params = stats.gumbel_r.fit(annual_max_precip)
+                
+                # Calcular valores para los períodos de retorno
+                return_periods = np.array([2, 5, 10, 25, 50, 100, 200, 500])
+                non_exceed_prob = 1 - 1 / return_periods
+                precip_values = stats.gumbel_r.ppf(non_exceed_prob, *params)
+
+                results_df = pd.DataFrame({
+                    "Período de Retorno (años)": return_periods,
+                    "Precipitación Anual Esperada (mm)": precip_values
+                })
+                
+                st.subheader(f"Resultados para la estación: {station_to_analyze}")
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    st.markdown("#### Tabla de Resultados")
+                    st.dataframe(results_df.style.format({"Precipitación Anual Esperada (mm)": "{:.1f}"}))
+
+                with col2:
+                    st.markdown("#### Curva de Frecuencia")
+                    fig = go.Figure()
+                    # Datos observados
+                    fig.add_trace(go.Scatter(
+                        x=station_data['año'],
+                        y=annual_max_precip,
+                        mode='markers',
+                        name='Máximos Anuales Observados'
+                    ))
+                    # Curva ajustada
+                    x_plot = np.linspace(annual_max_precip.min(), precip_values[-1] * 1.1, 100)
+                    y_plot_prob = stats.gumbel_r.cdf(x_plot, *params)
+                    y_plot_return_period = 1 / (1 - y_plot_prob)
+                    
+                    fig.add_trace(go.Scatter(
+                        x=y_plot_return_period,
+                        y=x_plot,
+                        mode='lines',
+                        name='Curva de Gumbel Ajustada',
+                        line=dict(color='red')
+                    ))
+                    
+                    fig.update_layout(
+                        title="Curva de Períodos de Retorno",
+                        xaxis_title="Período de Retorno (años)",
+                        yaxis_title="Precipitación Anual (mm)",
+                        xaxis_type="log"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
 def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Estadísticas de Precipitación")
     display_filter_summary(
