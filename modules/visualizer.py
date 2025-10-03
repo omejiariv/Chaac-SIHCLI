@@ -294,11 +294,46 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
     st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
+    
     if os.path.exists(Config.LOGO_PATH):
         try:
             st.image(Config.LOGO_PATH, width=250, caption="Corporación Cuenca Verde")
         except Exception:
             st.warning("No se pudo cargar el logo de bienvenida.")
+
+    st.markdown("---")
+
+    # --- NUEVO MÓDULO DE CONCEPTOS CLAVE ---
+    with st.expander("📖 Conceptos Clave, Métodos y Ecuaciones"):
+        st.markdown("""
+        Esta sección proporciona una breve descripción de los métodos y conceptos analíticos utilizados en la plataforma.
+
+        ### Métodos de Interpolación Espacial
+        La interpolación se usa para estimar la precipitación en lugares donde no hay estaciones de medición, creando superficies continuas (mapas).
+        - **IDW (Inverso de la Distancia Ponderada)**: Un método simple que asume que los puntos más cercanos tienen más influencia que los lejanos. El valor en un punto desconocido es un promedio ponderado de los valores conocidos, donde el peso es inversamente proporcional a la distancia.
+        - **Kriging**: Un método geoestadístico avanzado que utiliza la autocorrelación espacial entre los puntos (descrita por un **variograma**) para realizar estimaciones. A diferencia de IDW, proporciona una estimación del error de predicción.
+            - **Ordinario (OK)**: Asume que la media del campo es desconocida pero constante.
+            - **Con Deriva Externa (KED)**: Incorpora una variable secundaria (covariable), como la elevación de un Modelo Digital de Elevación (DEM), para mejorar las predicciones.
+        - **Spline (Thin Plate)**: Un método matemático que ajusta una superficie flexible a través de los puntos de datos, minimizando la curvatura total. Es útil para superficies que cambian suavemente.
+
+        ### Índices de Sequía
+        Estos índices estandarizan la precipitación para monitorear condiciones de sequía y humedad a lo largo del tiempo.
+        - **SPI (Índice de Precipitación Estandarizado)**: Mide las desviaciones de la precipitación con respecto a su media histórica. Se ajusta a una distribución de probabilidad (Gamma) y luego se transforma a una distribución normal. Un valor de -1.5 indica una sequía moderada, mientras que +1.5 indica un período muy húmedo.
+        - **SPEI (Índice Estandarizado de Precipitación-Evapotranspiración)**: Es similar al SPI, pero se basa en el **balance hídrico climático** (Precipitación menos Evapotranspiración Potencial). Es más completo para sequías agrícolas, ya que considera el efecto de la temperatura.
+
+        ### Análisis de Tendencias
+        Se utilizan para determinar si los valores de precipitación han aumentado, disminuido o permanecido constantes a lo largo del tiempo.
+        - **Prueba de Mann-Kendall**: Una prueba no paramétrica que evalúa la existencia de una tendencia monótona (siempre creciente o decreciente) en una serie de tiempo. No requiere que los datos sigan una distribución normal.
+        - **Pendiente de Sen**: Un método robusto para cuantificar la magnitud de la tendencia. Calcula la mediana de todas las pendientes entre pares de puntos en la serie, lo que lo hace menos sensible a valores atípicos. La ecuación de la línea de tendencia es:
+        $$ y(t) = Q \cdot t + B $$
+        Donde $Q$ es la Pendiente de Sen y $B$ es una constante.
+
+        ### Modelos de Pronóstico
+        - **SARIMA (Seasonal AutoRegressive Integrated Moving Average)**: Un modelo estadístico clásico para series de tiempo que descompone los datos en componentes autorregresivos (AR), de media móvil (MA) e integrados (I), junto con sus contrapartes estacionales (S). Se define por los parámetros $(p, d, q)(P, D, Q)_s$.
+        - **Prophet**: Un modelo desarrollado por Facebook, diseñado para ser más automático y robusto. Modela la serie de tiempo como una suma de componentes:
+        $$ y(t) = g(t) + s(t) + h(t) + \epsilon_t $$
+        Donde $g(t)$ es la tendencia, $s(t)$ la estacionalidad (anual, semanal), $h(t)$ el efecto de días festivos o eventos especiales, y $\epsilon_t$ el término de error.
+        """)
 
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
