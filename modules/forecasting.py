@@ -1,5 +1,4 @@
 # modules/forecasting.py
-
 import pmdarima as pm
 import streamlit as st
 import pandas as pd
@@ -127,14 +126,6 @@ def generate_prophet_forecast(ts_data_raw, horizon, test_size=12, regressors=Non
                 model.add_regressor(col)
     model.fit(train)
     
-    future_test = model.make_future_dataframe(periods=0, freq='MS')
-    future_test = future_test[future_test['ds'].isin(train['ds'])]
-    if regressors is not None:
-        future_test = pd.merge(future_test, regressors.rename(columns={Config.DATE_COL: 'ds'}), on='ds', how='left')
-
-    forecast_on_train = model.predict(future_test)
-    pred_df = forecast_on_train[['ds', 'yhat']].set_index('ds')
-    
     # Necesitamos predecir sobre el set de prueba
     test_dates = model.make_future_dataframe(periods=test_size, freq='MS').tail(test_size)
     if regressors is not None:
@@ -168,13 +159,20 @@ def generate_prophet_forecast(ts_data_raw, horizon, test_size=12, regressors=Non
 def auto_arima_search(ts_data, test_size):
     """
     Encuentra los parámetros óptimos para un modelo SARIMA usando auto_arima.
+    Versión corregida para manejar correctamente el índice y los datos.
     """
+    # Copia para evitar modificar el original
+    ts_data_copy = ts_data.copy()
+    
+    # Asegurarse de que el índice es de tipo fecha
+    if not pd.api.types.is_datetime64_any_dtype(ts_data_copy.index):
+        ts_data_copy = ts_data_copy.set_index(Config.DATE_COL).sort_index()
+
     # Asegúrate de que los datos son una serie univariada con frecuencia mensual
-    ts = ts_data[Config.PRECIPITATION_COL].asfreq('MS').interpolate(method='time').dropna()
+    ts = ts_data_copy[Config.PRECIPITATION_COL].asfreq('MS').interpolate(method='time').dropna()
     train = ts[:-test_size]
 
     # Búsqueda automática del modelo SARIMA
-    # m=12 indica que el patrón estacional es anual (12 meses)
     auto_model = pm.auto_arima(train,
                                start_p=1, start_q=1,
                                test='adf',
