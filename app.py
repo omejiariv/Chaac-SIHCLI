@@ -150,32 +150,38 @@ def main():
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         st.session_state.meses_numeros = meses_numeros
-        
-        # ==============================================================================
-        # BLOQUE DE OPTIMIZACIÓN DE MEMORIA
-        # ==============================================================================
-        # Filtramos PRIMERO por las estaciones seleccionadas para reducir la carga de memoria.
-        df_subset_for_processing = st.session_state.df_long[
-            st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)
-        ].copy()
 
-        # Ahora, la interpolación (si se activa) se ejecuta solo en este subconjunto de datos.
-        if st.session_state.analysis_mode == "Completar series (interpolación)":
-            # La función complete_series ahora trabaja con un DataFrame mucho más pequeño
-            df_monthly_processed = complete_series(df_subset_for_processing)
-        else:
-            df_monthly_processed = df_subset_for_processing.copy()
+        # ==============================================================================
+        # BLOQUE DE OPTIMIZACIÓN DE MEMORIA Y ESTABILIDAD
+        # ==============================================================================
+        df_monthly_processed = pd.DataFrame() # Inicializar como un DataFrame vacío
+        df_monthly_filtered = pd.DataFrame()  # Inicializar como un DataFrame vacío
+
+        # Solo ejecutar el resto del procesamiento si se han seleccionado estaciones
+        if stations_for_analysis:
+            # Filtramos PRIMERO por las estaciones seleccionadas para reducir la carga de memoria.
+            df_subset_for_processing = st.session_state.df_long[
+                st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)
+            ].copy()
+
+            # Ahora, la interpolación (si se activa) se ejecuta solo en este subconjunto de datos.
+            if st.session_state.analysis_mode == "Completar series (interpolación)":
+                with st.spinner("Completando series de tiempo para las estaciones seleccionadas..."):
+                    df_monthly_processed = complete_series(df_subset_for_processing)
+            else:
+                df_monthly_processed = df_subset_for_processing.copy()
+            
+            # El filtrado por fecha ahora se aplica sobre el df ya procesado y de tamaño reducido
+            if not df_monthly_processed.empty:
+                df_monthly_filtered = df_monthly_processed[
+                    (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
+                    (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
+                    (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
+                ].copy()
         
-        # Guardamos en session_state el resultado (ahora de tamaño manejable) para el pronóstico
+        # Guardamos en session_state el resultado para el pronóstico
         st.session_state.df_monthly_processed = df_monthly_processed
         # ==============================================================================
-
-        # El filtrado por fecha ahora se aplica sobre el df ya procesado y de tamaño reducido
-        df_monthly_filtered = df_monthly_processed[
-            (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
-            (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
-            (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
-        ].copy()
 
         annual_data_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
@@ -184,12 +190,16 @@ def main():
         ].copy()
 
         if st.session_state.get('exclude_na', False):
-            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            if not df_monthly_filtered.empty:
+                df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            if not annual_data_filtered.empty:
+                annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
             
         if st.session_state.get('exclude_zeros', False):
-            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+            if not df_monthly_filtered.empty:
+                df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+            if not annual_data_filtered.empty:
+                annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
         
         annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
             precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
