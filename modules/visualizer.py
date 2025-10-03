@@ -2114,20 +2114,6 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
     st.markdown("Aquí puedes descargar los datos actualmente visualizados, según los filtros aplicados en el panel de control.")
     st.markdown("---")
 
-@st.cache_data
-def convert_df_to_csv(df):
-    """Convierte un DataFrame a un objeto CSV codificado en utf-8."""
-    return df.to_csv(index=False).encode('utf-8')
-
-def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis):
-    st.header("Opciones de Descarga")
-    if not stations_for_analysis:
-        st.warning("Por favor, seleccione al menos una estación para activar las descargas.")
-        return
-
-    st.markdown("Aquí puedes descargar los datos actualmente visualizados, según los filtros aplicados en el panel de control.")
-    st.markdown("---")
-
     st.markdown("#### Datos de Precipitación Anual (Filtrados)")
     if not df_anual_melted.empty:
         csv_anual = convert_df_to_csv(df_anual_melted)
@@ -2136,29 +2122,30 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
             data=csv_anual,
             file_name='precipitacion_anual_filtrada.csv',
             mime='text/csv',
-            key='download-anual'  # Esta clave es única para este botón
+            key='download-anual'
         )
     else:
         st.info("No hay datos anuales para descargar con los filtros actuales.")
 
     st.markdown("---")
 
-    st.markdown("#### Datos de Precipitación Mensual (Filtrados)")
-    if not df_monthly_filtered.empty:
+    st.markdown("#### Datos de Precipitación Mensual (Originales Filtrados)")
+    if not df_monthly_filtered.empty and analysis_mode == "Usar datos originales":
         csv_mensual = convert_df_to_csv(df_monthly_filtered)
         st.download_button(
             label="📥 Descargar CSV Mensual",
             data=csv_mensual,
             file_name='precipitacion_mensual_filtrada.csv',
             mime='text/csv',
-            key='download-mensual' # Esta clave es única para este botón
+            key='download-mensual'
         )
+    elif analysis_mode != "Usar datos originales":
+         st.info("La descarga de datos mensuales originales está desactivada en el modo 'Completar series'.")
     else:
         st.info("No hay datos mensuales para descargar con los filtros actuales.")
 
     st.markdown("---")
 
-    # --- INICIO DE LA SECCIÓN RESTAURADA ---
     st.markdown("#### Datos de Series Mensuales Completas (Interpoladas)")
     if analysis_mode == "Completar series (interpolación)":
         st.info("Los datos a continuación han sido completados (interpolados) para rellenar los vacíos en las series de tiempo.")
@@ -2172,7 +2159,6 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
         )
     else:
         st.warning("Para descargar las series completas, selecciona 'Completar series (interpolación)' en el 'Panel de Control -> Opciones de Preprocesamiento'.")
-    # --- FIN DE LA SECCIÓN RESTAURADA ---  
 # -----------------------------------------------------------------------------
 @st.cache_data
 def calculate_comprehensive_stats(df_anual, df_monthly, stations):
