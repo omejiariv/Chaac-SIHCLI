@@ -2324,38 +2324,52 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
         st.warning("Por favor, seleccione al menos una estación para activar las descargas.")
         return
 
-    @st.cache_data
-    def convert_df_to_csv(df):
-        return df.to_csv(index=False).encode('utf-8')
+@st.cache_data
+def convert_df_to_csv(df):
+    """Convierte un DataFrame a un objeto CSV codificado en utf-8."""
+    return df.to_csv(index=False).encode('utf-8')
 
-    st.markdown("**Datos de Precipitación Anual (Filtrados)**")
-    csv_anual = convert_df_to_csv(df_anual_melted)
-    st.download_button("Descargar CSV Anual", csv_anual, 'precipitacion_anual.csv', 'text/csv', key='download-anual')
+def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis):
+    st.header("Opciones de Descarga")
 
-    st.markdown("**Datos de Precipitación Mensual (Filtrados)**")
-    csv_mensual = convert_df_to_csv(df_monthly_filtered)
-    st.download_button("Descargar CSV Mensual", csv_mensual, 'precipitacion_mensual.csv', 'text/csv', key='download-mensual')
+    if not stations_for_analysis:
+        st.warning("Por favor, seleccione al menos una estación para activar las descargas.")
+        return
 
-    if st.session_state.analysis_mode == "Completar series (interpolación)":
-        st.markdown("**Datos de Precipitación Mensual (Series Completadas y Filtradas)**")
-        year_range_val = st.session_state.get('year_range', (2000, 2020))
-        if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and isinstance(year_range_val[0], int):
-            year_min, year_max = year_range_val
-        else:
-            year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
-            
-        df_completed_to_download = (st.session_state.df_monthly_processed[
-            (st.session_state.df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-            (st.session_state.df_monthly_processed[Config.DATE_COL].dt.year >= year_min) &
-            (st.session_state.df_monthly_processed[Config.DATE_COL].dt.year <= year_max) &
-            (st.session_state.df_monthly_processed[Config.DATE_COL].dt.month.isin(st.session_state.meses_numeros))
-        ]).copy()
-        
-        csv_completado = convert_df_to_csv(df_completed_to_download)
-        st.download_button("Descargar CSV con Series Completadas", csv_completado, 'precipitacion_mensual_completada.csv', 'text/csv', key='download-completado')
+    st.markdown("Aquí puedes descargar los datos actualmente visualizados, según los filtros aplicados en el panel de control.")
 
-# Nueva función auxiliar para realizar todos los cálculos complejos.
-# La caché acelera la app, guardando el resultado de los cálculos.
+    st.markdown("---")
+    st.markdown("#### Datos de Precipitación Anual (Filtrados)")
+    if not df_anual_melted.empty:
+        csv_anual = convert_df_to_csv(df_anual_melted)
+        st.download_button(
+            label="📥 Descargar CSV Anual",
+            data=csv_anual,
+            file_name='precipitacion_anual_filtrada.csv',
+            mime='text/csv',
+            key='download-anual'
+        )
+    else:
+        st.info("No hay datos anuales para descargar con los filtros actuales.")
+
+    st.markdown("---")
+    st.markdown("#### Datos de Precipitación Mensual (Filtrados)")
+    if not df_monthly_filtered.empty:
+        csv_mensual = convert_df_to_csv(df_monthly_filtered)
+        st.download_button(
+            label="📥 Descargar CSV Mensual",
+            data=csv_mensual,
+            file_name='precipitacion_mensual_filtrada.csv',
+            mime='text/csv',
+            key='download-mensual'
+        )
+    else:
+        st.info("No hay datos mensuales para descargar con los filtros actuales.")
+    
+    st.info("Nota: La opción para descargar series completadas se ha eliminado para optimizar el rendimiento de la aplicación. Las series se completan bajo demanda en la pestaña de Pronósticos.")
+
+# -----------------------------------------------------------------------------
+# Tu función auxiliar para las estadísticas (SIN CAMBIOS)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def calculate_comprehensive_stats(df_anual, df_monthly, stations):
@@ -2364,18 +2378,15 @@ def calculate_comprehensive_stats(df_anual, df_monthly, stations):
     """
     results = []
     
-    # Pre-procesa los datos mensuales para la correlación
     df_pivot_monthly = df_monthly.pivot_table(index='fecha_mes_año', columns='nom_est', values='precipitation')
 
     for station in stations:
         stats = {"Estación": station}
         
-        # Filtra datos para la estación actual
         station_anual = df_anual[df_anual['nom_est'] == station].dropna(subset=['precipitation'])
         station_monthly = df_monthly[df_monthly['nom_est'] == station].dropna(subset=['precipitation'])
 
         if not station_anual.empty:
-            # Cálculos anuales
             stats['Años con Datos'] = int(station_anual['precipitation'].count())
             stats['Ppt. Media Anual (mm)'] = station_anual['precipitation'].mean()
             stats['Desv. Estándar Anual (mm)'] = station_anual['precipitation'].std()
@@ -2388,12 +2399,10 @@ def calculate_comprehensive_stats(df_anual, df_monthly, stations):
             stats['Ppt. Mínima Anual (mm)'] = min_anual_row['precipitation']
             stats['Año Ppt. Mínima'] = int(min_anual_row['año'])
 
-            # Cálculo de Tendencia (Mann-Kendall y Pendiente de Sen)
-            if len(station_anual) >= 4: # Se requieren al menos 4 puntos para la tendencia
+            if len(station_anual) >= 4:
                 mk_result = mk.original_test(station_anual['precipitation'])
                 stats['Tendencia (mm/año)'] = mk_result.slope
                 stats['Significancia (p-valor)'] = mk_result.p
-                # Proyección a 2040
                 last_year = station_anual['año'].max()
                 projected_change = mk_result.slope * (2040 - last_year)
                 stats['Cambio Proyectado a 2040 (mm)'] = projected_change
@@ -2403,20 +2412,17 @@ def calculate_comprehensive_stats(df_anual, df_monthly, stations):
                 stats['Cambio Proyectado a 2040 (mm)'] = np.nan
 
         if not station_monthly.empty:
-            # Cálculos mensuales
             max_monthly_row = station_monthly.loc[station_monthly['precipitation'].idxmax()]
             stats['Mes/Año Mayor Ppt.'] = max_monthly_row['fecha_mes_año'].strftime('%Y-%m')
             
             min_monthly_row = station_monthly.loc[station_monthly['precipitation'].idxmin()]
             stats['Mes/Año Menor Ppt.'] = min_monthly_row['fecha_mes_año'].strftime('%Y-%m')
 
-            # Ppt media para cada mes
             monthly_means = station_monthly.groupby(station_monthly['fecha_mes_año'].dt.month)['precipitation'].mean()
             meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
             for i, mes in enumerate(meses, 1):
                 stats[f'Ppt Media {mes} (mm)'] = monthly_means.get(i, 0)
         
-        # Cálculo de Correlación
         if len(stations) > 1:
             correlations = df_pivot_monthly.corrwith(df_pivot_monthly[station]).drop(station).dropna()
             if not correlations.empty:
@@ -2453,16 +2459,13 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered
     if st.button("📈 Calcular Estadísticas Detalladas"):
         with st.spinner("Realizando cálculos, por favor espera..."):
             try:
-                # Llama a la nueva función que realiza todos los cálculos
                 detailed_stats_df = calculate_comprehensive_stats(df_anual_melted, df_monthly_filtered, stations_for_analysis)
                 
-                # Une los resultados con la información geográfica básica
                 base_info_df = gdf_filtered[['nom_est', 'alt_est', 'municipio', 'depto_region']].copy()
                 base_info_df.rename(columns={'nom_est': 'Estación'}, inplace=True)
                 
                 final_df = pd.merge(base_info_df, detailed_stats_df, on="Estación", how="right")
 
-                # Define el orden y formato de las columnas para una mejor visualización
                 column_order = [
                     'Estación', 'municipio', 'depto_region', 'alt_est', 'Años con Datos',
                     'Ppt. Media Anual (mm)', 'Desv. Estándar Anual (mm)',
@@ -2475,17 +2478,13 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered
                     'Ppt Media Sep (mm)', 'Ppt Media Oct (mm)', 'Ppt Media Nov (mm)', 'Ppt Media Dic (mm)'
                 ]
                 
-                # Filtra las columnas que existen en el DataFrame final
                 display_columns = [col for col in column_order if col in final_df.columns]
                 final_df_display = final_df[display_columns]
 
                 st.dataframe(final_df_display.style.format({
-                    'Ppt. Media Anual (mm)': '{:.1f}',
-                    'Desv. Estándar Anual (mm)': '{:.1f}',
-                    'Ppt. Máxima Anual (mm)': '{:.1f}',
-                    'Ppt. Mínima Anual (mm)': '{:.1f}',
-                    'Tendencia (mm/año)': '{:.2f}',
-                    'Significancia (p-valor)': '{:.3f}',
+                    'Ppt. Media Anual (mm)': '{:.1f}', 'Desv. Estándar Anual (mm)': '{:.1f}',
+                    'Ppt. Máxima Anual (mm)': '{:.1f}', 'Ppt. Mínima Anual (mm)': '{:.1f}',
+                    'Tendencia (mm/año)': '{:.2f}', 'Significancia (p-valor)': '{:.3f}',
                     'Cambio Proyectado a 2040 (mm)': '{:+.1f}',
                     'Ppt Media Ene (mm)': '{:.1f}', 'Ppt Media Feb (mm)': '{:.1f}', 'Ppt Media Mar (mm)': '{:.1f}',
                     'Ppt Media Abr (mm)': '{:.1f}', 'Ppt Media May (mm)': '{:.1f}', 'Ppt Media Jun (mm)': '{:.1f}',
@@ -2493,7 +2492,6 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered
                     'Ppt Media Oct (mm)': '{:.1f}', 'Ppt Media Nov (mm)': '{:.1f}', 'Ppt Media Dic (mm)': '{:.1f}'
                 }))
 
-                # Opción para descargar los datos
                 csv = final_df_display.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="📥 Descargar Tabla como CSV",
