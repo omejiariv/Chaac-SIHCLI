@@ -77,6 +77,10 @@ def load_shapefile(file_uploader_object):
 
 @st.cache_data
 def complete_series(_df):
+    """
+    Completa las series de tiempo mensuales para cada estación mediante interpolación.
+    Se eliminó la barra de progreso para permitir el correcto funcionamiento de @st.cache_data.
+    """
     all_completed_dfs = []
     station_list = _df[Config.STATION_NAME_COL].unique()
     
@@ -84,44 +88,37 @@ def complete_series(_df):
         col for col in [Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, Config.REGION_COL, Config.CELL_COL] 
         if col in _df.columns
     ]
-
-    progress_bar = st.progress(0, text="Completando todas las series...")
-
+    
+    # Se eliminan las líneas de st.progress de esta sección
     for i, station in enumerate(station_list):
         df_station = _df[_df[Config.STATION_NAME_COL] == station].copy()
-        
         station_metadata = None
         if not df_station.empty and metadata_cols_to_keep:
             station_metadata = df_station[metadata_cols_to_keep].iloc[0]
-
+            
         df_station[Config.DATE_COL] = pd.to_datetime(df_station[Config.DATE_COL])
         df_station.set_index(Config.DATE_COL, inplace=True)
-
+        
         if not df_station.index.is_unique:
             df_station = df_station[~df_station.index.duplicated(keep='first')]
-
+            
         date_range = pd.date_range(start=df_station.index.min(), end=df_station.index.max(), freq='MS')
         df_resampled = df_station.reindex(date_range)
-
-        df_resampled[Config.PRECIPITATION_COL] = \
-            df_resampled[Config.PRECIPITATION_COL].interpolate(method='time')
-
+        
+        df_resampled[Config.PRECIPITATION_COL] = df_resampled[Config.PRECIPITATION_COL].interpolate(method='time')
         df_resampled[Config.ORIGIN_COL] = df_resampled[Config.ORIGIN_COL].fillna('Completado')
         df_resampled[Config.STATION_NAME_COL] = station
         
         if station_metadata is not None:
             for col_name, value in station_metadata.items():
                 df_resampled[col_name] = value
-
+                
         df_resampled[Config.YEAR_COL] = df_resampled.index.year
         df_resampled[Config.MONTH_COL] = df_resampled.index.month
         df_resampled.reset_index(inplace=True)
         df_resampled.rename(columns={'index': Config.DATE_COL}, inplace=True)
-
         all_completed_dfs.append(df_resampled)
-        progress_bar.progress((i + 1) / len(station_list), text=f"Completando series... Estación: {station}")
-
-    progress_bar.empty()
+        
     return pd.concat(all_completed_dfs, ignore_index=True)
 
 @st.cache_data
