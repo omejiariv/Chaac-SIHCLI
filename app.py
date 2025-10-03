@@ -5,18 +5,18 @@ import numpy as np
 import warnings
 import os
 
-#--- Importaciones de Módulos ---
+# --- Importaciones de Módulos ---
 from modules.config import Config
 from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem
 from modules.visualizer import (
     display_welcome_tab, display_spatial_distribution_tab, display_graphs_tab,
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
-    display_frequency_analysis_tab, # <--- Importación para la nueva pestaña
+    display_frequency_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
 )
 
-# --- Desactivar Warnings ---
+# Desactivar Warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -55,7 +55,6 @@ def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:2rem;}[data-testid="stMetricValue"]{font-size:1.8rem;}[data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
-
     #--- TÍTULO Y LOGO ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
@@ -63,13 +62,12 @@ def main():
             try:
                 st.image(Config.LOGO_PATH, width=60)
             except Exception:
-                pass
+                pass # Si el logo falla, no detiene la app
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
     
     st.sidebar.header("Panel de Control")
-
-    #--- PANEL DE CARGA DE ARCHIVOS ---
+    #-- PANEL DE CARGA DE ARCHIVOS
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
         uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
@@ -90,7 +88,7 @@ def main():
                 else:
                     st.error("Hubo un error al procesar los archivos. Verifique el formato de los datos.")
 
-    #--- LÓGICA PRINCIPAL (SI HAY DATOS CARGADOS) ---
+    #--- LÓGICA PRINCIPAL (SI HAY DATOS CARGADOS)
     if st.session_state.get('data_loaded', False) and 'df_long' in st.session_state and not st.session_state.df_long.empty:
         st.sidebar.success("Datos base cargados.")
         if st.sidebar.button("Limpiar Caché y Reiniciar App"):
@@ -153,18 +151,26 @@ def main():
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         st.session_state.meses_numeros = meses_numeros
         
-        df_monthly_processed = st.session_state.df_long.copy()
+        # ==============================================================================
+        # BLOQUE CORREGIDO Y ROBUSTO
+        # ==============================================================================
+        # Se asegura que st.session_state.df_monthly_processed siempre se actualice
+        # a partir de una fuente limpia, previniendo el KeyError.
         if st.session_state.analysis_mode == "Completar series (interpolación)":
-            df_monthly_processed = complete_series(df_monthly_processed)
-            st.session_state.df_monthly_processed = df_monthly_processed
+            df_monthly_processed = complete_series(st.session_state.df_long)
+        else:
+            df_monthly_processed = st.session_state.df_long.copy()
         
+        st.session_state.df_monthly_processed = df_monthly_processed
+        # ==============================================================================
+
         df_monthly_filtered = df_monthly_processed[
             (df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
             (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
             (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
             (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
         ].copy()
-        
+
         annual_data_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
             (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
@@ -189,23 +195,16 @@ def main():
         
         #--- DICCIONARIO DE ARGUMENTOS PARA LAS PESTAÑAS ---
         display_args = {
-            "gdf_filtered": gdf_filtered, 
-            "stations_for_analysis": stations_for_analysis,
-            "df_anual_melted": df_anual_melted, 
-            "df_monthly_filtered": df_monthly_filtered,
-            "analysis_mode": st.session_state.analysis_mode, 
-            "selected_regions": selected_regions,
-            "selected_municipios": selected_municipios, 
-            "selected_altitudes": selected_altitudes
+            "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
+            "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
+            "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions,
+            "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
         }
         
-        #--- DEFINICIÓN Y RENDERIZADO DE PESTAÑAS ---
-        tab_names = [
-            "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
-            "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos",
-            "Estadísticas", "Análisis de Correlación", "Análisis ENSO", 
-            "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"
-        ]
+        tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
+                     "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos",
+                     "Estadísticas", "Análisis de Correlación", "Análisis ENSO", 
+                     "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
         tabs = st.tabs(tab_names)
         
         if not stations_for_analysis or df_monthly_filtered.empty:
@@ -228,16 +227,12 @@ def main():
             df_monthly_to_process=st.session_state.df_monthly_processed, 
             **display_args
         )
-        with tabs[11]: display_downloads_tab(
-            df_anual_melted=df_anual_melted, 
-            df_monthly_filtered=df_monthly_filtered, 
-            stations_for_analysis=stations_for_analysis
-        )
+        with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis) # Corregido para no usar display_args
         with tabs[12]: display_station_table_tab(**display_args)
-
     else:
         display_welcome_tab()
         st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
 
 if __name__ == "__main__":
     main()
+
