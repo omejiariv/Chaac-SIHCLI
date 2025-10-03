@@ -2106,6 +2106,16 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
                 st.info("Genere ambos pronósticos (SARIMA y Prophet) para ver la comparación de precisión.")
 
 def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode):
+    
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Se define la función auxiliar dentro del scope de la función principal
+    # para garantizar que siempre esté disponible.
+    @st.cache_data
+    def convert_df_to_csv(df):
+        """Convierte un DataFrame a un objeto CSV codificado en utf-8."""
+        return df.to_csv(index=False).encode('utf-8')
+    # --- FIN DE LA CORRECCIÓN ---
+
     st.header("Opciones de Descarga")
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para activar las descargas.")
