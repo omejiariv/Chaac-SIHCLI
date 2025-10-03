@@ -39,13 +39,11 @@ from modules.data_processor import complete_series
 # --- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN ---
 def display_filter_summary(total_stations_count, selected_stations_count, year_range,
                            selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
-    """Muestra una caja informativa con un resumen de todos los filtros aplicados."""
     if isinstance(year_range, tuple) and len(year_range) == 2:
         year_text = f"{year_range[0]}-{year_range[1]}"
     else:
         year_text = "N/A"
     
-    # El texto del modo de análisis ahora es solo informativo
     mode_text = "Original (con huecos)"
     if analysis_mode == "Completar series (interpolación)":
         mode_text = "Completado (en pronósticos)"
@@ -276,7 +274,6 @@ def generate_temporal_map_popup_html(row, df_anual_melted_full_period):
     return folium.Popup(html, max_width=300)
 
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    """Creates a Folium map with robust centering logic."""
     m = folium.Map(location=location, zoom_start=zoom, tiles=base_map_config.get("tiles", "OpenStreetMap"), attr=base_map_config.get("attr", None))
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         if len(fit_bounds_data) > 1:
@@ -2030,7 +2027,6 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
     autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, \
     compare_forecast_tab = st.tabs(tab_names)
 
-    # Las pestañas de análisis usan los datos ya filtrados y son rápidas
     with tendencia_individual_tab:
         st.subheader("Tendencia de Precipitación Anual (Regresión Lineal)")
         analysis_type = st.radio("Tipo de Análisis de Tendencia:", ["Promedio de la selección", "Estación individual"], horizontal=True, key="linear_trend_type")
@@ -2141,37 +2137,50 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
     with descomposicion_tab:
         st.subheader("Descomposición de Series de Tiempo Mensual")
-        station_to_decompose = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="decompose_station_select")
+        station_to_decompose = st.selectbox("Seleccione una estación para la descomposición:", options=stations_for_analysis, key="decompose_station_select")
         if station_to_decompose:
             df_station = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_decompose].copy()
             if not df_station.empty:
                 df_station.set_index(Config.DATE_COL, inplace=True)
                 try:
-                    result = get_decomposition_results(df_station[Config.PRECIPITATION_COL])
-                    # ... (código para mostrar el gráfico de descomposición) ...
+                    series_for_decomp = df_station[Config.PRECIPITATION_COL].asfreq('MS').interpolate(method='time')
+                    result = get_decomposition_results(series_for_decomp)
+                    
+                    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, 
+                                        subplot_titles=("Observado", "Tendencia", "Estacionalidad", "Residuo"))
+                    
+                    fig.add_trace(go.Scatter(x=result.observed.index, y=result.observed, mode='lines', name='Observado'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=result.trend.index, y=result.trend, mode='lines', name='Tendencia'), row=2, col=1)
+                    fig.add_trace(go.Scatter(x=result.seasonal.index, y=result.seasonal, mode='lines', name='Estacionalidad'), row=3, col=1)
+                    fig.add_trace(go.Scatter(x=result.resid.index, y=result.resid, mode='markers', name='Residuo'), row=4, col=1)
+                    
+                    fig.update_layout(height=700, title_text=f"Descomposición de la Serie para {station_to_decompose}", showlegend=False)
+                    st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
                     st.error(f"No se pudo realizar la descomposición. Error: {e}")
-            else:
-                st.warning("No hay datos para esta estación en el período seleccionado.")
-
+    
     with autocorrelacion_tab:
         st.subheader("Análisis de Autocorrelación (ACF) y Autocorrelación Parcial (PACF)")
+        
         station_to_analyze_acf = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="acf_station_select")
         max_lag = st.slider("Número máximo de rezagos (meses):", min_value=12, max_value=60, value=24, step=12)
         if station_to_analyze_acf:
-            df_station_acf = df_monthly_to_process[df_monthly_to_process[Config.STATION_NAME_COL] == station_to_analyze_acf].copy()
+            df_station_acf = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_acf].copy()
             if not df_station_acf.empty:
-                from modules.forecasting import create_acf_chart, create_pacf_chart
                 df_station_acf.set_index(Config.DATE_COL, inplace=True)
-                series = df_station_acf[Config.PRECIPITATION_COL].asfreq('MS').interpolate(method='time').dropna()
-                if len(series) > max_lag:
-                    fig_acf = create_acf_chart(series, max_lag)
-                    st.plotly_chart(fig_acf, use_container_width=True)
-                    fig_pacf = create_pacf_chart(series, max_lag)
-                    st.plotly_chart(fig_pacf, use_container_width=True)
+                df_station_acf = df_station_acf.asfreq('MS')
+                df_station_acf[Config.PRECIPITATION_COL] = df_station_acf[Config.PRECIPITATION_COL].interpolate(method='time').dropna()
+                if len(df_station_acf) > max_lag:
+                    try:
+                        fig_acf = create_acf_chart(df_station_acf[Config.PRECIPITATION_COL], max_lag)
+                        st.plotly_chart(fig_acf, use_container_width=True)
+                        fig_pacf = create_pacf_chart(df_station_acf[Config.PRECIPITATION_COL], max_lag)
+                        st.plotly_chart(fig_pacf, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"No se pudieron generar los gráficos de autocorrelación. Error: {e}")
                 else:
-                    st.warning(f"No hay suficientes datos (se requieren > {max_lag} meses) para el análisis de autocorrelación.")
-    
+                    st.warning(f"No hay suficientes datos para el análisis de autocorrelación.")
+
     with pronostico_sarima_tab:
         st.subheader("Pronóstico (Modelo SARIMA)")
         st.info("Para realizar un pronóstico, las series de datos se completan (interpolan) automáticamente solo para la estación seleccionada.", icon="ℹ️")
