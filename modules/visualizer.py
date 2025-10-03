@@ -2250,18 +2250,25 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
         csv_completado = convert_df_to_csv(df_completed_to_download)
         st.download_button("Descargar CSV con Series Completadas", csv_completado, 'precipitacion_mensual_completada.csv', 'text/csv', key='download-completado')
 
-def display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis):
+def display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Información Detallada de las Estaciones")
+    
+    # La llamada a display_filter_summary ahora es completa y correcta
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
         year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros)
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
+
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-        
+
     st.info(f"Mostrando información para {len(stations_for_analysis)} estaciones.")
     if gdf_filtered.empty:
         st.info("No hay estaciones que cumplan con los filtros geográficos y de datos seleccionados.")
