@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 def sync_station_selection(stations_options):
     """Sincroniza el multiselect basado en el checkbox 'Seleccionar todas'."""
-    if st.session_state.get('select_all_checkbox', True):
+    if st.session_state.get('select_all_checkbox', False): # Default a False
         st.session_state.station_multiselect = stations_options
     else:
         st.session_state.station_multiselect = []
@@ -72,6 +72,10 @@ def main():
         if st.button("Procesar y Almacenar Datos", key='process_data_button') and all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
             st.cache_data.clear()
             st.cache_resource.clear()
+            keys_to_clear = list(st.session_state.keys())
+            for key in keys_to_clear:
+                del st.session_state[key]
+            
             with st.spinner("Procesando archivos y cargando datos..."):
                 gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
@@ -90,7 +94,6 @@ def main():
         st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
         return
 
-    # --- LÓGICA DE FILTROS (SE EJECUTA SIEMPRE PARA QUE LA UI SEA RESPONSIVA) ---
     st.sidebar.success("Datos base cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar App"):
         keys_to_clear = list(st.session_state.keys())
@@ -99,7 +102,6 @@ def main():
         st.rerun()
 
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
-        # ... (código de sliders y multiselects sin cambios)
         min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0), key='min_data_perc_slider')
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
         selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges, key='altitude_multiselect')
@@ -118,12 +120,21 @@ def main():
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
+        
+        # ==============================================================================
+        # LÓGICA CLAVE PARA EVITAR LA SOBRECARGA INICIAL
+        # ==============================================================================
+        # Si las opciones de estaciones cambian (p. ej., por un filtro geográfico), 
+        # reiniciamos la selección a una lista vacía por defecto.
         if 'filtered_station_options' not in st.session_state or st.session_state.filtered_station_options != stations_options:
             st.session_state.filtered_station_options = stations_options
-            if st.session_state.get('select_all_checkbox', True):
-                st.session_state.station_multiselect = stations_options
-        st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, args=(stations_options,), value=st.session_state.get('select_all_checkbox', True))
+            st.session_state.station_multiselect = []
+            st.session_state.select_all_checkbox = False # Asegura que el checkbox también se reinicie
+
+        st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, args=(stations_options,))
         selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect')
+        # ==============================================================================
+
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
         year_range = st.slider("Seleccionar Rango de Años", min_value=year_range_default[0], max_value=year_range_default[1], value=st.session_state.get('year_range', year_range_default), key='year_range')
@@ -131,19 +142,17 @@ def main():
         meses_nombres = st.multiselect("Seleccionar Meses", list(meses_dict.keys()), default=list(meses_dict.keys()), key='meses_nombres')
         meses_numeros = [meses_dict[m] for m in meses_nombres]
 
-    with st.sidebar.expander("Opciones de Preprocesamiento de Datos"):
-        st.radio("Análisis de Series Mensuales", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' solo se aplica bajo demanda en la pestaña de Pronósticos para evitar sobrecarga de memoria.")
+    with st.sidebar.expander("Opciones de Preprocesamiento"):
+        st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' solo se aplica bajo demanda en la pestaña de Pronósticos.")
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-    #--- DEFINICIÓN DE PESTAÑAS ---
     tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
                  "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos",
                  "Estadísticas", "Análisis de Correlación", "Análisis ENSO", 
                  "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
     tabs = st.tabs(tab_names)
 
-    #--- PREPARACIÓN FINAL DE DATOS (AHORA ES MUY LIGERA) ---
     stations_for_analysis = selected_stations
     if not stations_for_analysis:
         with tabs[0]: display_welcome_tab()
@@ -192,7 +201,6 @@ def main():
         "df_full_monthly": st.session_state.df_long
     }
     
-    #--- RENDERIZADO DE PESTAÑAS ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
