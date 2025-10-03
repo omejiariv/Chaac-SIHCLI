@@ -71,8 +71,6 @@ class Config:
             st.session_state.df_monthly_processed = pd.DataFrame()
         if 'meses_numeros' not in st.session_state:
             st.session_state.meses_numeros = list(range(1, 13))
-        if 'year_range' not in st.session_state:
-            st.session_state.year_range = (2000, 2020)
         if 'dem_source' not in st.session_state:
             st.session_state.dem_source = "No usar DEM"
         if 'dem_raster' not in st.session_state:
