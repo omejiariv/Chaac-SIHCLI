@@ -45,9 +45,9 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
     else:
         year_text = "N/A"
     
-    mode_text = "Original (con huecos)"
+    mode_text = "Original (con vacíos)"
     if analysis_mode == "Completar series (interpolación)":
-        mode_text = "Completado (en pronósticos)"
+        mode_text = "Completado (interpolado)"
 
     summary_parts = [
         f"**Estaciones:** {selected_stations_count}/{total_stations_count}",
@@ -68,7 +68,7 @@ def get_map_options():
     return {
         "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
-        "Topografía (Open TopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright"> OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">Open TopoMap</a>'},
+        "Topografía (Open TopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright"> OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">Open TopoMap</a>', "overlay": False},
         "Mapa de Colombia (WMS IDEAM)": {"url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", "layers": "ideam:col_admin", "transparent": True, "attr": "IDEAM", "overlay": True},
     }
 
@@ -84,6 +84,7 @@ def display_map_controls(container_object, key_prefix):
     
     selected_overlays_config = [overlays[k] for k in selected_overlays_names]
     return base_maps[selected_base_map_name], selected_overlays_config
+
 
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
@@ -249,12 +250,13 @@ def display_welcome_tab():
     with st.expander("Conceptos Clave, Métodos y Ecuaciones"):
         st.markdown("""
         Esta sección proporciona una breve descripción de los métodos y conceptos analíticos utilizados en la plataforma.
+
         ### Métodos de Interpolación Espacial
         La interpolación se usa para estimar la precipitación en lugares donde no hay estaciones de medición, creando superficies continuas (mapas).
         - **IDW (Inverso de la Distancia Ponderada)**: Un método simple que asume que los puntos más cercanos tienen más influencia que los lejanos.
         - **Kriging**: Un método geoestadístico avanzado que utiliza la autocorrelación espacial entre los puntos (descrita por un **variograma**) para realizar estimaciones.
         - **Spline (Thin Plate)**: Un método matemático que ajusta una superficie flexible a través de los puntos de datos.
-        
+
         ### Índices de Sequía
         - **SPI (Índice de Precipitación Estandarizado)**: Mide las desviaciones de la precipitación con respecto a su media histórica.
         - **SPEI (Índice Estandarizado de Precipitación-Evapotranspiración)**: Similar al SPI, pero se basa en el **balance hídrico climático** (Precipitación - Evapotranspiración).
@@ -2107,14 +2109,9 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
 def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode):
     
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Se define la función auxiliar dentro del scope de la función principal
-    # para garantizar que siempre esté disponible.
     @st.cache_data
     def convert_df_to_csv(df):
-        """Convierte un DataFrame a un objeto CSV codificado en utf-8."""
         return df.to_csv(index=False).encode('utf-8')
-    # --- FIN DE LA CORRECCIÓN ---
 
     st.header("Opciones de Descarga")
     if not stations_for_analysis:
@@ -2139,25 +2136,8 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
 
     st.markdown("---")
 
-    st.markdown("#### Datos de Precipitación Mensual (Originales Filtrados)")
-    if not df_monthly_filtered.empty and analysis_mode == "Usar datos originales":
-        csv_mensual = convert_df_to_csv(df_monthly_filtered)
-        st.download_button(
-            label="📥 Descargar CSV Mensual",
-            data=csv_mensual,
-            file_name='precipitacion_mensual_filtrada.csv',
-            mime='text/csv',
-            key='download-mensual'
-        )
-    elif analysis_mode != "Usar datos originales":
-         st.info("La descarga de datos mensuales originales está desactivada en el modo 'Completar series'.")
-    else:
-        st.info("No hay datos mensuales para descargar con los filtros actuales.")
-
-    st.markdown("---")
-
-    st.markdown("#### Datos de Series Mensuales Completas (Interpoladas)")
     if analysis_mode == "Completar series (interpolación)":
+        st.markdown("#### Datos de Series Mensuales Completas (Interpoladas)")
         st.info("Los datos a continuación han sido completados (interpolados) para rellenar los vacíos en las series de tiempo.")
         csv_completed = convert_df_to_csv(df_monthly_filtered)
         st.download_button(
@@ -2168,7 +2148,18 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
             key='download-completed'
         )
     else:
-        st.warning("Para descargar las series completas, selecciona 'Completar series (interpolación)' en el 'Panel de Control -> Opciones de Preprocesamiento'.")
+        st.markdown("#### Datos de Precipitación Mensual (Originales Filtrados)")
+        if not df_monthly_filtered.empty:
+            csv_mensual = convert_df_to_csv(df_monthly_filtered)
+            st.download_button(
+                label="📥 Descargar CSV Mensual",
+                data=csv_mensual,
+                file_name='precipitacion_mensual_filtrada.csv',
+                mime='text/csv',
+                key='download-mensual'
+            )
+        else:
+            st.info("No hay datos mensuales para descargar con los filtros actuales.")
 # -----------------------------------------------------------------------------
 @st.cache_data
 def calculate_comprehensive_stats(df_anual, df_monthly, stations):
