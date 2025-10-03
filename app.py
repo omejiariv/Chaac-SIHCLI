@@ -62,7 +62,7 @@ def main():
             try:
                 st.image(Config.LOGO_PATH, width=60)
             except Exception:
-                pass # Si el logo falla, no detiene la app
+                pass
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
     
@@ -132,56 +132,23 @@ def main():
             meses_nombres = st.multiselect("Seleccionar Meses", list(meses_dict.keys()), default=list(meses_dict.keys()), key='meses_nombres')
             meses_numeros = [meses_dict[m] for m in meses_nombres]
 
+        # La opción de interpolación se mantiene, pero la lógica pesada se mueve a visualizer.py
         with st.sidebar.expander("Opciones de Preprocesamiento de Datos"):
-            st.radio("Análisis de Series Mensuales", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
+            st.radio("Análisis de Series Mensuales", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' solo se aplica bajo demanda en la pestaña de Pronósticos para evitar sobrecarga de memoria.")
             st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
             st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-        with st.sidebar.expander("Opciones de Modelo Digital de Elevación (DEM)"):
-            dem_source = st.radio("Fuente de DEM para KED (Kriging):", ("No usar DEM", "Subir DEM propio (GeoTIFF)"), key="dem_source")
-            uploaded_dem_file = None
-            if dem_source == "Subir DEM propio (GeoTIFF)":
-                uploaded_dem_file = st.file_uploader("Cargar GeoTIFF (.tif) para elevación", type=["tif", "tiff"], key="dem_uploader")
-            if uploaded_dem_file:
-                st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations.copy(), uploaded_dem_file)
-                st.sidebar.success("Altitud de estaciones actualizada.")
-
-        #--- PREPARACIÓN DE DATAFRAMES FINALES ---
+        #--- PREPARACIÓN DE DATAFRAMES FINALES (Lógica Simplificada) ---
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-        st.session_state.meses_numeros = meses_numeros
-
-        # ==============================================================================
-        # BLOQUE DE OPTIMIZACIÓN DE MEMORIA Y ESTABILIDAD
-        # ==============================================================================
-        df_monthly_processed = pd.DataFrame() # Inicializar como un DataFrame vacío
-        df_monthly_filtered = pd.DataFrame()  # Inicializar como un DataFrame vacío
-
-        # Solo ejecutar el resto del procesamiento si se han seleccionado estaciones
-        if stations_for_analysis:
-            # Filtramos PRIMERO por las estaciones seleccionadas para reducir la carga de memoria.
-            df_subset_for_processing = st.session_state.df_long[
-                st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)
-            ].copy()
-
-            # Ahora, la interpolación (si se activa) se ejecuta solo en este subconjunto de datos.
-            if st.session_state.analysis_mode == "Completar series (interpolación)":
-                with st.spinner("Completando series de tiempo para las estaciones seleccionadas..."):
-                    df_monthly_processed = complete_series(df_subset_for_processing)
-            else:
-                df_monthly_processed = df_subset_for_processing.copy()
-            
-            # El filtrado por fecha ahora se aplica sobre el df ya procesado y de tamaño reducido
-            if not df_monthly_processed.empty:
-                df_monthly_filtered = df_monthly_processed[
-                    (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
-                    (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
-                    (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
-                ].copy()
         
-        # Guardamos en session_state el resultado para el pronóstico
-        st.session_state.df_monthly_processed = df_monthly_processed
-        # ==============================================================================
+        # `df_monthly_filtered` ahora siempre se basa en los datos originales filtrados
+        df_monthly_filtered = st.session_state.df_long[
+            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
+            (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
+            (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
+        ].copy()
 
         annual_data_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
@@ -190,16 +157,12 @@ def main():
         ].copy()
 
         if st.session_state.get('exclude_na', False):
-            if not df_monthly_filtered.empty:
-                df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-            if not annual_data_filtered.empty:
-                annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
             
         if st.session_state.get('exclude_zeros', False):
-            if not df_monthly_filtered.empty:
-                df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-            if not annual_data_filtered.empty:
-                annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
         
         annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
             precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
@@ -211,10 +174,15 @@ def main():
         
         #--- DICCIONARIO DE ARGUMENTOS PARA LAS PESTAÑAS ---
         display_args = {
-            "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
-            "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
-            "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions,
-            "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
+            "gdf_filtered": gdf_filtered, 
+            "stations_for_analysis": stations_for_analysis,
+            "df_anual_melted": df_anual_melted, 
+            "df_monthly_filtered": df_monthly_filtered,
+            "analysis_mode": st.session_state.analysis_mode, 
+            "selected_regions": selected_regions,
+            "selected_municipios": selected_municipios, 
+            "selected_altitudes": selected_altitudes,
+            "df_full_monthly": st.session_state.df_long # Pasamos el DF completo original para los pronósticos
         }
         
         tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
@@ -223,10 +191,10 @@ def main():
                      "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
         tabs = st.tabs(tab_names)
         
-        if not stations_for_analysis or df_monthly_filtered.empty:
+        if not stations_for_analysis:
             with tabs[0]:
                 display_welcome_tab()
-            st.warning("No hay estaciones seleccionadas o datos disponibles para los filtros aplicados. Por favor, ajuste la selección.")
+            st.warning("No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control.")
             return
 
         with tabs[0]: display_welcome_tab()
@@ -239,10 +207,7 @@ def main():
         with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
         with tabs[8]: display_correlation_tab(**display_args)
         with tabs[9]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-        with tabs[10]: display_trends_and_forecast_tab(
-            df_monthly_to_process=st.session_state.df_monthly_processed, 
-            **display_args
-        )
+        with tabs[10]: display_trends_and_forecast_tab(**display_args) # Ya no necesita `df_monthly_to_process`
         with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
         with tabs[12]: display_station_table_tab(**display_args)
     else:
