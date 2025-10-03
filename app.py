@@ -152,20 +152,26 @@ def main():
         st.session_state.meses_numeros = meses_numeros
         
         # ==============================================================================
-        # BLOQUE CORREGIDO Y ROBUSTO
+        # BLOQUE DE OPTIMIZACIÓN DE MEMORIA
         # ==============================================================================
-        # Se asegura que st.session_state.df_monthly_processed siempre se actualice
-        # a partir de una fuente limpia, previniendo el KeyError.
+        # Filtramos PRIMERO por las estaciones seleccionadas para reducir la carga de memoria.
+        df_subset_for_processing = st.session_state.df_long[
+            st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)
+        ].copy()
+
+        # Ahora, la interpolación (si se activa) se ejecuta solo en este subconjunto de datos.
         if st.session_state.analysis_mode == "Completar series (interpolación)":
-            df_monthly_processed = complete_series(st.session_state.df_long)
+            # La función complete_series ahora trabaja con un DataFrame mucho más pequeño
+            df_monthly_processed = complete_series(df_subset_for_processing)
         else:
-            df_monthly_processed = st.session_state.df_long.copy()
+            df_monthly_processed = df_subset_for_processing.copy()
         
+        # Guardamos en session_state el resultado (ahora de tamaño manejable) para el pronóstico
         st.session_state.df_monthly_processed = df_monthly_processed
         # ==============================================================================
 
+        # El filtrado por fecha ahora se aplica sobre el df ya procesado y de tamaño reducido
         df_monthly_filtered = df_monthly_processed[
-            (df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
             (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
             (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
             (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
@@ -227,7 +233,7 @@ def main():
             df_monthly_to_process=st.session_state.df_monthly_processed, 
             **display_args
         )
-        with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis) # Corregido para no usar display_args
+        with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
         with tabs[12]: display_station_table_tab(**display_args)
     else:
         display_welcome_tab()
@@ -235,4 +241,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
