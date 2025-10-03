@@ -139,8 +139,7 @@ def main():
         meses_numeros = [meses_dict[m] for m in meses_nombres]
 
     with st.sidebar.expander("Opciones de Preprocesamiento"):
-        st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' solo se aplica bajo demanda en la pestaña de Pronósticos.")
-        st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
+        st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' utiliza interpolación para rellenar los datos faltantes en las series mensuales. Afecta a todas las pestañas de análisis y a las descargas.")
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
     # --- DEFINICIÓN DE PESTAÑAS Y CONTROL DE FLUJO ---
@@ -158,54 +157,56 @@ def main():
         return # DETIENE LA EJECUCIÓN AQUÍ SI NO HAY ESTACIONES
         
     # --- PREPARACIÓN FINAL DE DATOS (Solo se ejecuta si hay estaciones seleccionadas) ---
-    with st.spinner("Filtrando y preparando datos..."):
-        gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-        
-        df_monthly_filtered = st.session_state.df_long[
-            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-            (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
-            (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
-            (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
-        ].copy()
+with st.spinner("Filtrando y preparando datos..."):
+    # 1. Se filtran los datos mensuales seleccionados (esto es común para ambos modos)
+    df_monthly_filtered = st.session_state.df_long[
+        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+        (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
+        (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
+        (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
+    ].copy()
 
-# Procesar series completas si el modo está activado
-if st.session_state.analysis_mode == "Completar series (interpolación)":
-    with st.spinner("Completando series de tiempo seleccionadas... Esta operación puede tardar unos momentos."):
-        # La función complete_series ya está importada desde data_processor
-        df_monthly_filtered = complete_series(df_monthly_filtered)
+    # 2. SOLO SI el modo es "Completar series", se aplica la interpolación a los datos mensuales
+    if st.session_state.analysis_mode == "Completar series (interpolación)":
+        with st.spinner("Completando series de tiempo seleccionadas... Esta operación puede tardar unos momentos."):
+            df_monthly_filtered = complete_series(df_monthly_filtered)
 
-        annual_data_filtered = st.session_state.df_long[
-            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-            (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
-            (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
-        ].copy()
+    # 3. Se preparan los datos para el análisis anual (esto es común para ambos modos)
+    annual_data_filtered = st.session_state.df_long[
+        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+        (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
+        (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
+    ].copy()
 
-        if st.session_state.get('exclude_na', False):
-            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-                
-        if st.session_state.get('exclude_zeros', False):
-            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+    # 4. Se aplican los filtros de exclusión a ambos dataframes (común para ambos modos)
+    if st.session_state.get('exclude_na', False):
+        df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+        annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            
+    if st.session_state.get('exclude_zeros', False):
+        df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+        annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+    
+# 5. Se agregan los datos anuales (común para ambos modos)
+    annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
+        precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
+        meses_validos=(Config.PRECIPITATION_COL, 'count')
+    ).reset_index()
+    annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
+    df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
         
-        annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
-            precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
-            meses_validos=(Config.PRECIPITATION_COL, 'count')
-        ).reset_index()
-        annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
-        df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
-        
-        display_args = {
-            "gdf_filtered": gdf_filtered, 
-            "stations_for_analysis": stations_for_analysis,
-            "df_anual_melted": df_anual_melted, 
-            "df_monthly_filtered": df_monthly_filtered,
-            "analysis_mode": st.session_state.analysis_mode, 
-            "selected_regions": selected_regions,
-            "selected_municipios": selected_municipios, 
-            "selected_altitudes": selected_altitudes,
-            "df_full_monthly": st.session_state.df_long
-        }
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Se elimina la clave "df_full_monthly" de este diccionario
+    display_args = {
+        "gdf_filtered": gdf_filtered, 
+        "stations_for_analysis": stations_for_analysis,
+        "df_anual_melted": df_anual_melted, 
+        "df_monthly_filtered": df_monthly_filtered,
+        "analysis_mode": st.session_state.analysis_mode, 
+        "selected_regions": selected_regions,
+        "selected_municipios": selected_municipios, 
+        "selected_altitudes": selected_altitudes,
+    }
     
     # --- RENDERIZADO DE PESTAÑAS ---
     with tabs[0]: display_welcome_tab()
@@ -218,8 +219,9 @@ if st.session_state.analysis_mode == "Completar series (interpolación)":
     with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[8]: display_correlation_tab(**display_args)
     with tabs[9]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-    with tabs[10]: display_trends_and_forecast_tab(**display_args)
-    with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
+    # Se añade el argumento explícito a la función que lo necesita
+    with tabs[10]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+    with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
     with tabs[12]: display_station_table_tab(**display_args)
 
 if __name__ == "__main__":
