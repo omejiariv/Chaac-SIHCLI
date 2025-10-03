@@ -238,7 +238,7 @@ def main():
         )
         
         with tabs[10]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis)
-        with tabs[11]: display_station_table_tab(gdf_filtered, df_anual_melted, stations_for_analysis)
+        with tabs[11]: display_station_table_tab(**display_args)
     else:
         display_welcome_tab()
         st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
