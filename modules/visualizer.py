@@ -2105,11 +2105,14 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             else:
                 st.info("Genere ambos pronósticos (SARIMA y Prophet) para ver la comparación de precisión.")
 
-def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis):
+def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode):
     st.header("Opciones de Descarga")
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para activar las descargas.")
         return
+
+    st.markdown("Aquí puedes descargar los datos actualmente visualizados, según los filtros aplicados en el panel de control.")
+    st.markdown("---")
 
 @st.cache_data
 def convert_df_to_csv(df):
@@ -2153,9 +2156,23 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
     else:
         st.info("No hay datos mensuales para descargar con los filtros actuales.")
 
-    st.info("Nota: La opción para descargar series completadas se ha eliminado para optimizar el rendimiento de la aplicación. Las series se completan bajo demanda en la pestaña de Pronósticos.")
-# -----------------------------------------------------------------------------
-# Tu función auxiliar para las estadísticas (SIN CAMBIOS)
+    st.markdown("---")
+
+    # --- INICIO DE LA SECCIÓN RESTAURADA ---
+    st.markdown("#### Datos de Series Mensuales Completas (Interpoladas)")
+    if analysis_mode == "Completar series (interpolación)":
+        st.info("Los datos a continuación han sido completados (interpolados) para rellenar los vacíos en las series de tiempo.")
+        csv_completed = convert_df_to_csv(df_monthly_filtered)
+        st.download_button(
+            label="📥 Descargar CSV de Series Completas",
+            data=csv_completed,
+            file_name='precipitacion_mensual_completa.csv',
+            mime='text/csv',
+            key='download-completed'
+        )
+    else:
+        st.warning("Para descargar las series completas, selecciona 'Completar series (interpolación)' en el 'Panel de Control -> Opciones de Preprocesamiento'.")
+    # --- FIN DE LA SECCIÓN RESTAURADA ---  
 # -----------------------------------------------------------------------------
 @st.cache_data
 def calculate_comprehensive_stats(df_anual, df_monthly, stations):
