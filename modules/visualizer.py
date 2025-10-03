@@ -2278,10 +2278,12 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
     with compare_forecast_tab:
         st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")
+        # CORRECCIÓN: Se añade la línea que faltaba para definir sarima_results
+        sarima_results = st.session_state.get('sarima_results')
         prophet_results = st.session_state.get('prophet_results')
 
         if not sarima_results or not prophet_results:
-            st.warning("Debe generar un pronóstico SARIMA y Prophet en las pestañas anteriores para poder compararlos.")
+            st.warning("Debe generar un pronóstico SARIMA y Prophet en sus respectivas pestañas para poder compararlos.")
         else:
             fig_compare = go.Figure()
             if sarima_results.get('history') is not None:
@@ -2314,7 +2316,7 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
                 mae_winner = 'SARIMA' if sarima_metrics['MAE'] < prophet_metrics['MAE'] else 'Prophet'
                 st.success(f"🏆 **Ganador (menor error):** **{rmse_winner}** basado en RMSE y **{mae_winner}** basado en MAE.")
             else:
-                st.info("Genere ambos pronósticos (SARIMA y Prophet) en sus respectivas pestañas para ver la comparación de precisión.")
+                st.info("Genere ambos pronósticos (SARIMA y Prophet) para ver la comparación de precisión.")
 
 def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis):
     st.header("Opciones de Descarga")
