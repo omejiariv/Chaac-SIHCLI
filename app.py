@@ -1,4 +1,5 @@
 # app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,7 +8,7 @@ import os
 
 # --- Importaciones de Módulos ---
 from modules.config import Config
-from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem
+from modules.data_processor import load_and_process_all_data, complete_series
 from modules.visualizer import (
     display_welcome_tab, display_spatial_distribution_tab, display_graphs_tab,
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
@@ -16,13 +17,12 @@ from modules.visualizer import (
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
 )
 
-# Desactivar Warnings
+# --- Desactivar Advertencias ---
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 def sync_station_selection(stations_options):
     """Sincroniza el multiselect basado en el checkbox 'Seleccionar todas'."""
-    # Esta función ahora se activa solo con la interacción del usuario
     if st.session_state.get('select_all_checkbox', False):
         st.session_state.station_multiselect = stations_options
     else:
@@ -31,11 +31,15 @@ def sync_station_selection(stations_options):
 def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celdas):
     """Aplica una serie de filtros geográficos y de datos a un GeoDataFrame de estaciones."""
     stations_filtered = df.copy()
+
     if Config.PERCENTAGE_COL in stations_filtered.columns:
-        if stations_filtered[Config.PERCENTAGE_COL].dtype == 'object':
-            stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
+        stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(
+            stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False),
+            errors='coerce'
+        ).fillna(0)
         if min_perc > 0:
             stations_filtered = stations_filtered[stations_filtered[Config.PERCENTAGE_COL] >= min_perc]
+
     if altitudes:
         conditions = []
         altitude_col_numeric = pd.to_numeric(stations_filtered[Config.ALTITUDE_COL], errors='coerce')
@@ -45,38 +49,50 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
             elif r == '1000-2000': conditions.append((altitude_col_numeric > 1000) & (altitude_col_numeric <= 2000))
             elif r == '2000-3000': conditions.append((altitude_col_numeric > 2000) & (altitude_col_numeric <= 3000))
             elif r == '>3000': conditions.append(altitude_col_numeric > 3000)
-        if conditions: stations_filtered = stations_filtered[pd.concat(conditions, axis=1).any(axis=1)]
-    if regions: stations_filtered = stations_filtered[stations_filtered[Config.REGION_COL].isin(regions)]
-    if municipios: stations_filtered = stations_filtered[stations_filtered[Config.MUNICIPALITY_COL].isin(municipios)]
+        if conditions:
+            stations_filtered = stations_filtered[pd.concat(conditions, axis=1).any(axis=1)]
+
+    if regions:
+        stations_filtered = stations_filtered[stations_filtered[Config.REGION_COL].isin(regions)]
+    if municipios:
+        stations_filtered = stations_filtered[stations_filtered[Config.MUNICIPALITY_COL].isin(municipios)]
     if celdas and Config.CELL_COL in stations_filtered.columns:
         stations_filtered = stations_filtered[stations_filtered[Config.CELL_COL].isin(celdas)]
+    
     return stations_filtered
 
 def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    st.markdown("""<style>div.block-container{padding-top:2rem;}[data-testid="stMetricValue"]{font-size:1.8rem;}[data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-    Config.initialize_session_state()
     
+    st.markdown("""<style>div.block-container{padding-top:2rem;} [data-testid="stMetricValue"] {font-size:1.8rem;}[data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button [data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
+
+    Config.initialize_session_state()
+
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
-            try: st.image(Config.LOGO_PATH, width=60)
-            except Exception: pass
+            try:
+                st.image(Config.LOGO_PATH, width=60)
+            except Exception:
+                pass
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
-    
+
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
         uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
         uploaded_zip_shapefile = st.file_uploader("3. Cargar shapefile de municipios (.zip)", type="zip", key='uploaded_zip_shapefile')
+
         if st.button("Procesar y Almacenar Datos", key='process_data_button') and all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
-            # Limpieza completa del estado de la sesión para un reinicio limpio
             st.cache_data.clear()
             st.cache_resource.clear()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             
+            # CORRECCIÓN: Se re-inicializa el estado de la sesión para evitar AttributeError
+            Config.initialize_session_state()
+
             with st.spinner("Procesando archivos y cargando datos..."):
                 gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
@@ -117,97 +133,92 @@ def main():
         if Config.CELL_COL in temp_gdf_for_mun.columns:
             celdas_list = sorted(temp_gdf_for_mun[Config.CELL_COL].dropna().unique())
         selected_celdas = st.multiselect('Filtrar por Celda_XY', options=celdas_list, key='celdas_multiselect')
-        gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
+    
+    gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
-        
-        # Lógica clave: Si las opciones filtradas cambian, se resetea la selección a una lista vacía
         if 'filtered_station_options' not in st.session_state or st.session_state.filtered_station_options != stations_options:
             st.session_state.filtered_station_options = stations_options
             st.session_state.station_multiselect = []
             st.session_state.select_all_checkbox = False
-
         st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, args=(stations_options,))
         selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect', default=st.session_state.get('station_multiselect', []))
-
+        
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
         year_range = st.slider("Seleccionar Rango de Años", min_value=year_range_default[0], max_value=year_range_default[1], value=st.session_state.get('year_range', year_range_default), key='year_range')
+        
         meses_dict = {m: i+1 for i, m in enumerate(['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'])}
         meses_nombres = st.multiselect("Seleccionar Meses", list(meses_dict.keys()), default=list(meses_dict.keys()), key='meses_nombres')
         meses_numeros = [meses_dict[m] for m in meses_nombres]
 
     with st.sidebar.expander("Opciones de Preprocesamiento"):
+        # CORRECCIÓN: Se actualiza el texto de ayuda para reflejar la funcionalidad restaurada
         st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' utiliza interpolación para rellenar los datos faltantes en las series mensuales. Afecta a todas las pestañas de análisis y a las descargas.")
+        st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
     # --- DEFINICIÓN DE PESTAÑAS Y CONTROL DE FLUJO ---
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
-                 "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos",
-                 "Estadísticas", "Análisis de Correlación", "Análisis ENSO", 
-                 "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
+    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
     tabs = st.tabs(tab_names)
 
     stations_for_analysis = selected_stations
     if not stations_for_analysis:
-        with tabs[0]: 
+        with tabs[0]:
             display_welcome_tab()
-            st.warning("📊 No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control para comenzar el análisis.")
-        return # DETIENE LA EJECUCIÓN AQUÍ SI NO HAY ESTACIONES
+            st.warning("No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control para comenzar el análisis.")
+        return
+
+    # --- PREPARACIÓN FINAL DE DATOS (CORREGIDO Y REESTRUCTURADO) ---
+    with st.spinner("Filtrando y preparando datos..."):
+        gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
         
-    # --- PREPARACIÓN FINAL DE DATOS (Solo se ejecuta si hay estaciones seleccionadas) ---
-with st.spinner("Filtrando y preparando datos..."):
-    # 1. Se filtran los datos mensuales seleccionados (esto es común para ambos modos)
-    df_monthly_filtered = st.session_state.df_long[
-        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-        (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
-        (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
-        (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
-    ].copy()
+        df_monthly_filtered = st.session_state.df_long[
+            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
+            (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
+            (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
+        ].copy()
 
-    # 2. SOLO SI el modo es "Completar series", se aplica la interpolación a los datos mensuales
-    if st.session_state.analysis_mode == "Completar series (interpolación)":
-        with st.spinner("Completando series de tiempo seleccionadas... Esta operación puede tardar unos momentos."):
-            df_monthly_filtered = complete_series(df_monthly_filtered)
+        # CORRECCIÓN: La lógica de completar series se aplica solo a los datos mensuales
+        if st.session_state.analysis_mode == "Completar series (interpolación)":
+            with st.spinner("Completando series de tiempo seleccionadas... Esta operación puede tardar unos momentos."):
+                df_monthly_filtered = complete_series(df_monthly_filtered)
 
-    # 3. Se preparan los datos para el análisis anual (esto es común para ambos modos)
-    annual_data_filtered = st.session_state.df_long[
-        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
-        (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
-        (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
-    ].copy()
+        annual_data_filtered = st.session_state.df_long[
+            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
+            (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
+        ].copy()
 
-    # 4. Se aplican los filtros de exclusión a ambos dataframes (común para ambos modos)
-    if st.session_state.get('exclude_na', False):
-        df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-        annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-            
-    if st.session_state.get('exclude_zeros', False):
-        df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-        annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
-    
-# 5. Se agregan los datos anuales (común para ambos modos)
-    annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
-        precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
-        meses_validos=(Config.PRECIPITATION_COL, 'count')
-    ).reset_index()
-    annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
-    df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
-        
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Se elimina la clave "df_full_monthly" de este diccionario
-    display_args = {
-        "gdf_filtered": gdf_filtered, 
-        "stations_for_analysis": stations_for_analysis,
-        "df_anual_melted": df_anual_melted, 
-        "df_monthly_filtered": df_monthly_filtered,
-        "analysis_mode": st.session_state.analysis_mode, 
-        "selected_regions": selected_regions,
-        "selected_municipios": selected_municipios, 
-        "selected_altitudes": selected_altitudes,
-    }
-    
+        if st.session_state.get('exclude_na', False):
+            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+
+        if st.session_state.get('exclude_zeros', False):
+            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+
+        annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
+            precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
+            meses_validos=(Config.PRECIPITATION_COL, 'count')
+        ).reset_index()
+        annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
+        df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
+
+        # CORRECCIÓN: Se elimina la clave redundante 'df_full_monthly'
+        display_args = {
+            "gdf_filtered": gdf_filtered,
+            "stations_for_analysis": stations_for_analysis,
+            "df_anual_melted": df_anual_melted,
+            "df_monthly_filtered": df_monthly_filtered,
+            "analysis_mode": st.session_state.analysis_mode,
+            "selected_regions": selected_regions,
+            "selected_municipios": selected_municipios,
+            "selected_altitudes": selected_altitudes,
+        }
+
     # --- RENDERIZADO DE PESTAÑAS ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
@@ -216,11 +227,12 @@ with st.spinner("Filtrando y preparando datos..."):
     with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[5]: display_drought_analysis_tab(**display_args)
     with tabs[6]: display_frequency_analysis_tab(**display_args)
-    with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, df_monthly_processed=st.session_state.df_long, **display_args)
     with tabs[8]: display_correlation_tab(**display_args)
     with tabs[9]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-    # Se añade el argumento explícito a la función que lo necesita
+    # CORRECCIÓN: Se pasa 'df_full_monthly' como argumento explícito
     with tabs[10]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+    # CORRECCIÓN: Se pasa 'analysis_mode' para la lógica de descarga
     with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
     with tabs[12]: display_station_table_tab(**display_args)
 
