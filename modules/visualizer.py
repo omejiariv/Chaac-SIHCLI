@@ -750,8 +750,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección."); return
 
-    tab_names = ["Animación GIF (Antioquia)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas", "Interpolación Comparativa"]
-    gif_tab, temporal_tab, race_tab, anim_tab, compare_tab, kriging_tab = st.tabs(tab_names)
+    tab_names = ["Validación de Interpolación", "Superficies de Interpolación", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
+    validation_tab, kriging_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
@@ -954,7 +954,45 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         else:
             st.warning("Se necesitan datos de al menos dos años diferentes para generar la Comparación de Mapas.")
 
+    with validation_tab:
+        st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
+        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+        
+        if len(stations_for_analysis) < 4:
+            st.warning("Se necesitan al menos 4 estaciones para realizar una validación robusta.")
+        else:
+            all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
+            selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1)
+
+            if st.button(f"Ejecutar Validación para el año {selected_year}"):
+                interpolation_methods = ["IDW", "Kriging Ordinario", "Spline (Thin Plate)"]
+                if Config.ELEVATION_COL in gdf_filtered.columns:
+                    interpolation_methods.append("Kriging con Deriva Externa (KED)")
+
+                results = []
+                progress_bar = st.progress(0)
+                
+                gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
+
+                for i, method in enumerate(interpolation_methods):
+                    with st.spinner(f"Validando {method}..."):
+                        metrics = perform_loocv_for_year(selected_year, method, gdf_metadata, df_anual_non_na)
+                        if metrics:
+                            results.append({'Método': method, 'RMSE (mm)': metrics['RMSE'], 'MAE (mm)': metrics['MAE']})
+                    progress_bar.progress((i + 1) / len(interpolation_methods))
+                
+                st.success("Validación completada.")
+                results_df = pd.DataFrame(results).sort_values(by='RMSE (mm)')
+                
+                st.markdown("#### Resultados de la Validación Cruzada")
+                st.dataframe(results_df.style.format('{:.2f}'))
+
+                fig_results = px.bar(results_df, x='Método', y='RMSE (mm)', color='Método',
+                                     title=f'Comparación de Error (RMSE) para el año {selected_year}')
+                st.plotly_chart(fig_results, use_container_width=True)
+
     with kriging_tab:
+
         st.subheader("Comparación de Superficies de Interpolación Anual")
         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
         
