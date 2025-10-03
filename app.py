@@ -53,11 +53,9 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
 
 def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    st.markdown("""<style>div.block-container{padding-top:2rem;}[data-testid="stMetricValue"]{font-size:1.8rem;}[data-testid="stMetricLabel"]{font-size:1rem;padding-bottom:5px;}button[data-baseweb="tab"]{font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-    
+    st.markdown("""<style>div.block-container{padding-top:2rem;}[data-testid="stMetricValue"]{font-size:1.8rem;}[data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
-
-    # --- TÍTULO Y LOGO ---
+    #--- TÍTULO Y LOGO ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
@@ -66,10 +64,10 @@ def main():
             except Exception:
                 pass # Si el logo falla, no detiene la app
     with title_col2:
-        st.markdown(f'<h1 style="font-size:28px;margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
-
+        st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
+    
     st.sidebar.header("Panel de Control")
-
+    
     # --- PANEL DE CARGA DE ARCHIVOS ---
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
@@ -158,18 +156,52 @@ def main():
                 st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations.copy(), uploaded_dem_file)
                 st.sidebar.success("Altitud de estaciones actualizada.")
 
-        #--- PREPARACIÓN DE DATAFRAMES FINALES
+        #--- PREPARACIÓN DE DATAFRAMES FINALES ---
         stations_for_analysis = selected_stations
         gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-        # ... (Más preparación de datos) ...
+        st.session_state.meses_numeros = meses_numeros
+        
+        df_monthly_processed = st.session_state.df_long.copy()
+        if st.session_state.analysis_mode == "Completar series (interpolación)":
+            df_monthly_processed = complete_series(df_monthly_processed)
+            st.session_state.df_monthly_processed = df_monthly_processed
+        
+        df_monthly_filtered = df_monthly_processed[
+            (df_monthly_processed[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (df_monthly_processed[Config.DATE_COL].dt.year >= year_range[0]) &
+            (df_monthly_processed[Config.DATE_COL].dt.year <= year_range[1]) &
+            (df_monthly_processed[Config.DATE_COL].dt.month.isin(meses_numeros))
+        ].copy()
+
+        # ==============================================================================
+        # BLOQUE CRÍTICO RESTAURADO
+        # ==============================================================================
+        # Este es el bloque que define `annual_data_filtered`.
+        # Debe estar aquí, con la sangría correcta, antes de ser utilizado.
+        # ==============================================================================
+        annual_data_filtered = st.session_state.df_long[
+            (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+            (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) &
+            (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])
+        ].copy()
+
+        if st.session_state.get('exclude_na', False):
+            df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
+            
+        if st.session_state.get('exclude_zeros', False):
+            df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+            annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
+        
         annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
             precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
             meses_validos=(Config.PRECIPITATION_COL, 'count')
         ).reset_index()
+        
         annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
         df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
         
-        #--- DICCIONARIO DE ARGUMENTOS PARA LAS PESTAÑAS
+        #--- DICCIONARIO DE ARGUMENTOS PARA LAS PESTAÑAS ---
         display_args = {
             "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
             "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
