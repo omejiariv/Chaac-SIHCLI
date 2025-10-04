@@ -1303,7 +1303,9 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         selected_municipios=selected_municipios,
         selected_altitudes=selected_altitudes
     )
-    if not stations_for_analysis: st.warning("Por favor, seleccione al menos una estación."); return
+    if not stations_for_analysis:
+        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
+        return
 
     matriz_tab, resumen_mensual_tab, series_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Datos Series Pptn", "Síntesis General"])
     
@@ -1314,68 +1316,53 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
             st.dataframe(ppt_series_df.style.format("{:.0f}", na_rep="-").background_gradient(cmap='viridis', axis=1))
         else:
             st.info("No hay datos anuales para mostrar en la tabla.")
-  
+
     with matriz_tab:
         st.subheader("Matriz de Disponibilidad de Datos Anual")
-        df_base_raw = st.session_state.get('df_monthly_processed', pd.DataFrame())
         
-        if df_base_raw.empty:
-            st.warning("Los datos procesados no están disponibles en la sesión.")
-            return
-            
-        df_base_filtered = df_base_raw[df_base_raw[Config.STATION_NAME_COL].isin(stations_for_analysis)].copy()
-        
-        if st.session_state.analysis_mode == "Completar series (interpolación)":
+        heatmap_df = pd.DataFrame()
+        title_text = ""
+        color_scale = "Greens"
+
+        if analysis_mode == "Completar series (interpolación)":
             view_mode = st.radio(
                 "Seleccione la vista de la matriz:",
-                ("Porcentaje de Datos Originales", "Porcentaje de Datos Totales (Original + Completado)", "Porcentaje de Datos Completados (Interpolados)"),
-                horizontal=True
+                ("Porcentaje de Datos Originales", "Porcentaje de Datos Completados", "Porcentaje de Datos Totales"),
+                horizontal=True, key="matriz_view_mode"
             )
-            if view_mode == "Porcentaje de Datos Completados (Interpolados)":
-                df_counts = df_base_filtered[df_base_filtered[Config.ORIGIN_COL] == 'Completado'].groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count_completed')
-                df_counts['porc_value'] = (df_counts['count_completed'] / 12) * 100
+            
+            if view_mode == "Porcentaje de Datos Completados":
+                df_counts = df_monthly_filtered[df_monthly_filtered[Config.ORIGIN_COL] == 'Completado'].groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
                 heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
                 color_scale = "Reds"
                 title_text = "Porcentaje de Datos Completados (Interpolados)"
-            elif view_mode == "Porcentaje de Datos Totales (Original + Completado)":
-                df_counts = df_base_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count_total')
-                df_counts['porc_value'] = (df_counts['count_total'] / 12) * 100
+            elif view_mode == "Porcentaje de Datos Totales":
+                df_counts = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
                 heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
                 color_scale = "Blues"
                 title_text = "Disponibilidad de Datos Totales (Original + Completado)"
             else: # Porcentaje de Datos Originales
-                df_original_filtered = df_long[df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-                df_counts = df_original_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count_original')
-                df_counts['porc_value'] = (df_counts['count_original'] / 12) * 100
+                # Usamos df_long para obtener solo los originales dentro del rango
+                df_original_filtered = df_long[
+                    (df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+                    (df_long[Config.DATE_COL].dt.year >= st.session_state.year_range[0]) &
+                    (df_long[Config.DATE_COL].dt.year <= st.session_state.year_range[1])
+                ]
+                df_counts = df_original_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
                 heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
-                color_scale = "Greens"
                 title_text = "Disponibilidad de Datos Originales"
-        else: # Usar datos originales (Modo por defecto)
-            df_base_filtered = df_long[df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)].copy()
-            df_counts = df_base_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count_total')
-            df_counts['porc_value'] = (df_counts['count_total'] / 12) * 100
+        else: # Modo de datos originales
+            df_counts = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+            df_counts['porc_value'] = (df_counts['count'] / 12) * 100
             heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
-            color_scale = "Greens"
             title_text = "Disponibilidad de Datos Originales"
-            
+        
         if not heatmap_df.empty:
-            avg_availability = heatmap_df.stack().mean()
-            logo_col, metric_col = st.columns([1, 5])
-            with logo_col:
-                if os.path.exists(Config.LOGO_PATH):
-                    try:
-                        with open(Config.LOGO_PATH, "rb") as f:
-                            logo_bytes = f.read()
-                        st.image(logo_bytes, width=50)
-                    except Exception:
-                        pass
-            with metric_col:
-                st.metric(label=f"Disponibilidad Promedio Anual ({title_text})", value=f"{avg_availability:.1f}%")
-
-            styled_df = heatmap_df.style.background_gradient(cmap=color_scale, axis=None, vmin=0, vmax=100).format("{:.0f}%", na_rep="-").set_table_styles([
-                {'selector': 'th', 'props': [('background-color', '#333'), ('color', 'white'), ('font-size', '14px')]},
-                {'selector': 'td', 'props': [('text-align', 'center')]}
-            ])
+            st.markdown(f"**{title_text}**")
+            styled_df = heatmap_df.style.background_gradient(cmap=color_scale, axis=None, vmin=0, vmax=100).format("{:.0f}%", na_rep="-")
             st.dataframe(styled_df)
         else:
             st.info("No hay datos para mostrar en la matriz con la selección actual.")
@@ -1385,18 +1372,22 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         if not df_monthly_filtered.empty:
             summary_data = []
             for station_name, group in df_monthly_filtered.groupby(Config.STATION_NAME_COL):
-                max_row = group.loc[group[Config.PRECIPITATION_COL].idxmax()]
-                min_row = group.loc[group[Config.PRECIPITATION_COL].idxmin()]
-                summary_data.append({
-                    "Estación": station_name,
-                    "Ppt. Máxima Mensual (mm)": max_row[Config.PRECIPITATION_COL],
-                    "Fecha Máxima": max_row[Config.DATE_COL].strftime('%Y-%m'),
-                    "Ppt. Mínima Mensual (mm)": min_row[Config.PRECIPITATION_COL],
-                    "Fecha Mínima": min_row[Config.DATE_COL].strftime('%Y-%m'),
-                    "Promedio Mensual (mm)": group[Config.PRECIPITATION_COL].mean()
-                })
-            summary_df = pd.DataFrame(summary_data)
-            st.dataframe(summary_df.round(0), use_container_width=True)
+                if not group[Config.PRECIPITATION_COL].empty:
+                    max_row = group.loc[group[Config.PRECIPITATION_COL].idxmax()]
+                    min_row = group.loc[group[Config.PRECIPITATION_COL].idxmin()]
+                    summary_data.append({
+                        "Estación": station_name,
+                        "Ppt. Máxima Mensual (mm)": max_row[Config.PRECIPITATION_COL],
+                        "Fecha Máxima": max_row[Config.DATE_COL].strftime('%Y-%m'),
+                        "Ppt. Mínima Mensual (mm)": min_row[Config.PRECIPITATION_COL],
+                        "Fecha Mínima": min_row[Config.DATE_COL].strftime('%Y-%m'),
+                        "Promedio Mensual (mm)": group[Config.PRECIPITATION_COL].mean()
+                    })
+            if summary_data:
+                summary_df = pd.DataFrame(summary_data)
+                st.dataframe(summary_df.round(0), use_container_width=True)
+            else:
+                st.info("No hay datos suficientes para calcular el resumen mensual.")
         else:
             st.info("No hay datos para mostrar el resumen mensual.")
 
@@ -1405,15 +1396,15 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         if not df_monthly_filtered.empty and not df_anual_melted.empty:
             df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             df_monthly_valid = df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL])
-            
+
             if not df_anual_valid.empty and not df_monthly_valid.empty and not gdf_filtered.empty:
-                #--- A. EXTREMOS DE PRECIPITACIÓN
+                # --- A. EXTREMOS DE PRECIPITACIÓN ---
                 max_monthly_row = df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmax()]
                 min_monthly_row = df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmin()]
                 max_annual_row = df_anual_valid.loc[df_anual_valid[Config.PRECIPITATION_COL].idxmax()]
                 min_annual_row = df_anual_valid.loc[df_anual_valid[Config.PRECIPITATION_COL].idxmin()]
 
-                #--- B. PROMEDIOS REGIONALES/CLIMATOLÓGICOS ---
+                # --- B. PROMEDIOS REGIONALES/CLIMATOLÓGICOS ---
                 df_yearly_avg = df_anual_valid.groupby(Config.YEAR_COL)[Config.PRECIPITATION_COL].mean().reset_index()
                 year_max_avg = df_yearly_avg.loc[df_yearly_avg[Config.PRECIPITATION_COL].idxmax()]
                 year_min_avg = df_yearly_avg.loc[df_yearly_avg[Config.PRECIPITATION_COL].idxmin()]
@@ -1422,15 +1413,17 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
                 month_max_avg = df_monthly_avg.loc[df_monthly_avg[Config.PRECIPITATION_COL].idxmax()][Config.MONTH_COL]
                 month_min_avg = df_monthly_avg.loc[df_monthly_avg[Config.PRECIPITATION_COL].idxmin()][Config.MONTH_COL]
 
-                #--- C. EXTREMOS DE ALTITUD
+                # --- C. EXTREMOS DE ALTITUD ---
                 df_stations_valid = gdf_filtered.dropna(subset=[Config.ALTITUDE_COL])
                 station_max_alt = None
                 station_min_alt = None
                 if not df_stations_valid.empty:
-                    station_max_alt = df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].astype(float).idxmax()]
-                    station_min_alt = df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].astype(float).idxmin()]
+                    df_stations_valid[Config.ALTITUDE_COL] = pd.to_numeric(df_stations_valid[Config.ALTITUDE_COL], errors='coerce')
+                    if not df_stations_valid[Config.ALTITUDE_COL].isnull().all():
+                        station_max_alt = df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].idxmax()]
+                        station_min_alt = df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].idxmin()]
 
-                #--- D. CÁLCULO DE TENDENCIAS (SEN'S SLOPE)
+                # --- D. CÁLCULO DE TENDENCIAS (SEN'S SLOPE) ---
                 trend_results = []
                 for station in stations_for_analysis:
                     station_data = df_anual_valid[df_anual_valid[Config.STATION_NAME_COL] == station].copy()
@@ -1455,7 +1448,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
 
                 meses_map = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
 
-                #--- DISPLAY DE RESULTADOS
+                # --- DISPLAY DE RESULTADOS ---
                 st.markdown("#### 1. Extremos de Precipitación")
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -1502,7 +1495,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
                 st.info("No hay datos anuales, mensuales o geográficos válidos para mostrar la síntesis.")
         else:
             st.info("No hay datos para mostrar la síntesis general.")
-
+            
 def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Correlación")
     display_filter_summary(
