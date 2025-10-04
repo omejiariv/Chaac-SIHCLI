@@ -1,4 +1,3 @@
-# modules/visualizer.py
 import streamlit as st
 import pandas as pd
 import base64
@@ -20,7 +19,7 @@ from scipy import stats
 from prophet.plot import plot_plotly
 import io
 
-#--- Importaciones de Módulos Propios
+#--- Importaciones de Módulos Propios ---
 from modules.analysis import (
     calculate_spi, calculate_spei, calculate_monthly_anomalies,
     calculate_percentiles_and_extremes, analyze_events,
@@ -28,7 +27,7 @@ from modules.analysis import (
 )
 from modules.config import Config
 from modules.utils import add_folium_download_button
-from modules.interpolation import create_interpolation_surface, perform_loocv_for_year
+from modules.interpolation import create_interpolation_surface, perform_loocv_for_all_methods
 from modules.forecasting import (
     generate_sarima_forecast, generate_prophet_forecast,
     get_decomposition_results, create_acf_chart, create_pacf_chart,
@@ -1818,6 +1817,54 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                 folium_static(m_enso, height=700, width=None)
             else:
                 st.info("Seleccione una fecha para visualizar el mapa.")
+
+def display_validation_tab(df_anual_melted, gdf_filtered, stations_for_analysis):
+    st.header("Validación Cruzada Comparativa de Métodos de Interpolación")
+
+    if len(stations_for_analysis) < 4:
+        st.warning("Se necesitan al menos 4 estaciones con datos para realizar una validación robusta.")
+        return
+
+    df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+    all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
+
+    if not all_years_int:
+        st.warning("No hay años con datos válidos para la validación.")
+        return
+
+    selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1)
+
+    if st.button(f"Ejecutar Validación para el año {selected_year}"):
+        with st.spinner("Realizando validación cruzada para todos los métodos..."):
+            gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
+            
+            validation_results_df = perform_loocv_for_all_methods(selected_year, gdf_metadata, df_anual_non_na)
+
+            if not validation_results_df.empty:
+                st.subheader(f"Resultados de la Validación para el Año {selected_year}")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**Error Cuadrático Medio (RMSE)**")
+                    fig_rmse = px.bar(validation_results_df.sort_values("RMSE"), x="Método", y="RMSE", color="Método", text_auto='.2f')
+                    fig_rmse.update_layout(showlegend=False)
+                    st.plotly_chart(fig_rmse, use_container_width=True)
+
+                with col2:
+                    st.markdown("**Error Absoluto Medio (MAE)**")
+                    fig_mae = px.bar(validation_results_df.sort_values("MAE"), x="Método", y="MAE", color="Método", text_auto='.2f')
+                    fig_mae.update_layout(showlegend=False)
+                    st.plotly_chart(fig_mae, use_container_width=True)
+
+                st.markdown("**Tabla Comparativa de Errores**")
+                st.dataframe(validation_results_df.style.format({"RMSE": "{:.2f}", "MAE": "{:.2f}"}))
+
+                best_rmse = validation_results_df.loc[validation_results_df['RMSE'].idxmin()]
+                st.success(f"🏆 **Mejor método según RMSE:** {best_rmse['Método']} (RMSE: {best_rmse['RMSE']:.2f})")
+
+            else:
+                st.error("No se pudieron calcular los resultados de la validación.")
 
 def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Tendencias y Pronósticos")
