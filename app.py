@@ -14,9 +14,9 @@ from modules.visualizer import (
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
     display_frequency_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
-    display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
+    display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
+    display_validation_tab
 )
-# Importar la nueva función de reporte
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
 
@@ -162,7 +162,7 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
+    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Validación de Interpolación", "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
     tabs = st.tabs(tab_names)
 
     stations_for_analysis = selected_stations
@@ -231,17 +231,22 @@ def main():
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
     with tabs[3]: display_advanced_maps_tab(**display_args)
-    with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[5]: display_drought_analysis_tab(**display_args)
-    with tabs[6]: display_frequency_analysis_tab(**display_args)
-    with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[8]: display_correlation_tab(**display_args)
-    with tabs[9]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-    with tabs[10]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
-    with tabs[12]: display_station_table_tab(**display_args)
-
-    with tabs[13]:
+    with tabs[4]: 
+        display_validation_tab(
+            df_anual_melted=df_anual_melted,
+            gdf_filtered=gdf_filtered,
+            stations_for_analysis=stations_for_analysis
+        )
+    with tabs[5]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[6]: display_drought_analysis_tab(**display_args)
+    with tabs[7]: display_frequency_analysis_tab(**display_args)
+    with tabs[8]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[9]: display_correlation_tab(**display_args)
+    with tabs[10]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+    with tabs[11]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+    with tabs[12]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
+    with tabs[13]: display_station_table_tab(**display_args)
+    with tabs[14]:
         st.header("Generación de Reporte PDF")
 
         with st.expander("Opciones del Reporte", expanded=True):
@@ -254,7 +259,6 @@ def main():
                 "Serie Anual": col1.checkbox("Gráfico de Serie de Tiempo Anual", True),
                 "Anomalías Mensuales": col1.checkbox("Gráfico de Anomalías Mensuales", True),
                 "Estadísticas de Tendencia": col2.checkbox("Tabla de Estadísticas de Tendencia", True),
-                "Mapa de Estaciones": col2.checkbox("Mapa de Distribución (Placeholder)", False),
             }
 
         if st.button("🚀 Generar y Descargar Reporte PDF"):
@@ -263,8 +267,8 @@ def main():
                 summary_data = {
                     "Estaciones Seleccionadas": f"{len(stations_for_analysis)} de {len(st.session_state.gdf_stations)}",
                     "Período de Análisis": f"{year_range[0]} - {year_range[1]}",
-                    "Regiones": ", ".join(selected_regions),
-                    "Municipios": ", ".join(selected_municipios),
+                    "Regiones": ", ".join(selected_regions) if selected_regions else "Todas",
+                    "Municipios": ", ".join(selected_municipios) if selected_municipios else "Todos",
                     "Modo de Análisis": st.session_state.analysis_mode
                 }
                 
@@ -280,10 +284,11 @@ def main():
                     df_anomalies=df_anomalies
                 )
                 
+                file_name_safe = "".join([c for c in report_title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
                 st.download_button(
                     label="📥 Descargar PDF",
                     data=pdf_bytes,
-                    file_name=f"{report_title.replace(' ', '_').lower()}.pdf",
+                    file_name=f"{file_name_safe.replace(' ', '_').lower()}.pdf",
                     mime="application/pdf"
                 )
 
