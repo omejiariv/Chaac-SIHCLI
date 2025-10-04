@@ -317,24 +317,52 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
         if not gdf_display.empty:
-            st.info("Mostrando el porcentaje de disponibilidad de datos según el archivo de estaciones.")
-            sort_order_disp = st.radio("Ordenar estaciones por:", ["% Datos (Mayor a Menor)", "% Datos (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_disp")
-            
-            df_chart = gdf_display.copy()
-            if "% Datos (Mayor a Menor)" in sort_order_disp:
-                df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=False)
-            elif "% Datos (Menor a Mayor)" in sort_order_disp:
-                df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=True)
+            if analysis_mode == "Completar series (interpolación)":
+                st.info("Mostrando la composición de datos originales vs. completados para el período seleccionado.")
+                if not df_monthly_filtered.empty and Config.ORIGIN_COL in df_monthly_filtered.columns:
+                    data_composition = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.ORIGIN_COL]).size().unstack(fill_value=0)
+                    if 'Original' not in data_composition: data_composition['Original'] = 0
+                    if 'Completado' not in data_composition: data_composition['Completado'] = 0
+                    
+                    data_composition['total'] = data_composition['Original'] + data_composition['Completado']
+                    data_composition['% Original'] = (data_composition['Original'] / data_composition['total']) * 100
+                    data_composition['% Completado'] = (data_composition['Completado'] / data_composition['total']) * 100
+                    
+                    sort_order_comp = st.radio("Ordenar por:", ["% Datos Originales (Mayor a Menor)", "% Datos Originales (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_comp")
+                    if "Mayor a Menor" in sort_order_comp: data_composition = data_composition.sort_values("% Original", ascending=False)
+                    elif "Menor a Mayor" in sort_order_comp: data_composition = data_composition.sort_values("% Original", ascending=True)
+                    else: data_composition = data_composition.sort_index(ascending=True)
+
+                    df_plot = data_composition.reset_index().melt(id_vars=Config.STATION_NAME_COL, value_vars=['% Original', '% Completado'], var_name='Tipo de Dato', value_name='Porcentaje')
+
+                    fig_comp = px.bar(
+                        df_plot, x=Config.STATION_NAME_COL, y='Porcentaje', color='Tipo de Dato',
+                        title='Composición de Datos por Estación', labels={Config.STATION_NAME_COL: 'Estación', 'Porcentaje': '% del Período'},
+                        text_auto='.1f', color_discrete_map={'% Original': '#1f77b4', '% Completado': '#ff7f0e'}
+                    )
+                    fig_comp.update_layout(height=500, xaxis={'categoryorder': 'trace'}, barmode='stack')
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                else:
+                    st.warning("No hay datos mensuales procesados para mostrar la composición.")
             else:
-                df_chart = df_chart.sort_values(Config.STATION_NAME_COL, ascending=True)
-            
-            fig_disp = px.bar(
-                df_chart, x=Config.STATION_NAME_COL, y=Config.PERCENTAGE_COL, title='Porcentaje de Disponibilidad de Datos Históricos',
-                labels={Config.STATION_NAME_COL: 'Estación', Config.PERCENTAGE_COL: '% de Datos Disponibles'},
-                color=Config.PERCENTAGE_COL, color_continuous_scale=px.colors.sequential.Viridis
-            )
-            fig_disp.update_layout(height=500, xaxis={'categoryorder': 'trace'})
-            st.plotly_chart(fig_disp, use_container_width=True)
+                st.info("Mostrando el porcentaje de disponibilidad de datos según el archivo de estaciones.")
+                sort_order_disp = st.radio("Ordenar estaciones por:", ["% Datos (Mayor a Menor)", "% Datos (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_disp")
+                
+                df_chart = gdf_display.copy()
+                if Config.PERCENTAGE_COL in df_chart.columns:
+                    if "% Datos (Mayor a Menor)" in sort_order_disp: df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=False)
+                    elif "% Datos (Menor a Mayor)" in sort_order_disp: df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=True)
+                    else: df_chart = df_chart.sort_values(Config.STATION_NAME_COL, ascending=True)
+
+                    fig_disp = px.bar(
+                        df_chart, x=Config.STATION_NAME_COL, y=Config.PERCENTAGE_COL, title='Porcentaje de Disponibilidad de Datos Históricos',
+                        labels={Config.STATION_NAME_COL: 'Estación', Config.PERCENTAGE_COL: '% de Datos Disponibles'},
+                        color=Config.PERCENTAGE_COL, color_continuous_scale=px.colors.sequential.Viridis
+                    )
+                    fig_disp.update_layout(height=500, xaxis={'categoryorder': 'trace'})
+                    st.plotly_chart(fig_disp, use_container_width=True)
+                else:
+                    st.warning("La columna con el porcentaje de datos no se encuentra en el archivo de estaciones.")
         else:
             st.warning("No hay estaciones seleccionadas para mostrar el gráfico.")
 
@@ -2162,108 +2190,71 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
             st.info("No hay datos mensuales para descargar con los filtros actuales.")
 # -----------------------------------------------------------------------------
 @st.cache_data
-def calculate_comprehensive_stats(df_anual, df_monthly, stations):
-    """
-    Calcula un conjunto completo de estadísticas para cada estación seleccionada.
-    """
+def calculate_comprehensive_stats(_df_anual, _df_monthly, _stations):
+    """Calcula un conjunto completo de estadísticas para cada estación seleccionada."""
     results = []
     
-    df_pivot_monthly = df_monthly.pivot_table(index='fecha_mes_año', columns='nom_est', values='precipitation')
-
-    for station in stations:
+    for station in _stations:
         stats = {"Estación": station}
         
-        station_anual = df_anual[df_anual['nom_est'] == station].dropna(subset=['precipitation'])
-        station_monthly = df_monthly[df_monthly['nom_est'] == station].dropna(subset=['precipitation'])
+        station_anual = _df_anual[_df_anual[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL])
+        station_monthly = _df_monthly[_df_monthly[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL])
 
         if not station_anual.empty:
-            stats['Años con Datos'] = int(station_anual['precipitation'].count())
-            stats['Ppt. Media Anual (mm)'] = station_anual['precipitation'].mean()
-            stats['Desv. Estándar Anual (mm)'] = station_anual['precipitation'].std()
-            
-            max_anual_row = station_anual.loc[station_anual['precipitation'].idxmax()]
-            stats['Ppt. Máxima Anual (mm)'] = max_anual_row['precipitation']
-            stats['Año Ppt. Máxima'] = int(max_anual_row['año'])
-            
-            min_anual_row = station_anual.loc[station_anual['precipitation'].idxmin()]
-            stats['Ppt. Mínima Anual (mm)'] = min_anual_row['precipitation']
-            stats['Año Ppt. Mínima'] = int(min_anual_row['año'])
+            stats['Años con Datos'] = int(station_anual[Config.PRECIPITATION_COL].count())
+            stats['Ppt. Media Anual (mm)'] = station_anual[Config.PRECIPITATION_COL].mean()
+            stats['Desv. Estándar Anual (mm)'] = station_anual[Config.PRECIPITATION_COL].std()
+
+            max_anual_row = station_anual.loc[station_anual[Config.PRECIPITATION_COL].idxmax()]
+            stats['Ppt. Máxima Anual (mm)'] = max_anual_row[Config.PRECIPITATION_COL]
+            stats['Año Ppt. Máxima'] = int(max_anual_row[Config.YEAR_COL])
+
+            min_anual_row = station_anual.loc[station_anual[Config.PRECIPITATION_COL].idxmin()]
+            stats['Ppt. Mínima Anual (mm)'] = min_anual_row[Config.PRECIPITATION_COL]
+            stats['Año Ppt. Mínima'] = int(min_anual_row[Config.YEAR_COL])
 
             if len(station_anual) >= 4:
-                mk_result = mk.original_test(station_anual['precipitation'])
+                mk_result = mk.original_test(station_anual[Config.PRECIPITATION_COL])
                 stats['Tendencia (mm/año)'] = mk_result.slope
                 stats['Significancia (p-valor)'] = mk_result.p
-                last_year = station_anual['año'].max()
-                projected_change = mk_result.slope * (2040 - last_year)
-                stats['Cambio Proyectado a 2040 (mm)'] = projected_change
             else:
                 stats['Tendencia (mm/año)'] = np.nan
                 stats['Significancia (p-valor)'] = np.nan
-                stats['Cambio Proyectado a 2040 (mm)'] = np.nan
-
+        
         if not station_monthly.empty:
-            max_monthly_row = station_monthly.loc[station_monthly['precipitation'].idxmax()]
-            stats['Mes/Año Mayor Ppt.'] = max_monthly_row['fecha_mes_año'].strftime('%Y-%m')
-            
-            min_monthly_row = station_monthly.loc[station_monthly['precipitation'].idxmin()]
-            stats['Mes/Año Menor Ppt.'] = min_monthly_row['fecha_mes_año'].strftime('%Y-%m')
-
-            monthly_means = station_monthly.groupby(station_monthly['fecha_mes_año'].dt.month)['precipitation'].mean()
             meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+            monthly_means = station_monthly.groupby(station_monthly[Config.DATE_COL].dt.month)[Config.PRECIPITATION_COL].mean()
             for i, mes in enumerate(meses, 1):
                 stats[f'Ppt Media {mes} (mm)'] = monthly_means.get(i, 0)
-        
-        if len(stations) > 1:
-            correlations = df_pivot_monthly.corrwith(df_pivot_monthly[station]).drop(station).dropna()
-            if not correlations.empty:
-                best_corr_station = correlations.idxmax()
-                best_corr_value = correlations.max()
-                stats['Estación Mejor Correlacionada'] = f"{best_corr_station} (r={best_corr_value:.2f})"
-            else:
-                stats['Estación Mejor Correlacionada'] = "N/A"
-        
+
         results.append(stats)
         
     return pd.DataFrame(results)
 
-def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+# Lógica restaurada para la pestaña de la tabla de estaciones
+def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered, stations_for_analysis, **kwargs):
     st.header("Información Detallada de las Estaciones")
-    
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
-
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
     st.info("Presiona el botón para generar una tabla detallada con estadísticas calculadas para cada estación seleccionada.")
-
-    if st.button("📈 Calcular Estadísticas Detalladas"):
+    if st.button("Calcular Estadísticas Detalladas"):
         with st.spinner("Realizando cálculos, por favor espera..."):
             try:
                 detailed_stats_df = calculate_comprehensive_stats(df_anual_melted, df_monthly_filtered, stations_for_analysis)
                 
-                base_info_df = gdf_filtered[['nom_est', 'alt_est', 'municipio', 'depto_region']].copy()
-                base_info_df.rename(columns={'nom_est': 'Estación'}, inplace=True)
+                base_info_df = gdf_filtered[[Config.STATION_NAME_COL, Config.ALTITUDE_COL, Config.MUNICIPALITY_COL, Config.REGION_COL]].copy()
+                base_info_df.rename(columns={Config.STATION_NAME_COL: 'Estación'}, inplace=True)
                 
-                final_df = pd.merge(base_info_df, detailed_stats_df, on="Estación", how="right")
-
+                final_df = pd.merge(base_info_df.drop_duplicates(subset=['Estación']), detailed_stats_df, on="Estación", how="right")
+                
                 column_order = [
                     'Estación', 'municipio', 'depto_region', 'alt_est', 'Años con Datos',
                     'Ppt. Media Anual (mm)', 'Desv. Estándar Anual (mm)',
                     'Ppt. Máxima Anual (mm)', 'Año Ppt. Máxima', 'Ppt. Mínima Anual (mm)', 'Año Ppt. Mínima',
-                    'Mes/Año Mayor Ppt.', 'Mes/Año Menor Ppt.',
-                    'Tendencia (mm/año)', 'Significancia (p-valor)', 'Cambio Proyectado a 2040 (mm)',
-                    'Estación Mejor Correlacionada',
-                    'Ppt Media Ene (mm)', 'Ppt Media Feb (mm)', 'Ppt Media Mar (mm)', 'Ppt Media Abr (mm)', 
+                    'Tendencia (mm/año)', 'Significancia (p-valor)',
+                    'Ppt Media Ene (mm)', 'Ppt Media Feb (mm)', 'Ppt Media Mar (mm)', 'Ppt Media Abr (mm)',
                     'Ppt Media May (mm)', 'Ppt Media Jun (mm)', 'Ppt Media Jul (mm)', 'Ppt Media Ago (mm)',
                     'Ppt Media Sep (mm)', 'Ppt Media Oct (mm)', 'Ppt Media Nov (mm)', 'Ppt Media Dic (mm)'
                 ]
@@ -2275,21 +2266,12 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered
                     'Ppt. Media Anual (mm)': '{:.1f}', 'Desv. Estándar Anual (mm)': '{:.1f}',
                     'Ppt. Máxima Anual (mm)': '{:.1f}', 'Ppt. Mínima Anual (mm)': '{:.1f}',
                     'Tendencia (mm/año)': '{:.2f}', 'Significancia (p-valor)': '{:.3f}',
-                    'Cambio Proyectado a 2040 (mm)': '{:+.1f}',
                     'Ppt Media Ene (mm)': '{:.1f}', 'Ppt Media Feb (mm)': '{:.1f}', 'Ppt Media Mar (mm)': '{:.1f}',
                     'Ppt Media Abr (mm)': '{:.1f}', 'Ppt Media May (mm)': '{:.1f}', 'Ppt Media Jun (mm)': '{:.1f}',
                     'Ppt Media Jul (mm)': '{:.1f}', 'Ppt Media Ago (mm)': '{:.1f}', 'Ppt Media Sep (mm)': '{:.1f}',
                     'Ppt Media Oct (mm)': '{:.1f}', 'Ppt Media Nov (mm)': '{:.1f}', 'Ppt Media Dic (mm)': '{:.1f}'
                 }))
-
-                csv = final_df_display.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Descargar Tabla como CSV",
-                    data=csv,
-                    file_name='tabla_detallada_estaciones.csv',
-                    mime='text/csv',
-                )
-
+                
             except Exception as e:
                 st.error(f"Ocurrió un error al calcular las estadísticas: {e}")
 
