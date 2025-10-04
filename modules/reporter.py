@@ -65,21 +65,16 @@ def add_dataframe_to_pdf(pdf, df):
     """Añade un DataFrame de Pandas como una tabla al PDF."""
     pdf.set_font("Arial", 'B', 8)
     
-    # Adaptar anchos de columna
     num_cols = len(df.columns)
     effective_width = pdf.w - 2 * pdf.l_margin
-    base_col_width = effective_width / num_cols
     
-    # Dar más espacio a la primera columna si es necesario
-    col_widths = [base_col_width * 1.5] + [base_col_width * 0.9] * (num_cols - 1)
+    col_widths = [effective_width * 0.4] + [(effective_width * 0.6) / (num_cols - 1)] * (num_cols - 1) if num_cols > 1 else [effective_width]
     
-    # Encabezado de la tabla
     for i, header in enumerate(df.columns):
         pdf.cell(col_widths[i], 7, str(header), 1, 0, 'C')
     pdf.ln()
     
-    # Contenido de la tabla
-    pdf.set_font("Arial", '', 7) # Letra más pequeña para el contenido
+    pdf.set_font("Arial", '', 7)
     for index, row in df.iterrows():
         for i, item in enumerate(row):
             if isinstance(item, float):
@@ -146,8 +141,8 @@ def generate_pdf_report(
         
         if results:
             trends_df = pd.DataFrame(results)
-            trends_df['Estación'] = trends_df['Estación'].str.slice(0, 25) # Acortar nombre de estación
+            trends_df['Estación'] = trends_df['Estación'].str.slice(0, 25)
             add_dataframe_to_pdf(pdf, trends_df)
 
-    # El método output() ya devuelve bytes, por lo que no necesita .encode()
-    return pdf.output(dest='S')-
+    # Se elimina el guion final que causaba el SyntaxError
+    return pdf.output(dest='S')
