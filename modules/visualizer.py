@@ -1821,6 +1821,7 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
 
 def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Tendencias y Pronósticos")
+    
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -1831,12 +1832,17 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
         selected_municipios=selected_municipios,
         selected_altitudes=selected_altitudes
     )
+
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = ["Análisis Lineal", "Tendencia Mann-Kendall", "Descomposición de Series", "Autocorrelación (ACF/PACF)", "Pronóstico SARIMA", "Pronóstico Prophet"]
-    tendencia_individual_tab, mann_kendall_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab = st.tabs(tab_names)
+    tab_names = [
+        "Análisis Lineal", "Tendencia Mann-Kendall", "Tabla Comparativa",
+        "Descomposición de Series", "Autocorrelación (ACF/PACF)",
+        "Pronóstico SARIMA", "Pronóstico Prophet"
+    ]
+    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab = st.tabs(tab_names)
 
     with tendencia_individual_tab:
         st.subheader("Tendencia de Precipitación Anual (Regresión Lineal)")
@@ -1914,33 +1920,37 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             with st.spinner("Calculando tendencias..."):
                 results = []
                 df_anual_calc = df_anual_melted.copy()
-                if st.session_state.get('exclude_zeros', False):
-                    df_anual_calc = df_anual_calc[df_anual_calc[Config.PRECIPITATION_COL] > 0]
+
                 for station in stations_for_analysis:
                     station_data = df_anual_calc[df_anual_calc[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL]).sort_values(by=Config.YEAR_COL)
                     slope_lin, p_lin = np.nan, np.nan
                     trend_mk, p_mk, slope_sen = "Datos insuficientes", np.nan, np.nan
+                    
                     if len(station_data) > 2:
                         station_data['año_num'] = pd.to_numeric(station_data[Config.YEAR_COL])
                         res = stats.linregress(station_data['año_num'], station_data[Config.PRECIPITATION_COL])
                         slope_lin, p_lin = res.slope, res.pvalue
+
                     if len(station_data) > 3:
                         mk_result_table = mk.original_test(station_data[Config.PRECIPITATION_COL])
                         trend_mk = mk_result_table.trend.capitalize()
                         p_mk = mk_result_table.p
                         slope_sen = mk_result_table.slope
+
                     results.append({
                         "Estación": station, "Años Analizados": len(station_data),
                         "Tendencia Lineal (mm/año)": slope_lin, "Valor p (Lineal)": p_lin,
                         "Tendencia MK": trend_mk, "Valor p (MK)": p_mk,
                         "Pendiente de Sen (mm/año)": slope_sen,
                     })
+                
                 if results:
                     results_df = pd.DataFrame(results)
                     def style_p_value(val):
                         if pd.isna(val) or isinstance(val, str): return ""
                         color = 'lightgreen' if val < 0.05 else 'lightcoral'
                         return f'background-color: {color}'
+                    
                     st.dataframe(results_df.style.format({
                         "Tendencia Lineal (mm/año)": "{:.2f}", "Valor p (Lineal)": "{:.4f}",
                         "Valor p (MK)": "{:.4f}", "Pendiente de Sen (mm/año)": "{:.2f}",
