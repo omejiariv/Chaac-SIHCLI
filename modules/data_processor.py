@@ -71,9 +71,9 @@ def load_shapefile(file_uploader_object):
         return None
 
 # --- INICIO DE LA CORRECCIÓN ---
-# Se añade un guion bajo a `_progress_bar` para que el decorador @st.cache_data lo ignore.
-@st.cache_data
+# Se elimina el decorador @st.cache_data para resolver el CacheReplayClosureError.
 def complete_series(_df, _progress_bar=None):
+# --- FIN DE LA CORRECCIÓN ---
     """Completa las series de tiempo mensuales para cada estación mediante interpolación."""
     all_completed_dfs = []
     station_list = _df[Config.STATION_NAME_COL].unique()
@@ -85,7 +85,6 @@ def complete_series(_df, _progress_bar=None):
 
     total_stations = len(station_list)
     for i, station in enumerate(station_list):
-        # Se usa `_progress_bar` en la lógica interna.
         if _progress_bar:
             progress_percentage = (i + 1) / total_stations
             progress_text = f"Interpolando estación: {station} ({i+1}/{total_stations})"
@@ -124,7 +123,6 @@ def complete_series(_df, _progress_bar=None):
     
     if _progress_bar:
         _progress_bar.empty()
-    # --- FIN DE LA CORRECCIÓN ---
 
     return pd.concat(all_completed_dfs, ignore_index=True) if all_completed_dfs else pd.DataFrame()
 
