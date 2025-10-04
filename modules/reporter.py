@@ -1,11 +1,12 @@
-# reporter.py
-
 import io
+import os  # <-- CORRECCIÓN: Se añadió la importación que faltaba
 import pandas as pd
 from fpdf import FPDF
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
+import pymannkendall as mk
 from modules.config import Config
 
 # Clase personalizada para manejar encabezado y pie de página en el PDF
@@ -49,15 +50,16 @@ def add_dataframe_to_pdf(pdf, df):
     """Renderiza un DataFrame de Pandas como una tabla simple en el PDF."""
     pdf.set_font('Arial', 'B', 10)
     # Encabezados
+    col_width = 180 / len(df.columns)
     for col in df.columns:
-        pdf.cell(45, 10, col, 1, 0, 'C')
+        pdf.cell(col_width, 10, col, 1, 0, 'C')
     pdf.ln()
     
     pdf.set_font('Arial', '', 9)
     # Datos
     for index, row in df.iterrows():
         for col in df.columns:
-            pdf.cell(45, 10, str(row[col]), 1, 0, 'L')
+            pdf.cell(col_width, 10, str(row[col]), 1, 0, 'L')
         pdf.ln()
     pdf.ln(10)
 
@@ -94,7 +96,6 @@ def generate_pdf_report(
         add_summary_to_pdf(pdf, summary_data)
 
     if sections_to_include.get("Mapa de Estaciones"):
-        # Esta sección es compleja de renderizar en PDF. Por ahora, añadimos un placeholder.
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 10, "2. Mapa de Distribución de Estaciones", 0, 1)
         pdf.set_font('Arial', 'I', 10)
