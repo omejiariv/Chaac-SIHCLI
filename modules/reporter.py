@@ -61,11 +61,17 @@ def add_summary_to_pdf(pdf, summary_dict):
             pdf.multi_cell(value_width, 6, str(value), border=0)
     pdf.ln(10)
 
-# --- INICIO DE LA SECCIÓN RESTAURADA ---
 def add_dataframe_to_pdf(pdf, df):
     """Añade un DataFrame de Pandas como una tabla al PDF."""
     pdf.set_font("Arial", 'B', 8)
-    col_widths = [40] + [25] * (len(df.columns) - 1) # Ancho adaptable
+    
+    # Adaptar anchos de columna
+    num_cols = len(df.columns)
+    effective_width = pdf.w - 2 * pdf.l_margin
+    base_col_width = effective_width / num_cols
+    
+    # Dar más espacio a la primera columna si es necesario
+    col_widths = [base_col_width * 1.5] + [base_col_width * 0.9] * (num_cols - 1)
     
     # Encabezado de la tabla
     for i, header in enumerate(df.columns):
@@ -73,7 +79,7 @@ def add_dataframe_to_pdf(pdf, df):
     pdf.ln()
     
     # Contenido de la tabla
-    pdf.set_font("Arial", '', 8)
+    pdf.set_font("Arial", '', 7) # Letra más pequeña para el contenido
     for index, row in df.iterrows():
         for i, item in enumerate(row):
             if isinstance(item, float):
@@ -135,15 +141,13 @@ def generate_pdf_report(
                 "Estación": station,
                 "Tendencia MK": trend_mk,
                 "Valor p (MK)": p_mk,
-                "Pendiente de Sen (mm/año)": slope_sen,
+                "Pendiente (mm/año)": slope_sen,
             })
         
         if results:
             trends_df = pd.DataFrame(results)
-            # Acortar nombre de estación para que quepa en la tabla
-            trends_df['Estación'] = trends_df['Estación'].str.slice(0, 20)
+            trends_df['Estación'] = trends_df['Estación'].str.slice(0, 25) # Acortar nombre de estación
             add_dataframe_to_pdf(pdf, trends_df)
 
-    # --- FIN DE LA SECCIÓN RESTAURADA ---
-
-    return pdf.output(dest='S').encode('latin-1')
+    # El método output() ya devuelve bytes, por lo que no necesita .encode()
+    return pdf.output(dest='S')-
