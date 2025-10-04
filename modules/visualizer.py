@@ -688,8 +688,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = ["Animación GIF (Antioquia)", "Validación de Interpolación", "Superficies de Interpolación", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
-    gif_tab, validation_tab, kriging_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
+    tab_names = ["Animación GIF (Antioquia)", "Superficies de Interpolación", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
+    gif_tab, kriging_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
@@ -867,21 +867,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             create_compare_map(data_year2, year2, map_col2, gdf_geometries, df_anual_valid)
         else:
             st.warning("Se necesitan datos de al menos dos años diferentes para generar la Comparación de Mapas.")
-
-    with validation_tab:
-        st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
-        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-        if len(stations_for_analysis) < 4:
-            st.warning("Se necesitan al menos 4 estaciones para realizar una validación robusta.")
-        else:
-            all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
-            if all_years_int:
-                selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1)
-                if st.button(f"Ejecutar Validación para el año {selected_year}", key="run_validation_button"):
-                    # (código de la pestaña de validación)
-                    pass
-            else:
-                st.warning("No hay años con datos válidos para la validación.")
 
     with kriging_tab:
         st.subheader("Comparación de Superficies de Interpolación Anual")
