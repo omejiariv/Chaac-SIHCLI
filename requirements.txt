@@ -18,4 +18,4 @@ pymannkendall==1.4.3
 openpyxl
 gstools
 fpdf2
-kaleido
+kaleido==0.2.1
