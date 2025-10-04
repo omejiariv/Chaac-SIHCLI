@@ -118,6 +118,24 @@ def perform_loocv_for_year(year, method, gdf_metadata, df_anual_non_na):
     
     return _perform_loocv(method, lons, lats, vals, elevs)
 
+@st.cache_data
+def perform_loocv_for_all_methods(_year, _gdf_metadata, _df_anual_non_na):
+    """Ejecuta LOOCV para todos los métodos de interpolación para un año dado."""
+    methods = ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]
+    if Config.ELEVATION_COL in _gdf_metadata.columns:
+        methods.insert(1, "Kriging con Deriva Externa (KED)")
+    
+    results = []
+    for method in methods:
+        metrics = perform_loocv_for_year(_year, method, _gdf_metadata, _df_anual_non_na)
+        if metrics:
+            results.append({
+                "Método": method,
+                "Año": _year,
+                "RMSE": metrics.get('RMSE'),
+                "MAE": metrics.get('MAE')
+            })
+    return pd.DataFrame(results)
 # -----------------------------------------------------------------------------
 # FUNCIÓN ORIGINAL, AHORA ACTUALIZADA PARA USAR LA FUNCIÓN AUXILIAR
 # -----------------------------------------------------------------------------
