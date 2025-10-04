@@ -1819,7 +1819,7 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
             else:
                 st.info("Seleccione una fecha para visualizar el mapa.")
 
-def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, **kwargs):
+def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Tendencias y Pronósticos")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -1827,7 +1827,9 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
         year_range=st.session_state.year_range,
         selected_months_count=len(st.session_state.meses_numeros),
         analysis_mode=analysis_mode,
-        **kwargs
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
     )
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
