@@ -45,7 +45,7 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
     else:
         year_text = "N/A"
     
-    mode_text = "Original (con vacíos)"
+    mode_text = "Original (con huecos)"
     if analysis_mode == "Completar series (interpolación)":
         mode_text = "Completado (interpolado)"
 
@@ -1837,12 +1837,13 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
+    # Se restaura la lista completa de pestañas, incluyendo "SARIMA vs Prophet"
     tab_names = [
         "Análisis Lineal", "Tendencia Mann-Kendall", "Tabla Comparativa",
         "Descomposición de Series", "Autocorrelación (ACF/PACF)",
-        "Pronóstico SARIMA", "Pronóstico Prophet"
+        "Pronóstico SARIMA", "Pronóstico Prophet", "SARIMA vs Prophet"
     ]
-    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab = st.tabs(tab_names)
+    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, compare_forecast_tab = st.tabs(tab_names)
 
     with tendencia_individual_tab:
         st.subheader("Tendencia de Precipitación Anual (Regresión Lineal)")
@@ -2096,7 +2097,6 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
     with compare_forecast_tab:
         st.subheader("Comparación de Pronósticos: SARIMA vs Prophet")
-        # CORRECCIÓN: Se añade la línea que faltaba para definir sarima_results
         sarima_results = st.session_state.get('sarima_results')
         prophet_results = st.session_state.get('prophet_results')
 
@@ -2104,6 +2104,7 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             st.warning("Debe generar un pronóstico SARIMA y Prophet en sus respectivas pestañas para poder compararlos.")
         else:
             fig_compare = go.Figure()
+
             if sarima_results.get('history') is not None:
                 hist_data = sarima_results['history']
                 fig_compare.add_trace(go.Scatter(x=hist_data.index, y=hist_data, mode='lines', name='Histórico', line=dict(color='gray')))
@@ -2113,13 +2114,13 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             if prophet_results.get('forecast') is not None:
                 prophet_fc = prophet_results['forecast']
                 fig_compare.add_trace(go.Scatter(x=prophet_fc['ds'], y=prophet_fc['yhat'], mode='lines', name='Pronóstico Prophet', line=dict(color='blue', dash='dash')))
-            
+
             fig_compare.update_layout(title="Pronóstico Comparativo", xaxis_title="Fecha", yaxis_title="Precipitación (mm)", height=500, legend=dict(x=0.01, y=0.99))
             st.plotly_chart(fig_compare, use_container_width=True)
 
             st.markdown("#### Comparación de Precisión (sobre el conjunto de prueba)")
-            sarima_metrics = st.session_state.get('sarima_results', {}).get('metrics')
-            prophet_metrics = st.session_state.get('prophet_results', {}).get('metrics')
+            sarima_metrics = sarima_results.get('metrics')
+            prophet_metrics = prophet_results.get('metrics')
 
             if sarima_metrics and prophet_metrics:
                 m_data = {
@@ -2132,7 +2133,7 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
                 
                 rmse_winner = 'SARIMA' if sarima_metrics['RMSE'] < prophet_metrics['RMSE'] else 'Prophet'
                 mae_winner = 'SARIMA' if sarima_metrics['MAE'] < prophet_metrics['MAE'] else 'Prophet'
-                st.success(f"🏆 **Ganador (menor error):** **{rmse_winner}** basado en RMSE y **{mae_winner}** basado en MAE.")
+                st.success(f"**Ganador (menor error):** **{rmse_winner}** basado en RMSE y **{mae_winner}** basado en MAE.")
             else:
                 st.info("Genere ambos pronósticos (SARIMA y Prophet) para ver la comparación de precisión.")
 
