@@ -17,3 +17,4 @@ prophet==1.1.5
 pymannkendall==1.4.3
 openpyxl
 gstools
+fpdf2
