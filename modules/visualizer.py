@@ -1819,7 +1819,7 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
             else:
                 st.info("Seleccione una fecha para visualizar el mapa.")
 
-def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, **kwargs):
     st.header("Análisis de Tendencias y Pronósticos")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -1827,24 +1827,14 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
         year_range=st.session_state.year_range,
         selected_months_count=len(st.session_state.meses_numeros),
         analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
+        **kwargs
     )
-
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = [
-        "Análisis Lineal", "Tendencia Mann-Kendall", "Tabla Comparativa",
-        "Descomposición de Series", "Autocorrelación (ACF/PACF)",
-        "Pronóstico SARIMA", "Pronóstico Prophet", "SARIMA vs Prophet"
-    ]
-    
-    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, \
-    autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, \
-    compare_forecast_tab = st.tabs(tab_names)
+    tab_names = ["Análisis Lineal", "Tendencia Mann-Kendall", "Descomposición de Series", "Autocorrelación (ACF/PACF)", "Pronóstico SARIMA", "Pronóstico Prophet"]
+    tendencia_individual_tab, mann_kendall_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab = st.tabs(tab_names)
 
     with tendencia_individual_tab:
         st.subheader("Tendencia de Precipitación Anual (Regresión Lineal)")
@@ -2002,7 +1992,12 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
     with pronostico_sarima_tab:
         st.subheader("Pronóstico (Modelo SARIMA)")
-        st.info("Para realizar un pronóstico, las series de datos se completan (interpolan) automáticamente solo para la estación seleccionada.", icon="ℹ️")
+        st.info(
+            "Los pronósticos se generan utilizando los datos procesados según la opción seleccionada en 'Modo de análisis' en el panel de control. "
+            "Si el modo 'Completar series' está activo, se usarán los datos interpolados.",
+            icon="ℹ️"
+        )
+
         station_to_forecast = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="sarima_station_select")
         
         c1, c2 = st.columns(2)
@@ -2010,32 +2005,24 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             forecast_horizon = st.slider("Meses a pronosticar:", 12, 36, 12, step=12, key="sarima_horizon")
         with c2:
             test_size = st.slider("Meses para evaluación:", 12, 36, 12, step=6, key="sarima_test_size")
-        
-        use_auto_arima = st.checkbox("Encontrar parámetros óptimos automáticamente (Auto-ARIMA)", value=True)
-        order, seasonal_order = (1,1,1), (1,1,1,12) # Valores por defecto si el modo manual está activo
 
-        if not use_auto_arima:
-             with st.expander("Ajuste de Parámetros SARIMA (Manual)"):
-                # ... (código de los sliders para p,d,q,P,D,Q) ...
-                pass
+        use_auto_arima = st.checkbox("Encontrar parámetros óptimos automáticamente (Auto-ARIMA)", value=True)
+        order, seasonal_order = (1, 1, 1), (1, 1, 1, 12)
 
         if station_to_forecast and st.button("Generar Pronóstico SARIMA"):
-            # LÓGICA DE PROCESAMIENTO BAJO DEMANDA
-            with st.spinner(f"Preparando y completando datos para {station_to_forecast}..."):
-                original_station_data = df_full_monthly[df_full_monthly[Config.STATION_NAME_COL] == station_to_forecast].copy()
-                ts_data_sarima = complete_series(original_station_data)
-            
+            ts_data_sarima = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_forecast].copy()
+
             if len(ts_data_sarima.dropna(subset=[Config.PRECIPITATION_COL])) < test_size + 36:
-                st.warning(f"Incluso después de completar, no hay suficientes datos para un pronóstico confiable.")
+                st.warning("No hay suficientes datos para un pronóstico confiable (se necesitan al menos 3 años más que el período de evaluación).")
             else:
                 try:
                     if use_auto_arima:
-                        with st.spinner("Buscando el mejor modelo Auto-ARIMA..."):
+                        with st.spinner("Buscando el mejor modelo Auto-ARIMA (esto puede tardar)..."):
                             order, seasonal_order = auto_arima_search(ts_data_sarima, test_size)
-                            st.success(f"Modelo óptimo encontrado: orden={order}, orden estacional={seasonal_order}")
-                    
+                        st.success(f"Modelo óptimo encontrado: orden={order}, orden estacional={seasonal_order}")
+
                     with st.spinner("Entrenando y evaluando modelo SARIMA..."):
-                        ts_hist, forecast_mean, forecast_ci, metrics, sarima_df_export = generate_sarima_forecast(
+                        ts_hist, forecast_mean, forecast_ci, metrics, _ = generate_sarima_forecast(
                             ts_data_sarima, order, seasonal_order, forecast_horizon, test_size
                         )
                     st.session_state['sarima_results'] = {'forecast': sarima_df_export, 'metrics': metrics, 'history': ts_hist}
