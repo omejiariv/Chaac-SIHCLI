@@ -285,12 +285,16 @@ def main():
                 )
                 
                 file_name_safe = "".join([c for c in report_title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+                
+                # --- INICIO DE LA CORRECCIÓN ---
+                # Se convierte el bytearray a bytes para compatibilidad con st.download_button
                 st.download_button(
                     label="📥 Descargar PDF",
-                    data=pdf_bytes,
+                    data=bytes(pdf_bytes),
                     file_name=f"{file_name_safe.replace(' ', '_').lower()}.pdf",
                     mime="application/pdf"
                 )
+                # --- FIN DE LA CORRECCIÓN ---
 
 if __name__ == "__main__":
     main()
