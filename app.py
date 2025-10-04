@@ -184,7 +184,7 @@ def main():
 
     if st.session_state.analysis_mode == "Completar series (interpolación)":
         bar = progress_placeholder.progress(0, text="Iniciando interpolación de series...")
-        df_monthly_filtered = complete_series(df_monthly_filtered, progress_bar=bar)
+        df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
         progress_placeholder.empty()
 
         annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
