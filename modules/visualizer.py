@@ -1834,7 +1834,7 @@ def display_validation_tab(df_anual_melted, gdf_filtered, stations_for_analysis)
 
     selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1, key="validation_year_select")
 
-    if st.button(f"Ejecutar Validación para el año {selected_year}"):
+    if st.button(f"Ejecutar Validación para el año {selected_year}", key="run_validation_button"):
         with st.spinner("Realizando validación cruzada para todos los métodos..."):
             gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
             
