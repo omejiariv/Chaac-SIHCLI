@@ -2067,9 +2067,14 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
                         st.success(f"Modelo óptimo encontrado: orden={order}, orden estacional={seasonal_order}")
 
                     with st.spinner("Entrenando y evaluando modelo SARIMA..."):
-                        ts_hist, forecast_mean, forecast_ci, metrics, _ = generate_sarima_forecast(
+                        # --- INICIO DE LA CORRECCIÓN ---
+                        # La llamada ahora desempaqueta los 5 valores que la función retorna,
+                        # asignando el quinto a 'sarima_df_export'.
+                        ts_hist, forecast_mean, forecast_ci, metrics, sarima_df_export = generate_sarima_forecast(
                             ts_data_sarima, order, seasonal_order, forecast_horizon, test_size
                         )
+                        # --- FIN DE LA CORRECCIÓN ---
+                    
                     st.session_state['sarima_results'] = {'forecast': sarima_df_export, 'metrics': metrics, 'history': ts_hist}
                     st.markdown("##### Resultados del Pronóstico")
                     fig_pronostico = go.Figure()
