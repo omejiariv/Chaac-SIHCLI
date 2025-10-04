@@ -16,6 +16,9 @@ from modules.visualizer import (
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
 )
+# Importar la nueva función de reporte
+from modules.reporter import generate_pdf_report
+from modules.analysis import calculate_monthly_anomalies
 
 #--- Desactivar Advertencias ---
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -64,7 +67,6 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
 def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     
-    # Placeholder para la barra de progreso en la parte superior
     progress_placeholder = st.empty()
 
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;}[data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button [data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
@@ -91,7 +93,7 @@ def main():
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             
-            Config.initialize_session_state() # Re-inicializa para evitar AttributeError
+            Config.initialize_session_state() 
 
             with st.spinner("Procesando archivos y cargando datos..."):
                 gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
@@ -117,7 +119,6 @@ def main():
             del st.session_state[key]
         st.rerun()
 
-    # --- LÓGICA DE FILTROS ---
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
         min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0), key='min_data_perc_slider')
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
@@ -161,8 +162,7 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-    # --- DEFINICIÓN DE PESTAÑAS Y CONTROL DE FLUJO ---
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones"]
+    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
     tabs = st.tabs(tab_names)
 
     stations_for_analysis = selected_stations
@@ -172,7 +172,6 @@ def main():
             st.warning("No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control para comenzar el análisis.")
         return
 
-    # --- PREPARACIÓN FINAL DE DATOS (REESTRUCTURADO) ---
     gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
     
     df_monthly_filtered = st.session_state.df_long[
@@ -228,7 +227,6 @@ def main():
         "selected_altitudes": selected_altitudes,
     }
 
-    # --- RENDERIZADO DE PESTAÑAS ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
@@ -236,12 +234,58 @@ def main():
     with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[5]: display_drought_analysis_tab(**display_args)
     with tabs[6]: display_frequency_analysis_tab(**display_args)
-    with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, df_monthly_processed=st.session_state.df_long, **display_args)
+    with tabs[7]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[8]: display_correlation_tab(**display_args)
     with tabs[9]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
     with tabs[10]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
     with tabs[11]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
     with tabs[12]: display_station_table_tab(**display_args)
+
+    with tabs[13]:
+        st.header("Generación de Reporte PDF")
+
+        with st.expander("Opciones del Reporte", expanded=True):
+            report_title = st.text_input("Título del Reporte", "Análisis Hidroclimático de Estaciones Seleccionadas")
+            
+            st.markdown("**Seleccione las secciones a incluir:**")
+            col1, col2 = st.columns(2)
+            sections_to_include = {
+                "Resumen de Filtros": col1.checkbox("Resumen de Filtros Aplicados", True),
+                "Serie Anual": col1.checkbox("Gráfico de Serie de Tiempo Anual", True),
+                "Anomalías Mensuales": col1.checkbox("Gráfico de Anomalías Mensuales", True),
+                "Estadísticas de Tendencia": col2.checkbox("Tabla de Estadísticas de Tendencia", True),
+                "Mapa de Estaciones": col2.checkbox("Mapa de Distribución (Placeholder)", False),
+            }
+
+        if st.button("🚀 Generar y Descargar Reporte PDF"):
+            with st.spinner("Generando reporte... Este proceso puede tardar unos segundos."):
+                
+                summary_data = {
+                    "Estaciones Seleccionadas": f"{len(stations_for_analysis)} de {len(st.session_state.gdf_stations)}",
+                    "Período de Análisis": f"{year_range[0]} - {year_range[1]}",
+                    "Regiones": ", ".join(selected_regions),
+                    "Municipios": ", ".join(selected_municipios),
+                    "Modo de Análisis": st.session_state.analysis_mode
+                }
+                
+                df_anomalies = calculate_monthly_anomalies(df_monthly_filtered, st.session_state.df_long)
+
+                pdf_bytes = generate_pdf_report(
+                    report_title=report_title,
+                    sections_to_include=sections_to_include,
+                    gdf_filtered=gdf_filtered,
+                    df_anual_melted=df_anual_melted,
+                    df_monthly_filtered=df_monthly_filtered,
+                    summary_data=summary_data,
+                    df_anomalies=df_anomalies
+                )
+                
+                st.download_button(
+                    label="📥 Descargar PDF",
+                    data=pdf_bytes,
+                    file_name=f"{report_title.replace(' ', '_').lower()}.pdf",
+                    mime="application/pdf"
+                )
 
 if __name__ == "__main__":
     main()
