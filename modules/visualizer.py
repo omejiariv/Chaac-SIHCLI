@@ -877,7 +877,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
             if all_years_int:
                 selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1)
-                if st.button(f"Ejecutar Validación para el año {selected_year}"):
+                if st.button(f"Ejecutar Validación para el año {selected_year}", key="run_validation_button"):
                     # (código de la pestaña de validación)
                     pass
             else:
