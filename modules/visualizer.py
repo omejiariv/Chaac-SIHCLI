@@ -247,27 +247,36 @@ def display_welcome_tab():
         except Exception:
             st.warning("No se pudo cargar el logo de bienvenida.")
     st.markdown("---")
-    with st.expander("Conceptos Clave, Métodos y Ecuaciones"):
+    with st.expander("Conceptos Clave, Métodos y Ecuaciones", expanded=True):
         st.markdown("""
-        Esta sección proporciona una breve descripción de los métodos y conceptos analíticos utilizados en la plataforma.
+        Esta sección proporciona una descripción de los métodos y conceptos analíticos utilizados en la plataforma.
+
+        ### Análisis de Anomalías
+        Una **anomalía** representa la diferencia entre el valor observado en un momento dado (ej. la lluvia de un mes específico) y un valor de referencia o "normal". Un valor positivo indica que llovió más de lo normal, y uno negativo, que llovió menos.
+        - **Anomalía vs. Período Seleccionado**: Compara la lluvia de cada mes con el promedio histórico de todos los meses iguales (ej. todos los eneros, todos los febreros, etc.) disponibles en el conjunto de datos completo.
+        - **Anomalía vs. Normal Climatológica**: Compara la lluvia de cada mes con el promedio de un período de referencia estándar de 30 años (ej. 1991-2020), como recomienda la Organización Meteorológica Mundial. Esto permite evaluar las desviaciones respecto a un clima "reciente" y estandarizado.
 
         ### Métodos de Interpolación Espacial
         La interpolación se usa para estimar la precipitación en lugares donde no hay estaciones de medición, creando superficies continuas (mapas).
-        - **IDW (Inverso de la Distancia Ponderada)**: Un método simple que asume que los puntos más cercanos tienen más influencia que los lejanos.
-        - **Kriging**: Un método geoestadístico avanzado que utiliza la autocorrelación espacial entre los puntos (descrita por un **variograma**) para realizar estimaciones.
-        - **Spline (Thin Plate)**: Un método matemático que ajusta una superficie flexible a través de los puntos de datos.
+        - **IDW (Inverso de la Distancia Ponderada)**: Un método determinístico que asume que los puntos más cercanos tienen más influencia que los lejanos. La influencia disminuye con la distancia. Es rápido pero menos sofisticado.
+        - **Kriging**: Un método geoestadístico avanzado que utiliza la autocorrelación espacial entre los puntos (descrita por un **variograma**) para realizar estimaciones más precisas. Considera cómo se agrupan los datos en el espacio.
+        - **Spline (Thin Plate)**: Un método matemático que ajusta una superficie flexible a través de los puntos de datos, ideal para visualizar gradientes suaves.
 
         ### Índices de Sequía
-        - **SPI (Índice de Precipitación Estandarizado)**: Mide las desviaciones de la precipitación con respecto a su media histórica.
-        - **SPEI (Índice Estandarizado de Precipitación-Evapotranspiración)**: Similar al SPI, pero se basa en el **balance hídrico climático** (Precipitación - Evapotranspiración).
+        Estos índices estandarizan la precipitación para poder comparar la intensidad de las sequías y períodos húmedos a través del tiempo y entre diferentes lugares.
+        - **SPI (Índice de Precipitación Estandarizado)**: Mide qué tan rara es una desviación de la precipitación con respecto a su media histórica. Un valor de -1.5 significa que el período fue significativamente más seco de lo normal, mientras que +1.5 indica un período muy húmedo.
+        - **SPEI (Índice Estandarizado de Precipitación-Evapotranspiración)**: Es una versión más avanzada del SPI que considera no solo la lluvia, sino también la evapotranspiración. Se basa en el **balance hídrico climático** (Precipitación - Evapotranspiración), lo que lo hace más relevante en estudios de cambio climático donde las temperaturas están aumentando.
+
+        ### Análisis de Frecuencia de Extremos
+        - **Período de Retorno**: Es una estimación estadística de la probabilidad de que un evento extremo (como una lluvia anual muy intensa) ocurra. Un evento con un período de retorno de 100 años tiene una probabilidad del 1% de ser igualado o superado en cualquier año. **No significa** que ocurrirá exactamente una vez cada 100 años.
 
         ### Análisis de Tendencias
-        - **Prueba de Mann-Kendall**: Prueba no paramétrica para detectar tendencias (crecientes o decrecientes) en una serie de tiempo.
-        - **Pendiente de Sen**: Método robusto para cuantificar la magnitud de la tendencia, menos sensible a valores atípicos.
+        - **Prueba de Mann-Kendall**: Es una prueba estadística no paramétrica que se usa para detectar si existe una tendencia monótona (consistentemente creciente o decreciente) en una serie de tiempo, sin asumir que los datos sigan una distribución específica.
+        - **Pendiente de Sen**: Cuando Mann-Kendall detecta una tendencia, la Pendiente de Sen cuantifica la magnitud de esa tendencia (ej. "la lluvia anual está aumentando a un ritmo de 5 mm/año"). Es un método robusto que no se ve muy afectado por valores atípicos.
 
         ### Modelos de Pronóstico
-        - **SARIMA (Seasonal AutoRegressive Integrated Moving Average)**: Modelo estadístico clásico para series de tiempo que modela componentes de tendencia y estacionales.
-        - **Prophet**: Modelo de Facebook diseñado para ser automático y robusto, modelando la serie como una suma de tendencia, estacionalidad y efectos de eventos.
+        - **SARIMA (Seasonal AutoRegressive Integrated Moving Average)**: Es un modelo estadístico clásico para series de tiempo que descompone los datos en componentes de tendencia, estacionalidad y ruido para hacer predicciones. Requiere experiencia para ajustar sus parámetros.
+        - **Prophet**: Es un modelo desarrollado por Facebook, diseñado para ser más automático y robusto. Es especialmente bueno para manejar series de tiempo con fuertes efectos estacionales y datos faltantes, modelando la serie como una suma de tendencia, estacionalidad anual/semanal y efectos de días festivos.
         """)
 
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
