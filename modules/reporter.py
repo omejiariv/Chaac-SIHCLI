@@ -1,19 +1,18 @@
-import io
-import os  # <-- CORRECCIÓN: Se añadió la importación que faltaba
-import pandas as pd
-from fpdf import FPDF
 import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
+import pandas as pd
+import io
+import os
 import numpy as np
 import pymannkendall as mk
+from fpdf import FPDF
+import plotly.graph_objects as go
+import plotly.express as px
 from modules.config import Config
 
-# Clase personalizada para manejar encabezado y pie de página en el PDF
 class PDF(FPDF):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.report_title = "Reporte de Análisis Hidroclimático"
+        self.report_title = "Reporte"
 
     def set_report_title(self, title):
         self.report_title = title
@@ -31,55 +30,62 @@ class PDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
 
-# --- Funciones Auxiliares para el Reporte ---
+    def chapter_title(self, title):
+        self.set_font('Arial', 'B', 12)
+        self.cell(0, 10, title, 0, 1, 'L')
+        self.ln(4)
 
-def add_graph_to_pdf(pdf, fig, width=190):
-    """Convierte una figura de Plotly a imagen y la añade al PDF."""
-    try:
-        img_bytes = fig.to_image(format="png", scale=2)
-        pdf.image(io.BytesIO(img_bytes), w=width)
-        pdf.ln(5)
-    except Exception as e:
-        pdf.set_font('Arial', 'I', 10)
-        pdf.set_text_color(255, 0, 0)
-        pdf.cell(0, 10, f"Error al generar gráfico: {e}")
-        pdf.set_text_color(0, 0, 0)
-        pdf.ln(5)
+    def add_plotly_fig(self, fig, width=190):
+        try:
+            img_bytes = fig.to_image(format="png", scale=2)
+            self.image(io.BytesIO(img_bytes), w=width)
+            self.ln(5)
+        except Exception as e:
+            self.set_text_color(255, 0, 0)
+            self.multi_cell(0, 6, f"Error al generar gráfico: {e}")
+            self.set_text_color(0, 0, 0)
 
+def add_summary_to_pdf(pdf, summary_dict):
+    pdf.chapter_title("Resumen de Filtros Aplicados")
+    pdf.set_font('Arial', '', 10)
+    
+    effective_width = pdf.w - 2 * pdf.l_margin
+    key_width = effective_width * 0.3
+    value_width = effective_width * 0.7
+
+    for key, value in summary_dict.items():
+        if value:
+            pdf.set_font('Arial', 'B', 10)
+            pdf.cell(key_width, 6, f"{key}:", border=0)
+            pdf.set_font('Arial', '', 10)
+            pdf.multi_cell(value_width, 6, str(value), border=0)
+    pdf.ln(10)
+
+# --- INICIO DE LA SECCIÓN RESTAURADA ---
 def add_dataframe_to_pdf(pdf, df):
-    """Renderiza un DataFrame de Pandas como una tabla simple en el PDF."""
-    pdf.set_font('Arial', 'B', 10)
-    # Encabezados
-    col_width = 180 / len(df.columns)
-    for col in df.columns:
-        pdf.cell(col_width, 10, col, 1, 0, 'C')
+    """Añade un DataFrame de Pandas como una tabla al PDF."""
+    pdf.set_font("Arial", 'B', 8)
+    col_widths = [40] + [25] * (len(df.columns) - 1) # Ancho adaptable
+    
+    # Encabezado de la tabla
+    for i, header in enumerate(df.columns):
+        pdf.cell(col_widths[i], 7, str(header), 1, 0, 'C')
     pdf.ln()
     
-    pdf.set_font('Arial', '', 9)
-    # Datos
+    # Contenido de la tabla
+    pdf.set_font("Arial", '', 8)
     for index, row in df.iterrows():
-        for col in df.columns:
-            pdf.cell(col_width, 10, str(row[col]), 1, 0, 'L')
+        for i, item in enumerate(row):
+            if isinstance(item, float):
+                item = f"{item:.2f}"
+            pdf.cell(col_widths[i], 6, str(item), 1)
         pdf.ln()
     pdf.ln(10)
 
-def add_summary_to_pdf(pdf, summary_dict):
-    """Añade un resumen de filtros al PDF."""
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, "1. Resumen de Filtros Aplicados", 0, 1)
-    pdf.set_font('Arial', '', 10)
-    for key, value in summary_dict.items():
-        if value: # Solo muestra si hay valor
-            pdf.multi_cell(0, 6, f"- **{key}:** {value}")
-    pdf.ln(10)
-
-
-# --- Función Principal del Módulo ---
-
 def generate_pdf_report(
-    report_title,
-    sections_to_include,
-    gdf_filtered,
+    report_title, 
+    sections_to_include, 
+    gdf_filtered, 
     df_anual_melted,
     df_monthly_filtered,
     summary_data,
@@ -90,54 +96,54 @@ def generate_pdf_report(
     pdf.add_page()
     pdf.set_font('Arial', '', 12)
 
-    # --- Construcción del Reporte por Secciones ---
-
     if sections_to_include.get("Resumen de Filtros"):
         add_summary_to_pdf(pdf, summary_data)
 
-    if sections_to_include.get("Mapa de Estaciones"):
-        pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 10, "2. Mapa de Distribución de Estaciones", 0, 1)
-        pdf.set_font('Arial', 'I', 10)
-        pdf.multi_cell(0, 6, "La generación de mapas interactivos en PDF no es soportada directamente. Se recomienda tomar una captura de pantalla del mapa en la pestaña 'Distribución Espacial' y añadirla manualmente si es necesario.")
-        pdf.ln(10)
+    if sections_to_include.get("Serie Anual"):
+        if not df_anual_melted.empty:
+            pdf.chapter_title("Serie de Tiempo de Precipitación Anual")
+            fig_anual = px.line(df_anual_melted, x=Config.YEAR_COL, y=Config.PRECIPITATION_COL, color=Config.STATION_NAME_COL, title="Precipitación Anual por Estación")
+            pdf.add_plotly_fig(fig_anual)
 
-    if sections_to_include.get("Serie Anual") and not df_anual_melted.empty:
-        pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 10, "3. Gráfico de Serie de Tiempo Anual", 0, 1)
-        fig = px.line(df_anual_melted, x=Config.YEAR_COL, y=Config.PRECIPITATION_COL, color=Config.STATION_NAME_COL, title="Precipitación Anual por Estación")
-        add_graph_to_pdf(pdf, fig)
-
-    if sections_to_include.get("Anomalías Mensuales") and not df_anomalies.empty:
-        pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 10, "4. Gráfico de Anomalías Mensuales", 0, 1)
-        df_plot = df_anomalies.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
-        df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
-        fig = go.Figure(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color']))
-        fig.update_layout(title="Anomalías Mensuales de Precipitación (Promedio Regional)")
-        add_graph_to_pdf(pdf, fig)
-
-    if sections_to_include.get("Estadísticas de Tendencia") and not df_anual_melted.empty:
-        pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 10, "5. Tabla de Estadísticas de Tendencia (Mann-Kendall)", 0, 1)
+    if sections_to_include.get("Anomalías Mensuales"):
+        if not df_anomalies.empty:
+            pdf.chapter_title("Anomalías Mensuales de Precipitación")
+            df_plot = df_anomalies.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
+            df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
+            fig_anom = go.Figure(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color']))
+            fig_anom.update_layout(title="Anomalías Mensuales Promedio")
+            pdf.add_plotly_fig(fig_anom)
+            
+    if sections_to_include.get("Estadísticas de Tendencia"):
+        pdf.chapter_title("Tabla Comparativa de Tendencias (Mann-Kendall)")
         
-        trend_results = []
-        for station in gdf_filtered[Config.STATION_NAME_COL].unique():
-            station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station].copy()
-            if len(station_data.dropna(subset=[Config.PRECIPITATION_COL])) >= 4:
-                mk_result = mk.original_test(station_data[Config.PRECIPITATION_COL].dropna())
-                trend_results.append({
-                    "Estación": station,
-                    "Tendencia": mk_result.trend,
-                    "Pendiente (mm/año)": f"{mk_result.slope:.2f}",
-                    "Valor p": f"{mk_result.p:.3f}"
-                })
-        if trend_results:
-            df_trends = pd.DataFrame(trend_results)
-            add_dataframe_to_pdf(pdf, df_trends)
-        else:
-            pdf.cell(0, 10, "No hay suficientes datos para calcular tendencias.")
-            pdf.ln()
+        stations_for_analysis = gdf_filtered[Config.STATION_NAME_COL].unique()
+        results = []
+        df_anual_calc = df_anual_melted.copy()
 
-    # Devolver el PDF como bytes
+        for station in stations_for_analysis:
+            station_data = df_anual_calc[df_anual_calc[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL]).sort_values(by=Config.YEAR_COL)
+            trend_mk, p_mk, slope_sen = "Datos insuficientes", np.nan, np.nan
+            
+            if len(station_data) > 3:
+                mk_result_table = mk.original_test(station_data[Config.PRECIPITATION_COL])
+                trend_mk = mk_result_table.trend.capitalize()
+                p_mk = mk_result_table.p
+                slope_sen = mk_result_table.slope
+
+            results.append({
+                "Estación": station,
+                "Tendencia MK": trend_mk,
+                "Valor p (MK)": p_mk,
+                "Pendiente de Sen (mm/año)": slope_sen,
+            })
+        
+        if results:
+            trends_df = pd.DataFrame(results)
+            # Acortar nombre de estación para que quepa en la tabla
+            trends_df['Estación'] = trends_df['Estación'].str.slice(0, 20)
+            add_dataframe_to_pdf(pdf, trends_df)
+
+    # --- FIN DE LA SECCIÓN RESTAURADA ---
+
     return pdf.output(dest='S').encode('latin-1')
