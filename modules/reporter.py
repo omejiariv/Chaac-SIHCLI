@@ -46,9 +46,16 @@ class PDF(FPDF):
         self.HEIGHT = 297
 
     def header(self):
+        # Logo - se verifica si existe la ruta del logo
+        if os.path.exists(Config.LOGO_PATH):
+            self.image(Config.LOGO_PATH, 10, 8, 25) # x, y, ancho
+        
         self.set_font('Arial', 'B', 14)
-        self.cell(0, 10, 'Reporte de Análisis Hidroclimático', 0, 1, 'C')
-        self.ln(5)
+        # Se mueve el título un poco para no superponerse con el logo
+        self.cell(80) 
+        self.cell(30, 10, 'Reporte de Análisis Hidroclimático', 0, 1, 'C')
+        # Salto de línea más grande para dar espacio
+        self.ln(15)
 
     def footer(self):
         self.set_y(-15)
@@ -127,6 +134,15 @@ class PDF(FPDF):
             os.unlink(tmp_html.name)
             os.unlink(tmp_png.name)
 
+    def add_synthesis(self, stats_dict):
+        self.set_font('Arial', 'B', 10)
+        self.cell(0, 8, "Máximos Históricos", 0, 1)
+        self.set_font('Arial', '', 10)
+        self.cell(0, 6, f"  - Ppt. Máxima Anual: {stats_dict.get('max_ppt_anual', 'N/A')}", 0, 1)
+        self.cell(0, 6, f"  - Ppt. Máxima Mensual: {stats_dict.get('max_ppt_mensual', 'N/A')}", 0, 1)
+        self.cell(0, 6, f"  - Año Promedio más Lluvioso: {stats_dict.get('ano_mas_lluvioso', 'N/A')}", 0, 1)
+        self.ln(5)
+
 # --- Función Principal ---
 def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anual_melted, df_monthly_filtered, summary_data, df_anomalies, **kwargs):
     pdf = PDF()
@@ -191,6 +207,22 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
             pdf.add_plotly_fig(fig)
         else:
             pdf.add_body_text("No hay datos de anomalías para mostrar.")
+
+        if sections_to_include.get("Resumen Mensual"):
+        pdf.add_section_title("Resumen de Estadísticas Mensuales por Estación")
+        df_summary = kwargs.get('df_summary_monthly')
+        if df_summary is not None and not df_summary.empty:
+             pdf.add_dataframe(df_summary.round(1))
+        else:
+            pdf.add_body_text("No se calcularon los datos del resumen mensual.")
+
+    if sections_to_include.get("Síntesis General"):
+        pdf.add_section_title("Síntesis General de Estadísticas")
+        synthesis_data = kwargs.get('synthesis_stats')
+        if synthesis_data:
+            pdf.add_synthesis(synthesis_data)
+        else:
+            pdf.add_body_text("No se calcularon los datos de la síntesis general.")
 
     if sections_to_include.get("Matriz de Correlación"):
         pdf.add_section_title("5. Matriz de Correlación entre Estaciones")
