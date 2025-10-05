@@ -252,6 +252,4 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("Genere ambos pronósticos en la aplicación para incluirlos en el reporte.")
 
-    # --- FIN DE LA IMPLEMENTACIÓN ---
-
-    return pdf.output(dest='S').encode('latin-1')
+    return pdf.output()
