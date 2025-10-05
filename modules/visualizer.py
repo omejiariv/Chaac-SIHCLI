@@ -458,7 +458,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                     st.plotly_chart(fig_violin_anual, use_container_width=True)
             else:
                 st.warning("No hay datos anuales para mostrar la distribución.")
-        else:
+        else: # Mensual
             if not df_monthly_rich.empty:
                 if plot_type == "Histograma":
                     fig_hist_mensual = px.histogram(
@@ -541,54 +541,30 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     with sub_tab_descarga:
         st.subheader("Descargar Datos de la Pestaña Gráficos")
         st.markdown("Descarga los datos procesados y enriquecidos utilizados en esta pestaña de visualización.")
-
         @st.cache_data
         def convert_df_to_csv(df):
             return df.to_csv(index=False).encode('utf-8')
-
         if not df_anual_rich.empty:
             st.markdown("#### Datos Anuales")
             csv_anual = convert_df_to_csv(df_anual_rich)
-            st.download_button(
-                label="📥 Descargar CSV Anual",
-                data=csv_anual,
-                file_name='datos_graficos_anual.csv',
-                mime='text/csv',
-            )
+            st.download_button(label="📥 Descargar CSV Anual", data=csv_anual, file_name='datos_graficos_anual.csv', mime='text/csv')
         else:
             st.info("No hay datos anuales para descargar.")
-
         if not df_monthly_rich.empty:
             st.markdown("#### Datos Mensuales")
             csv_mensual = convert_df_to_csv(df_monthly_rich)
-            st.download_button(
-                label="📥 Descargar CSV Mensual",
-                data=csv_mensual,
-                file_name='datos_graficos_mensual.csv',
-                mime='text/csv',
-            )
+            st.download_button(label="📥 Descargar CSV Mensual", data=csv_mensual, file_name='datos_graficos_mensual.csv', mime='text/csv')
         else:
             st.info("No hay datos mensuales para descargar.")
 
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-
     tab_names = ["Animación GIF", "Superficies de Interpolación", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
     gif_tab, kriging_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
-
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
         col_controls, col_gif = st.columns([1, 3])
@@ -608,7 +584,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
             else:
                 st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
-
+                
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
@@ -947,24 +923,15 @@ def display_event_analysis(index_values, index_type):
         else:
             st.info("No hay datos de períodos húmedos para mostrar.")
 
-def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_anual_melted, gdf_filtered, **kwargs):
     st.header("Análisis de Extremos Hidrológicos")
-    if 'gdf_stations' not in st.session_state: st.warning("Cargue los datos para continuar."); return
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
-    if not stations_for_analysis: st.warning("Seleccione al menos una estación."); return
-        
-    percentile_sub_tab, indices_sub_tab = st.tabs(["Análisis por Percentiles", "Índices de Sequía (SPI/SPEI)"])
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), **kwargs)
+    if not stations_for_analysis:
+        st.warning("Seleccione al menos una estación.")
+        return
+
     percentile_sub_tab, indices_sub_tab, frequency_sub_tab = st.tabs(["Análisis por Percentiles", "Índices de Sequía (SPI/SPEI)", "Análisis de Frecuencia de Extremos"])
-       
+    
     with percentile_sub_tab:
         st.subheader("Análisis de Eventos Extremos por Percentiles Mensuales")
         station_to_analyze_perc = st.selectbox("Seleccione una estación:", options=sorted(stations_for_analysis), key="percentile_station_select")
@@ -1019,18 +986,44 @@ def display_drought_analysis_tab(df_monthly_filtered, gdf_filtered, stations_for
         st.subheader("Análisis de Frecuencia de Precipitaciones Anuales Máximas")
         st.markdown("Este análisis estima la probabilidad de ocurrencia de un evento de precipitación de cierta magnitud utilizando la distribución de Gumbel para calcular los **períodos de retorno**.")
         
-        df_anual_melted = kwargs.get('df_anual_melted') # Necesitamos obtener este df
-        if df_anual_melted is None:
-            st.warning("No hay datos anuales disponibles.")
-            return
-
-        station_to_analyze = st.selectbox(
-            "Seleccione una estación para el análisis de frecuencia:",
-            options=sorted(stations_for_analysis),
-            key="freq_station_select"
-        )
+        station_to_analyze = st.selectbox("Seleccione una estación para el análisis de frecuencia:", options=sorted(stations_for_analysis), key="freq_station_select")
+        
         if station_to_analyze:
-
+            station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze].copy()
+            annual_max_precip = station_data['precipitation'].dropna()
+            
+            if len(annual_max_precip) < 10:
+                st.warning("Se recomiendan al menos 10 años de datos para un análisis de frecuencia confiable.")
+            else:
+                with st.spinner("Calculando períodos de retorno..."):
+                    params = stats.gumbel_r.fit(annual_max_precip)
+                    return_periods = np.array([2, 5, 10, 25, 50, 100, 200, 500])
+                    non_exceed_prob = 1 - 1 / return_periods
+                    precip_values = stats.gumbel_r.ppf(non_exceed_prob, *params)
+                    results_df = pd.DataFrame({"Período de Retorno (años)": return_periods, "Precipitación Anual Esperada (mm)": precip_values})
+                    
+                    st.subheader(f"Resultados para la estación: {station_to_analyze}")
+                    col1, col2 = st.columns([1, 2])
+                    
+                    with col1:
+                        st.markdown("#### Tabla de Resultados")
+                        st.dataframe(results_df.style.format({"Precipitación Anual Esperada (mm)": "{:.1f}"}))
+                    
+                    with col2:
+                        st.markdown("#### Curva de Frecuencia")
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(x=station_data[Config.YEAR_COL], y=annual_max_precip, mode='markers', name='Máximos Anuales Observados'))
+                        
+                        x_plot = np.linspace(annual_max_precip.min(), precip_values[-1] * 1.1, 100)
+                        y_plot_prob = stats.gumbel_r.cdf(x_plot, *params)
+                        # Evitar división por cero
+                        y_plot_prob = np.clip(y_plot_prob, 0, 0.999999)
+                        y_plot_return_period = 1 / (1 - y_plot_prob)
+                        
+                        fig.add_trace(go.Scatter(x=y_plot_return_period, y=x_plot, mode='lines', name='Curva de Gumbel Ajustada', line=dict(color='red')))
+                        fig.update_layout(title="Curva de Períodos de Retorno", xaxis_title="Período de Retorno (años)", yaxis_title="Precipitación Anual (mm)", xaxis_type="log")
+                        st.plotly_chart(fig, use_container_width=True)
+                        
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Anomalías de Precipitación")
     display_filter_summary(
@@ -1046,28 +1039,26 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-        
-        # --- NUEVOS CONTROLES PARA TIPO DE ANOMALÍA ---
+
     st.subheader("Configuración del Análisis")
     analysis_type = st.radio(
         "Calcular anomalía con respecto a:",
         ("El promedio del período seleccionado", "Una Normal Climatológica (período base fijo)"),
         key="anomaly_type"
     )
-
+    
     df_anomalias = pd.DataFrame()
-
+    
     if analysis_type == "Una Normal Climatológica (período base fijo)":
         years_in_long = sorted(df_long[Config.YEAR_COL].unique())
         default_start = 1991 if 1991 in years_in_long else years_in_long[0]
         default_end = 2020 if 2020 in years_in_long else years_in_long[-1]
-        
         c1, c2 = st.columns(2)
         with c1:
             baseline_start = st.selectbox("Año de inicio del período base:", years_in_long, index=years_in_long.index(default_start))
         with c2:
             baseline_end = st.selectbox("Año de fin del período base:", years_in_long, index=years_in_long.index(default_end))
-
+        
         if baseline_start >= baseline_end:
             st.error("El año de inicio del período base debe ser anterior al año de fin.")
             return
@@ -1078,35 +1069,26 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
         with st.spinner("Calculando anomalías vs. promedio del período..."):
             df_anomalias = calculate_monthly_anomalies(df_monthly_filtered, df_long)
 
-    if df_long is None or df_long.empty:
-        st.warning("No se puede realizar el análisis de anomalías. El DataFrame base no está disponible.")
-        return
-
-    df_anomalias = calculate_monthly_anomalies(df_monthly_filtered, df_long)
-    if st.session_state.get('exclude_na', False):
-        df_anomalias.dropna(subset=['anomalia'], inplace=True)
-
     if df_anomalias.empty or df_anomalias['anomalia'].isnull().all():
         st.warning("No hay suficientes datos históricos para calcular y mostrar las anomalías con los filtros actuales.")
         return
 
     anom_graf_tab, anom_fase_tab, anom_extremos_tab = st.tabs(["Gráfico de Anomalías", "Anomalías por Fase ENSO", "Tabla de Eventos Extremos"])
-
+    
     with anom_graf_tab:
-        df_plot = df_anomalias.groupby(Config.DATE_COL).agg(
-            anomalia=('anomalia', 'mean'),
-            anomalia_oni=(Config.ENSO_ONI_COL, 'first')
-        ).reset_index()
+        df_plot = df_anomalias.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
         fig = create_anomaly_chart(df_plot)
         st.plotly_chart(fig, use_container_width=True)
 
     with anom_fase_tab:
         if Config.ENSO_ONI_COL in df_anomalias.columns:
             df_anomalias_enso = df_anomalias.dropna(subset=[Config.ENSO_ONI_COL]).copy()
-            conditions = [df_anomalias_enso[Config.ENSO_ONI_COL] >= 0.5, df_anomalias_enso[Config.ENSO_ONI_COL] <= -0.5]
+            conditions = [
+                df_anomalias_enso[Config.ENSO_ONI_COL] >= 0.5,
+                df_anomalias_enso[Config.ENSO_ONI_COL] <= -0.5
+            ]
             phases = ['El Niño', 'La Niña']
             df_anomalias_enso['enso_fase'] = np.select(conditions, phases, default='Neutral')
-            
             fig_box = px.box(
                 df_anomalias_enso, x='enso_fase', y='anomalia', color='enso_fase',
                 title="Distribución de Anomalías de Precipitación por Fase ENSO",
@@ -1121,7 +1103,6 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
         st.subheader("Eventos Mensuales Extremos (Basado en Anomalías)")
         df_extremos = df_anomalias.dropna(subset=['anomalia']).copy()
         df_extremos['fecha'] = df_extremos[Config.DATE_COL].dt.strftime('%Y-%m')
-        
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("##### 10 Meses más Secos")
@@ -1132,7 +1113,6 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
                 Config.PRECIPITATION_COL: 'Ppt. (mm)',
                 'precip_promedio_mes': 'Ppt. Media (mm)'
             }).round(0), use_container_width=True)
-        
         with col2:
             st.markdown("##### 10 Meses más Húmedos")
             humedos = df_extremos.nlargest(10, 'anomalia')[['fecha', Config.STATION_NAME_COL, 'anomalia', Config.PRECIPITATION_COL, 'precip_promedio_mes']]
@@ -1143,101 +1123,15 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
                 'precip_promedio_mes': 'Ppt. Media (mm)'
             }).round(0), use_container_width=True)
 
-def display_frequency_analysis_tab(df_anual_melted, stations_for_analysis, **kwargs):
-    st.header("Análisis de Frecuencia de Precipitaciones Anuales Máximas")
-    
-    st.markdown("""
-    Este análisis estima la probabilidad de ocurrencia de un evento de precipitación de cierta magnitud. 
-    Utiliza la distribución de Gumbel para modelar los valores máximos anuales y calcular los **períodos de retorno**.
-    """)
-
-    if not stations_for_analysis:
-        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
-        return
-
-    station_to_analyze = st.selectbox(
-        "Seleccione una estación para el análisis de frecuencia:",
-        options=sorted(stations_for_analysis),
-        key="freq_station_select"
-    )
-
-    if station_to_analyze:
-        station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze].copy()
-        annual_max_precip = station_data['precipitation'].dropna()
-
-        if len(annual_max_precip) < 10:
-            st.warning("Se recomiendan al menos 10 años de datos para un análisis de frecuencia confiable.")
-        else:
-            with st.spinner("Calculando períodos de retorno..."):
-                # Ajustar datos a la distribución Gumbel
-                params = stats.gumbel_r.fit(annual_max_precip)
-                
-                # Calcular valores para los períodos de retorno
-                return_periods = np.array([2, 5, 10, 25, 50, 100, 200, 500])
-                non_exceed_prob = 1 - 1 / return_periods
-                precip_values = stats.gumbel_r.ppf(non_exceed_prob, *params)
-
-                results_df = pd.DataFrame({
-                    "Período de Retorno (años)": return_periods,
-                    "Precipitación Anual Esperada (mm)": precip_values
-                })
-                
-                st.subheader(f"Resultados para la estación: {station_to_analyze}")
-                col1, col2 = st.columns([1, 2])
-                
-                with col1:
-                    st.markdown("#### Tabla de Resultados")
-                    st.dataframe(results_df.style.format({"Precipitación Anual Esperada (mm)": "{:.1f}"}))
-
-                with col2:
-                    st.markdown("#### Curva de Frecuencia")
-                    fig = go.Figure()
-                    # Datos observados
-                    fig.add_trace(go.Scatter(
-                        x=station_data['año'],
-                        y=annual_max_precip,
-                        mode='markers',
-                        name='Máximos Anuales Observados'
-                    ))
-                    # Curva ajustada
-                    x_plot = np.linspace(annual_max_precip.min(), precip_values[-1] * 1.1, 100)
-                    y_plot_prob = stats.gumbel_r.cdf(x_plot, *params)
-                    y_plot_return_period = 1 / (1 - y_plot_prob)
-                    
-                    fig.add_trace(go.Scatter(
-                        x=y_plot_return_period,
-                        y=x_plot,
-                        mode='lines',
-                        name='Curva de Gumbel Ajustada',
-                        line=dict(color='red')
-                    ))
-                    
-                    fig.update_layout(
-                        title="Curva de Períodos de Retorno",
-                        xaxis_title="Período de Retorno (años)",
-                        yaxis_title="Precipitación Anual (mm)",
-                        xaxis_type="log"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-
-def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, **kwargs):
     st.header("Estadísticas de Precipitación")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(stations_for_analysis=stations_for_analysis, **kwargs)
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-
-    matriz_tab, resumen_mensual_tab, series_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Datos Series Pptn", "Síntesis General"])
     
+    matriz_tab, resumen_mensual_tab, series_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Datos Series Pptn", "Síntesis General"])
+        
     with series_tab:
         st.subheader("Series de Precipitación Anual por Estación (mm)")
         if not df_anual_melted.empty:
@@ -1425,18 +1319,9 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         else:
             st.info("No hay datos para mostrar la síntesis general.")
             
-def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_correlation_tab(df_monthly_filtered, stations_for_analysis, **kwargs):
     st.header("Análisis de Correlación")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(stations_for_analysis=stations_for_analysis, **kwargs)
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
@@ -1638,13 +1523,12 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-        
     if df_enso is None or df_enso.empty:
         st.warning("No se encontraron datos del fenómeno ENSO en el archivo de precipitación cargado.")
         return
-
+        
     enso_series_tab, enso_anim_tab = st.tabs(["Series de Tiempo ENSO", "Mapa Interactivo ENSO"])
-
+    
     with enso_series_tab:
         enso_vars_available = {
             Config.ENSO_ONI_COL: 'Anomalía ONI',
@@ -1652,7 +1536,6 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
             'temp_media': 'Temp. Media'
         }
         available_tabs = [name for var, name in enso_vars_available.items() if var in df_enso.columns]
-        
         if not available_tabs:
             st.warning("No hay variables ENSO disponibles en el archivo de datos para visualizar.")
         else:
@@ -1672,37 +1555,37 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
         if gdf_filtered.empty or Config.ENSO_ONI_COL not in df_enso.columns:
             st.warning("Datos insuficientes para generar esta visualización. Se requiere información de estaciones y la columna 'anomalia_oni'.")
             return
-            
-        controls_col, map_col = st.columns([1, 3])
         
+        controls_col, map_col = st.columns([1, 3])
         enso_anim_data = df_enso[[Config.DATE_COL, Config.ENSO_ONI_COL]].copy().dropna(subset=[Config.ENSO_ONI_COL])
-        conditions = [enso_anim_data[Config.ENSO_ONI_COL] >= 0.5, enso_anim_data[Config.ENSO_ONI_COL] <= -0.5]
+        conditions = [
+            enso_anim_data[Config.ENSO_ONI_COL] >= 0.5,
+            enso_anim_data[Config.ENSO_ONI_COL] <= -0.5
+        ]
         phases = ['El Niño', 'La Niña']
         enso_anim_data['fase'] = np.select(conditions, phases, default='Neutral')
-
+        
         year_range_val = st.session_state.get('year_range', (2000, 2020))
         if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and isinstance(year_range_val[0], int):
             year_min, year_max = year_range_val
         else:
             year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
-        
+            
         enso_anim_data_filtered = enso_anim_data[
             (enso_anim_data[Config.DATE_COL].dt.year >= year_min) &
             (enso_anim_data[Config.DATE_COL].dt.year <= year_max)
         ]
-        
         selected_date = None
+        
         with controls_col:
             st.markdown("##### Controles de Mapa")
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "enso_anim")
             st.markdown("##### Selección de Fecha")
-            
             available_dates = sorted(enso_anim_data_filtered[Config.DATE_COL].unique())
             if available_dates:
                 selected_date = st.select_slider("Seleccione una fecha (Año-Mes)",
                                                  options=available_dates,
                                                  format_func=lambda date: pd.to_datetime(date).strftime('%Y-%m'))
-                
                 phase_info = enso_anim_data_filtered[enso_anim_data_filtered[Config.DATE_COL] == selected_date]
                 if not phase_info.empty:
                     current_phase = phase_info['fase'].iloc[0]
@@ -1712,84 +1595,30 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                     st.warning("No hay datos de ENSO para el período seleccionado.")
             else:
                 st.warning("No hay fechas con datos ENSO en el rango seleccionado.")
-
+        
         with map_col:
             if selected_date:
                 m_enso = create_folium_map([4.57, -74.29], 5, selected_base_map_config, selected_overlays_config)
                 phase_color_map = {'El Niño': 'red', 'La Niña': 'blue', 'Neutral': 'gray'}
-                
                 phase_info = enso_anim_data_filtered[enso_anim_data_filtered[Config.DATE_COL] == selected_date]
                 current_phase_str = phase_info['fase'].iloc[0] if not phase_info.empty else "N/A"
                 marker_color = phase_color_map.get(current_phase_str, 'black')
-                
                 for _, station in gdf_filtered.iterrows():
                     folium.Marker(
                         location=[station['geometry'].y, station['geometry'].x],
                         tooltip=f"{station[Config.STATION_NAME_COL]}<br>Fase: {current_phase_str}",
                         icon=folium.Icon(color=marker_color, icon='cloud')
                     ).add_to(m_enso)
-                
                 if not gdf_filtered.empty:
                     bounds = gdf_filtered.total_bounds
                     if np.all(np.isfinite(bounds)):
                         m_enso.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-
                 folium.LayerControl().add_to(m_enso)
                 folium_static(m_enso, height=700, width=None)
             else:
                 st.info("Seleccione una fecha para visualizar el mapa.")
 
-def display_validation_tab(df_anual_melted, gdf_filtered, stations_for_analysis):
-    st.header("Validación Cruzada Comparativa de Métodos de Interpolación")
-
-    if len(stations_for_analysis) < 4:
-        st.warning("Se necesitan al menos 4 estaciones con datos para realizar una validación robusta.")
-        return
-
-    df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-    all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
-
-    if not all_years_int:
-        st.warning("No hay años con datos válidos para la validación.")
-        return
-
-    selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1, key="validation_year_select")
-
-    if st.button(f"Ejecutar Validación para el año {selected_year}", key="run_validation_button"):
-        with st.spinner("Realizando validación cruzada para todos los métodos..."):
-            gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
-            
-            validation_results_df = perform_loocv_for_all_methods(selected_year, gdf_metadata, df_anual_non_na)
-
-            if not validation_results_df.empty:
-                st.subheader(f"Resultados de la Validación para el Año {selected_year}")
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown("**Error Cuadrático Medio (RMSE)**")
-                    fig_rmse = px.bar(validation_results_df.sort_values("RMSE"), x="Método", y="RMSE", color="Método", text_auto='.2f')
-                    fig_rmse.update_layout(showlegend=False)
-                    st.plotly_chart(fig_rmse, use_container_width=True)
-
-                with col2:
-                    st.markdown("**Error Absoluto Medio (MAE)**")
-                    fig_mae = px.bar(validation_results_df.sort_values("MAE"), x="Método", y="MAE", color="Método", text_auto='.2f')
-                    fig_mae.update_layout(showlegend=False)
-                    st.plotly_chart(fig_mae, use_container_width=True)
-
-                st.markdown("**Tabla Comparativa de Errores**")
-                st.dataframe(validation_results_df.style.format({"RMSE": "{:.2f}", "MAE": "{:.2f}"}))
-
-                best_rmse = validation_results_df.loc[validation_results_df['RMSE'].idxmin()]
-                st.success(f"🏆 **Mejor método según RMSE:** {best_rmse['Método']} (RMSE: {best_rmse['RMSE']:.2f})")
-
-            else:
-                st.error("No se pudieron calcular los resultados de la validación.")
-
-def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted,
-                                    df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes,
-                                    **kwargs):
+def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Tendencias y Pronósticos")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -1806,13 +1635,8 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
         
-    tab_names = [
-        "Análisis Lineal", "Tendencia Mann-Kendall", "Tabla Comparativa",
-        "Descomposición de Series", "Autocorrelación (ACF/PACF)",
-        "Pronóstico SARIMA", "Pronóstico Prophet", "SARIMA vs Prophet"
-    ]
-    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, \
-    autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, compare_forecast_tab = st.tabs(tab_names)
+    tab_names = ["Análisis Lineal", "Tendencia Mann-Kendall", "Tabla Comparativa", "Descomposición de Series", "Autocorrelación (ACF/PACF)", "Pronóstico SARIMA", "Pronóstico Prophet", "SARIMA vs Prophet"]
+    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, compare_forecast_tab = st.tabs(tab_names)
 
     with tendencia_individual_tab:
         st.subheader("Tendencia de Precipitación Anual (Regresión Lineal)")
