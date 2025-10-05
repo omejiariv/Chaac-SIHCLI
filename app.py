@@ -11,21 +11,16 @@ from scipy import stats
 
 #--- Importaciones de Módulos
 from modules.config import Config
-from modules.data_processor import load_and_process_all_data, complete_series
+from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem, download_and_load_remote_dem
 from modules.visualizer import (
     display_welcome_tab, display_spatial_distribution_tab, display_graphs_tab,
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
-    display_frequency_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
-    display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
-    display_validation_tab
+    display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
-# --- INICIO DE LA MODIFICACIÓN: Importar el nuevo módulo ---
 from modules.github_loader import load_csv_from_url, load_zip_from_url
-# --- FIN DE LA MODIFICACIÓN ---
-
 
 #--- Desactivar Advertencias
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -85,7 +80,6 @@ def main():
 
     st.sidebar.header("Panel de Control")
     
-    # --- INICIO DE LA MODIFICACIÓN: Lógica de carga automática/manual ---
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         
         load_mode = st.radio(
@@ -95,7 +89,6 @@ def main():
             horizontal=True
         )
 
-        # Lógica para procesar los datos, sea cual sea el origen
         def process_and_store_data(file_mapa, file_precip, file_shape):
             st.cache_data.clear()
             st.cache_resource.clear()
@@ -126,7 +119,7 @@ def main():
                 else:
                     st.warning("Por favor, suba los tres archivos requeridos.")
 
-        else: # Modo Automático
+        else: 
             st.info(f"Los datos se cargarán desde el repositorio de GitHub: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
             if st.button("Cargar Datos desde GitHub", key='process_data_github_button'):
                 with st.spinner("Descargando archivos desde GitHub..."):
@@ -138,14 +131,12 @@ def main():
                     process_and_store_data(github_file_mapa, github_file_precip, github_file_shape)
                 else:
                     st.error("No se pudieron descargar uno o más archivos desde GitHub. Revisa las URLs en config.py y que el repositorio sea público.")
-    # --- FIN DE LA MODIFICACIÓN ---
 
     if not st.session_state.get('data_loaded', False):
         display_welcome_tab()
         st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
         return
 
-    # ... (El resto del archivo, desde st.sidebar.success("Datos base cargados.") hasta el final, permanece exactamente igual) ...
     st.sidebar.success("Datos base cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar App"):
         for key in list(st.session_state.keys()):
@@ -172,38 +163,30 @@ def main():
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
-
-        # --- LÓGICA CORREGIDA PARA EVITAR EL ERROR "Bad message format" ---
         
-        # Guardamos el estado anterior del checkbox para detectar cuándo cambia.
         if 'select_all_prev_state' not in st.session_state:
             st.session_state.select_all_prev_state = False
 
-        # Creamos el checkbox sin el 'on_change'
         select_all_checkbox = st.checkbox(
             "Seleccionar/Deseleccionar todas las estaciones", 
-            value=st.session_state.select_all_prev_state, # Usamos el estado guardado
+            value=st.session_state.select_all_prev_state,
             key='select_all_checkbox_main'
         )
 
-        # Si el estado del checkbox cambió en esta ejecución...
         if select_all_checkbox != st.session_state.select_all_prev_state:
-            if select_all_checkbox:  # Si se acaba de marcar
+            if select_all_checkbox:
                 st.session_state.station_multiselect = stations_options
-            else:  # Si se acaba de desmarcar
+            else:
                 st.session_state.station_multiselect = []
             
-            # Actualizamos el estado guardado y forzamos un refresco de la app.
             st.session_state.select_all_prev_state = select_all_checkbox
             st.rerun()
         
-        # El widget multiselect ahora usa el st.session_state que ya hemos preparado.
         selected_stations = st.multiselect(
             'Seleccionar Estaciones', 
             options=stations_options, 
             key='station_multiselect'
         )
-        # --- FIN DE LA LÓGICA CORREGIDA ---
 
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
@@ -222,12 +205,34 @@ def main():
             key='meses_nombres'
         )
         meses_numeros = [meses_dict[m] for m in meses_nombres]
+
     with st.sidebar.expander("Opciones de Preprocesamiento"):
         st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' utiliza interpolación para rellenar los datos faltantes. Afecta a todas las pestañas de análisis y a las descargas.")
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Validación de Interpolación", "Análisis de Anomalías", "Análisis de extremos hid", "Frecuencia de Extremos", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
+    with st.sidebar.expander("Opciones de Elevación (DEM)"):
+        dem_source_option = st.radio(
+            "Fuente del Modelo de Elevación Digital (DEM)",
+            ["No usar DEM", "Subir archivo GeoTIFF", "Cargar desde URL"],
+            key='dem_source_radio'
+        )
+        if dem_source_option == "Subir archivo GeoTIFF":
+            uploaded_dem_file = st.file_uploader("Cargar archivo .tif", type=['tif', 'tiff'], key='dem_uploader')
+            if uploaded_dem_file:
+                st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations, uploaded_dem_file)
+        
+        elif dem_source_option == "Cargar desde URL":
+            dem_url = st.text_input("URL del archivo GeoTIFF remoto", value=Config.DEM_SERVER_URL)
+            if st.button("Descargar y aplicar DEM"):
+                with st.spinner("Descargando DEM remoto..."):
+                    try:
+                        remote_dem_data = download_and_load_remote_dem(dem_url)
+                        st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations, remote_dem_data)
+                    except Exception as e:
+                        st.error(f"No se pudo cargar el DEM desde la URL: {e}")
+
+    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
     tabs = st.tabs(tab_names)
     stations_for_analysis = selected_stations
 
@@ -288,18 +293,16 @@ def main():
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
     with tabs[3]: display_advanced_maps_tab(**display_args)
-    with tabs[4]: display_validation_tab(df_anual_melted=df_anual_melted, gdf_filtered=gdf_filtered, stations_for_analysis=stations_for_analysis)
-    with tabs[5]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[6]: display_drought_analysis_tab(**display_args)
-    with tabs[7]: display_frequency_analysis_tab(**display_args)
-    with tabs[8]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[9]: display_correlation_tab(**display_args)
-    with tabs[10]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-    with tabs[11]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    with tabs[12]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
-    with tabs[13]: display_station_table_tab(**display_args)
+    with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[5]: display_drought_analysis_tab(**display_args)
+    with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[7]: display_correlation_tab(**display_args)
+    with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+    with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+    with tabs[10]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
+    with tabs[11]: display_station_table_tab(**display_args)
     
-    with tabs[14]:
+    with tabs[12]:
         st.header("Generación de Reporte PDF")
         with st.expander("Opciones del Reporte", expanded=True):
             report_title = st.text_input("Título del Reporte", "Análisis Hidroclimático de Estaciones Seleccionadas")
