@@ -124,8 +124,7 @@ class PDF(FPDF):
         driver.quit()
         
         try:
-            img = Image.open(tmp_png.name)
-            self.image(img, w=width)
+            self.image(tmp_png.name, w=width)
             self.ln(5)
         finally:
             os.unlink(tmp_html.name)
