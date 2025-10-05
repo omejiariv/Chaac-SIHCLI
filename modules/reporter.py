@@ -22,18 +22,22 @@ from modules.visualizer import create_folium_map, generate_station_popup_html
 
 # --- Configuración para Selenium ---
 def setup_driver():
-    """Configura y retorna un driver de Selenium para tomar screenshots."""
+    """Configura y retorna un driver de Selenium para usar Chromium."""
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1200,800")
+    # Indicamos la ruta del ejecutable de chromium y su driver, que instalamos con packages.txt
+    chrome_options.binary_location = "/usr/bin/chromium"
+    service = ChromeService(executable_path="/usr/bin/chromedriver")
+    
     try:
-        driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
         st.error(f"Error al iniciar el WebDriver para generar el reporte: {e}")
-        st.warning("Asegúrate de que Google Chrome esté instalado en el sistema.")
+        st.warning("Ocurrió un problema al configurar Chromium. Revisa los logs.")
         return None
 
 # --- Clase para generar el PDF ---
