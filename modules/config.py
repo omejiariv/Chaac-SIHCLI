@@ -9,22 +9,20 @@ class Config:
     APP_TITLE = "Sistema de Información de Lluvias y Clima en el norte de la región Andina"
 
     #--- URLs para carga automática desde GitHub ---
-    # REEMPLAZA con tu usuario y nombre de repositorio
+    # --- INICIO DE LA CORRECCIÓN ---
     GITHUB_USER = "omejiariv"
-    GITHUB_REPO = "https://github.com/omejiariv/Chaac-SIHCLI/tree/main/data"
-    BRANCH = "main" # O la rama que estés usando ('master', etc.)
-
-    # Construimos las URLs a los archivos RAW en GitHub
-    URL_ESTACIONES_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/mapaCVENSO.csv"
-    URL_PRECIPITACION_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/DatosPptnmes_ENSO.csv"
-    URL_SHAPEFILE_ZIP = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/mapaCVENSO.zip"
+    GITHUB_REPO = "Chaac-SIHCLI" # Solo el nombre del repositorio
+    BRANCH = "main" 
+    
+    # Construimos las URLs a los archivos RAW en GitHub, añadiendo la carpeta "data"
+    URL_ESTACIONES_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.csv"
+    URL_PRECIPITACION_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/DatosPptnmes_ENSO.csv"
+    URL_SHAPEFILE_ZIP = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.zip"
+    # --- FIN DE LA CORRECCIÓN ---
 
     #--- RUTAS ROBUSTAS A LOS ARCHIVOS DEL PROYECTO ---
-    # 1. Obtenemos la ruta a la carpeta donde está este archivo (la carpeta 'modules')
     _MODULES_DIR = os.path.dirname(__file__)
-    # 2. Subimos un nivel para llegar a la raíz del proyecto
     _PROJECT_ROOT = os.path.abspath(os.path.join(_MODULES_DIR, '..'))
-    # 3. Construimos las rutas completas y correctas a los archivos
     GIF_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'PPAM.gif')
     LOGO_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'CuencaVerde_Logo.jpg')
     
@@ -41,7 +39,7 @@ class Config:
     3. **Explorar Análisis:** Navegue a través de las pestañas para visualizar los datos.
     """
     
-    # --- Nombres de Columnas Estándar (deben coincidir con la lógica de data_processor.py)
+    # --- Nombres de Columnas Estándar
     DATE_COL = 'fecha_mes_año'
     PRECIPITATION_COL = 'precipitation'
     STATION_NAME_COL = 'nom_est'
@@ -55,16 +53,14 @@ class Config:
     MONTH_COL = 'mes'
     ORIGIN_COL = 'origin'
     CELL_COL = 'celda_xy'
-    ET_COL = 'et_mmy' # Evapotranspiración
-    ELEVATION_COL = 'elevation_dem' # Usado para KED desde DEM
-
-    # Índices Climáticos
+    ET_COL = 'et_mmy'
+    ELEVATION_COL = 'elevation_dem'
     ENSO_ONI_COL = 'anomalia_oni'
     SOI_COL = 'soi'
     IOD_COL = 'iod'
 
     #--- Configuración para DEM
-    DEM_SERVER_URL = "https://tu-bucket.storage.com/srtm_antioquia.tif" # URL de ejemplo
+    DEM_SERVER_URL = "https://tu-bucket.storage.com/srtm_antioquia.tif"
 
     @staticmethod
     def initialize_session_state():
