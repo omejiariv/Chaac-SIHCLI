@@ -149,7 +149,7 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, report_title, 0, 'C') # Título principal debajo del header
+    pdf.cell(0, 10, report_title, 0, 1, 'C') # Título principal debajo del header
     pdf.ln(10)
 
     if sections_to_include.get("Resumen de Filtros"):
