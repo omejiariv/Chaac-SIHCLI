@@ -88,7 +88,7 @@ class PDF(FPDF):
     def add_plotly_fig(self, fig, width=190):
         try:
             img_bytes = fig.to_image(format="png", width=1200, height=600, scale=2)
-            self.image(io.BytesIO(img_bytes), w=width)
+            self.image(io.BytesIO(bytes(img_bytes)), w=width)
             self.ln(5)
         except Exception as e:
             self.add_body_text(f"Error al generar la imagen del gráfico: {e}")
