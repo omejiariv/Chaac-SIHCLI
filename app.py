@@ -1,3 +1,5 @@
+# app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -5,7 +7,7 @@ import warnings
 import os
 import pymannkendall as mk
 import plotly.graph_objects as go
-from scipy import stats # Importar stats
+from scipy import stats
 
 #--- Importaciones de Módulos
 from modules.config import Config
@@ -20,10 +22,15 @@ from modules.visualizer import (
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
+# --- INICIO DE LA MODIFICACIÓN: Importar el nuevo módulo ---
+from modules.github_loader import load_csv_from_url, load_zip_from_url
+# --- FIN DE LA MODIFICACIÓN ---
+
 
 #--- Desactivar Advertencias
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
+
 
 def sync_station_selection(stations_options):
     """Sincroniza el multiselect basado en el checkbox 'Seleccionar todas'."""
@@ -77,19 +84,26 @@ def main():
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
     st.sidebar.header("Panel de Control")
+    
+    # --- INICIO DE LA MODIFICACIÓN: Lógica de carga automática/manual ---
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
-        uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
-        uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
-        uploaded_zip_shapefile = st.file_uploader("3. Cargar shapefile de municipios (.zip)", type="zip", key='uploaded_zip_shapefile')
+        
+        load_mode = st.radio(
+            "Modo de Carga de Archivos",
+            ("Automático (desde GitHub)", "Manual (Subir archivos)"),
+            key="load_mode",
+            horizontal=True
+        )
 
-        if st.button("Procesar y Almacenar Datos", key='process_data_button') and all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
+        # Lógica para procesar los datos, sea cual sea el origen
+        def process_and_store_data(file_mapa, file_precip, file_shape):
             st.cache_data.clear()
             st.cache_resource.clear()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             Config.initialize_session_state()
             with st.spinner("Procesando archivos y cargando datos..."):
-                gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
+                gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(file_mapa, file_precip, file_shape)
                 if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
                     st.session_state.gdf_stations = gdf_stations
                     st.session_state.gdf_municipios = gdf_municipios
@@ -99,13 +113,39 @@ def main():
                     st.success("¡Datos cargados y listos!")
                     st.rerun()
                 else:
-                    st.error("Hubo un error al procesar los archivos. Verifique el formato de los datos.")
+                    st.error("Hubo un error al procesar los archivos. Verifique el formato y contenido.")
+
+        if load_mode == "Manual (Subir archivos)":
+            uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
+            uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
+            uploaded_zip_shapefile = st.file_uploader("3. Cargar shapefile de municipios (.zip)", type="zip", key='uploaded_zip_shapefile')
+            
+            if st.button("Procesar Datos Manuales", key='process_data_manual_button'):
+                if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
+                    process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
+                else:
+                    st.warning("Por favor, suba los tres archivos requeridos.")
+
+        else: # Modo Automático
+            st.info(f"Los datos se cargarán desde el repositorio de GitHub: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
+            if st.button("Cargar Datos desde GitHub", key='process_data_github_button'):
+                with st.spinner("Descargando archivos desde GitHub..."):
+                    github_file_mapa = load_csv_from_url(Config.URL_ESTACIONES_CSV)
+                    github_file_precip = load_csv_from_url(Config.URL_PRECIPITACION_CSV)
+                    github_file_shape = load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
+                
+                if all([github_file_mapa, github_file_precip, github_file_shape]):
+                    process_and_store_data(github_file_mapa, github_file_precip, github_file_shape)
+                else:
+                    st.error("No se pudieron descargar uno o más archivos desde GitHub. Revisa las URLs en config.py y que el repositorio sea público.")
+    # --- FIN DE LA MODIFICACIÓN ---
 
     if not st.session_state.get('data_loaded', False):
         display_welcome_tab()
         st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
         return
 
+    # ... (El resto del archivo, desde st.sidebar.success("Datos base cargados.") hasta el final, permanece exactamente igual) ...
     st.sidebar.success("Datos base cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar App"):
         for key in list(st.session_state.keys()):
@@ -132,42 +172,47 @@ def main():
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
-
-        # --- INICIO DE LA CORRECCIÓN PARA EL ERROR "Bad message format" ---
         
-        # Guardamos el estado anterior del checkbox para detectar cuándo cambia.
         if 'select_all_prev_state' not in st.session_state:
             st.session_state.select_all_prev_state = False
 
-        # Creamos el checkbox sin el 'on_change'
         select_all_checkbox = st.checkbox(
             "Seleccionar/Deseleccionar todas las estaciones", 
-            value=st.session_state.select_all_prev_state, # Usamos el estado guardado
+            value=st.session_state.select_all_prev_state,
             key='select_all_checkbox_main'
         )
 
-        # Si el estado del checkbox cambió en esta ejecución...
         if select_all_checkbox != st.session_state.select_all_prev_state:
-            if select_all_checkbox:  # Si se acaba de marcar
+            if select_all_checkbox:
                 st.session_state.station_multiselect = stations_options
-            else:  # Si se acaba de desmarcar
+            else:
                 st.session_state.station_multiselect = []
             
-            # Actualizamos el estado guardado y forzamos un refresco de la app.
             st.session_state.select_all_prev_state = select_all_checkbox
             st.rerun()
         
-        # El widget multiselect ahora usa el st.session_state que ya hemos preparado.
         selected_stations = st.multiselect(
             'Seleccionar Estaciones', 
             options=stations_options, 
             key='station_multiselect'
         )
+
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
-        year_range = st.slider("Seleccionar Rango de Años", min_value=year_range_default[0], max_value=year_range_default[1], value=st.session_state.get('year_range', year_range_default), key='year_range')
+        year_range = st.slider(
+            "Seleccionar Rango de Años", 
+            min_value=year_range_default[0], 
+            max_value=year_range_default[1], 
+            value=st.session_state.get('year_range', year_range_default), 
+            key='year_range'
+        )
         meses_dict = {m: i+1 for i, m in enumerate(['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'])}
-        meses_nombres = st.multiselect("Seleccionar Meses", list(meses_dict.keys()), default=list(meses_dict.keys()), key='meses_nombres')
+        meses_nombres = st.multiselect(
+            "Seleccionar Meses", 
+            list(meses_dict.keys()), 
+            default=list(meses_dict.keys()), 
+            key='meses_nombres'
+        )
         meses_numeros = [meses_dict[m] for m in meses_nombres]
 
     with st.sidebar.expander("Opciones de Preprocesamiento"):
@@ -246,7 +291,7 @@ def main():
     with tabs[11]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
     with tabs[12]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
     with tabs[13]: display_station_table_tab(**display_args)
-
+    
     with tabs[14]:
         st.header("Generación de Reporte PDF")
         with st.expander("Opciones del Reporte", expanded=True):
