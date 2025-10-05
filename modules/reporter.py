@@ -198,7 +198,7 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
             # --- FIN DE LA CORRECCIÓN DE SANGRÍA ---
         else:
             pdf.add_body_text("No se calcularon los datos del resumen mensual.")
-
+            
     if sections_to_include.get("Síntesis General"):
         pdf.add_section_title("Síntesis General de Estadísticas")
         synthesis_data = kwargs.get('synthesis_stats')
