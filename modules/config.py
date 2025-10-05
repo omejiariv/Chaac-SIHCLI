@@ -11,7 +11,7 @@ class Config:
     #--- URLs para carga automática desde GitHub ---
     # REEMPLAZA con tu usuario y nombre de repositorio
     GITHUB_USER = "omejiariv"
-    GITHUB_REPO = "https://github.com/omejiariv/Chaac-SIHCLI/edit/main/modules/config.py"
+    GITHUB_REPO = "https://github.com/omejiariv/Chaac-SIHCLI"
     BRANCH = "main" # O la rama que estés usando ('master', etc.)
 
     # Construimos las URLs a los archivos RAW en GitHub
