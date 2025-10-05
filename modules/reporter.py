@@ -14,7 +14,6 @@ import tempfile
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 
 from modules.config import Config
@@ -28,7 +27,6 @@ def setup_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1200,800")
-    # Indicamos la ruta del ejecutable de chromium y su driver, que instalamos con packages.txt
     chrome_options.binary_location = "/usr/bin/chromium"
     service = ChromeService(executable_path="/usr/bin/chromedriver")
     
@@ -73,14 +71,12 @@ class PDF(FPDF):
             self.cell(0, 10, "No hay datos disponibles.", 0, 1)
             return
 
-        # Header
         self.set_font('Arial', 'B', 8)
         col_widths = [30] + [(self.WIDTH - 50) / (len(df.columns) - 1)] * (len(df.columns) - 1)
         for i, col in enumerate(df.columns):
             self.cell(col_widths[i], 10, str(col), 1, 0, 'C')
         self.ln()
 
-        # Data
         self.set_font('Arial', '', 8)
         for index, row in df.iterrows():
             for i, item in enumerate(row):
@@ -124,6 +120,7 @@ class PDF(FPDF):
         driver.quit()
         
         try:
+            # Esta es la corrección clave: pasamos la ruta del archivo, no un objeto de imagen.
             self.image(tmp_png.name, w=width)
             self.ln(5)
         finally:
@@ -139,9 +136,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
     pdf.multi_cell(0, 10, report_title, 0, 'C')
     pdf.ln(10)
 
-    # --- INICIO DE LA IMPLEMENTACIÓN DE NUEVAS SECCIONES ---
-    
-    # 1. Resumen de Filtros
     if sections_to_include.get("Resumen de Filtros"):
         pdf.add_section_title("1. Resumen de Filtros Aplicados")
         filter_text = ""
@@ -149,7 +143,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
             filter_text += f"- **{key}:** {value}\n"
         pdf.add_body_text(filter_text)
 
-    # 2. Mapa de Distribución Espacial
     if sections_to_include.get("Mapa de Distribución"):
         pdf.add_section_title("2. Mapa de Distribución Espacial")
         if not gdf_filtered.empty:
@@ -170,11 +163,9 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No hay estaciones seleccionadas para mostrar en el mapa.")
 
-    # 3. Gráfico de Serie de Tiempo Anual (en color)
     if sections_to_include.get("Serie Anual"):
         pdf.add_section_title("3. Precipitación Anual por Estación")
         if not df_anual_melted.empty:
-            # Usar Plotly para mejor control de colores en la exportación
             fig = px.line(
                 df_anual_melted,
                 x=Config.YEAR_COL,
@@ -187,7 +178,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No hay datos anuales para mostrar.")
 
-    # 4. Gráfico de Anomalías Mensuales
     if sections_to_include.get("Anomalías Mensuales"):
         pdf.add_section_title("4. Anomalías Mensuales de Precipitación")
         if not df_anomalies.empty:
@@ -202,7 +192,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No hay datos de anomalías para mostrar.")
 
-    # 5. Matriz de Correlación
     if sections_to_include.get("Matriz de Correlación"):
         pdf.add_section_title("5. Matriz de Correlación entre Estaciones")
         if len(summary_data.get("Estaciones Seleccionadas", "").split(" de ")[0]) > 1:
@@ -213,7 +202,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("Se necesitan al menos dos estaciones para generar la matriz de correlación.")
 
-    # 6. Tabla de Tendencias
     if sections_to_include.get("Tabla de Tendencias"):
         pdf.add_section_title("6. Tabla Comparativa de Tendencias")
         df_trends = kwargs.get('df_trends')
@@ -222,7 +210,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No se calcularon los datos de tendencias para el reporte.")
 
-    # 7. Matriz de Disponibilidad
     if sections_to_include.get("Matriz de Disponibilidad"):
         pdf.add_section_title("7. Matriz de Disponibilidad de Datos Originales (%)")
         heatmap_df = kwargs.get('heatmap_df')
@@ -232,7 +219,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No se pudieron generar los datos de disponibilidad.")
 
-    # 8. Serie Regional
     if sections_to_include.get("Serie Regional"):
         pdf.add_section_title("8. Serie de Tiempo Promedio Regional")
         df_regional = kwargs.get('df_regional')
@@ -242,7 +228,6 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No hay datos para la serie regional.")
 
-    # 9. SARIMA vs Prophet
     if sections_to_include.get("SARIMA vs Prophet"):
         pdf.add_section_title("9. Comparación de Pronósticos: SARIMA vs Prophet")
         fig_compare = kwargs.get('fig_compare_forecast')
