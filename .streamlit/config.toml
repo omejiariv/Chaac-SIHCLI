@@ -1,2 +1,2 @@
 [server]
-folderWatchBlacklist = ['venv', '.*']
+folderWatchBlacklist = ['venv', '.*', 'data', 'assets']
