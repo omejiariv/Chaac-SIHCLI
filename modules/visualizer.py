@@ -28,7 +28,7 @@ from modules.analysis import (
     calculate_climatological_anomalies
 )
 from modules.config import Config
-from modules.utils import add_folium_download_button, display_plotly_download_buttons
+from modules.utils import add_folium_download_button
 from modules.interpolation import create_interpolation_surface, perform_loocv_for_all_methods
 from modules.forecasting import (
     generate_sarima_forecast, generate_prophet_forecast,
@@ -66,7 +66,6 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
     st.info(" | ".join(summary_parts))
 
 def get_map_options():
-    """Retorna un diccionario con las configuraciones de los mapas base y capas."""
     return {
         "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
@@ -75,7 +74,6 @@ def get_map_options():
     }
 
 def display_map_controls(container_object, key_prefix):
-    """Muestra los controles para seleccionar mapa base y capas en Streamlit."""
     map_options = get_map_options()
     base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
     overlays = {k: v for k, v in map_options.items() if v.get("overlay")}
@@ -90,7 +88,6 @@ def display_map_controls(container_object, key_prefix):
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
         return go.Figure()
-
     data = enso_data.copy().sort_values(Config.DATE_COL)
     data.dropna(subset=[Config.ENSO_ONI_COL], inplace=True)
     if data.empty:
@@ -105,35 +102,17 @@ def create_enso_chart(enso_data):
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=data[Config.DATE_COL],
-        y=[y_range[1] - y_range[0]] * len(data),
-        base=y_range[0],
-        marker_color=data['color'],
-        opacity=0.3,
-        hoverinfo='none',
-        showlegend=False
+        x=data[Config.DATE_COL], y=[y_range[1] - y_range[0]] * len(data),
+        base=y_range[0], marker_color=data['color'], opacity=0.3,
+        hoverinfo='none', showlegend=False
     ))
-
     legend_map = {'El Niño': 'red', 'La Niña': 'blue', 'Neutral': 'grey'}
     for phase, color in legend_map.items():
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode='markers',
-            marker=dict(size=15, color=color, symbol='square', opacity=0.5),
-            name=phase, showlegend=True
-        ))
-
-    fig.add_trace(go.Scatter(
-        x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL],
-        mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True
-    ))
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=15, color=color, symbol='square', opacity=0.5), name=phase, showlegend=True))
+    fig.add_trace(go.Scatter(x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL], mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True))
     fig.add_hline(y=0.5, line_dash="dash", line_color="red")
     fig.add_hline(y=-0.5, line_dash="dash", line_color="blue")
-
-    fig.update_layout(
-        height=600, title="Fases del Fenómeno ENSO y Anomalía ONI",
-        yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha",
-        showlegend=True, legend_title_text='Fase', yaxis_range=y_range
-    )
+    fig.update_layout(height=600, title="Fases del Fenómeno ENSO y Anomalía ONI", yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha", showlegend=True, legend_title_text='Fase', yaxis_range=y_range)
     return fig
 
 def create_anomaly_chart(df_plot):
@@ -141,29 +120,20 @@ def create_anomaly_chart(df_plot):
         return go.Figure()
     df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df_plot[Config.DATE_COL], y=df_plot['anomalia'],
-        marker_color=df_plot['color'], name='Anomalía de Precipitación'
-    ))
-    fig.update_layout(
-        height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO",
-        yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True
-    )
+    fig.add_trace(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color'], name='Anomalía de Precipitación'))
+    fig.update_layout(height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO", yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True)
     return fig
 
-#--- FUNCIONES AUXILIARES PARA POPUPS --
 def generate_station_popup_html(row, df_anual_melted, include_chart=False, df_monthly_filtered=None):
     station_name = row.get(Config.STATION_NAME_COL, 'N/A')
     try:
         year_range_val = st.session_state.get('year_range', (2000, 2020))
         year_min, year_max = year_range_val
         total_years_in_period = year_max - year_min + 1
-
         df_station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_name]
         precip_media_anual = df_station_data['precipitation'].mean() if not df_station_data.empty else 0
         valid_years = df_station_data['precipitation'].count() if not df_station_data.empty else 0
         precip_formatted = f"{precip_media_anual:.0f}" if pd.notna(precip_media_anual) else "N/A"
-
         text_html = f"<h4>{station_name}</h4>"
         text_html += f"<p><b>Municipio:</b> {row.get(Config.MUNICIPALITY_COL, 'N/A')}</p>"
         text_html += f"<p><b>Altitud:</b> {row.get(Config.ALTITUDE_COL, 'N/A')} m</p>"
@@ -180,17 +150,14 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     municipality = row.get(Config.MUNICIPALITY_COL, 'N/A')
     altitude = row.get(Config.ALTITUDE_COL, 'N/A')
     precip_year = row.get(Config.PRECIPITATION_COL, 'N/A')
-
     station_full_data = df_anual_melted_full_period[df_anual_melted_full_period[Config.STATION_NAME_COL] == station_name]
     precip_avg, precip_max, precip_min = "N/A", "N/A", "N/A"
     if not station_full_data.empty:
         precip_avg = f"{station_full_data[Config.PRECIPITATION_COL].mean():.0f}"
         precip_max = f"{station_full_data[Config.PRECIPITATION_COL].max():.0f}"
         precip_min = f"{station_full_data[Config.PRECIPITATION_COL].min():.0f}"
-
     altitude_formatted = f"{altitude:.0f}" if isinstance(altitude, (int, float)) and np.isfinite(altitude) else "N/A"
     precip_year_formatted = f"{precip_year:.0f}" if isinstance(precip_year, (int, float)) and np.isfinite(precip_year) else "N/A"
-
     html = f"""
     <h4>{station_name}</h4>
     <p><b>Municipio:</b> {municipality}</p>
@@ -214,33 +181,25 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
             point = fit_bounds_data.iloc[0].geometry
             m.location = [point.y, point.x]
             m.zoom_start = 12
-
     for layer_config in overlays_config:
         if layer_config.get("url"):
-            WmsTileLayer(
-                url=layer_config["url"], layers=layer_config["layers"], fmt='image/png',
-                transparent=layer_config.get("transparent", False), overlay=True, control=True,
-                name=layer_config.get("attr", "Overlay")
-            ).add_to(m)
+            WmsTileLayer(url=layer_config["url"], layers=layer_config["layers"], fmt='image/png', transparent=layer_config.get("transparent", False), overlay=True, control=True, name=layer_config.get("attr", "Overlay")).add_to(m)
     return m
 
-#--- MAIN TAB DISPLAY FUNCTIONS
+#--- MAIN TAB DISPLAY FUNCTIONS ---
 
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
-    
     col1, col2 = st.columns([0.6, 0.4])
     with col1:
         st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
         with st.expander("La Inspiración: Chaac, Divinidad Maya", expanded=False):
             st.markdown(Config.CHAAC_STORY)
-
     with col2:
         if os.path.exists(Config.CHAAC_IMAGE_PATH):
             st.image(Config.CHAAC_IMAGE_PATH, caption="Representación de Chaac, Códice de Dresde.")
         if os.path.exists(Config.LOGO_PATH):
             st.image(Config.LOGO_PATH, width=250, caption="Corporación Cuenca Verde")
-
     st.markdown("---")
     with st.expander("Conceptos Clave, Métodos y Ecuaciones", expanded=True):
         st.markdown("""
@@ -310,28 +269,14 @@ def display_welcome_tab():
         efectos de días festivos.
         """)
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                     df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes,
-                                     **kwargs):
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
-
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-
     gdf_display = gdf_filtered.copy()
     sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
-
     with sub_tab_mapa:
         controls_col, map_col = st.columns([1, 3])
         with controls_col:
@@ -339,28 +284,21 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
             if not gdf_display.empty:
                 st.metric("Estaciones en Vista", len(gdf_display))
-
         with map_col:
             if not gdf_display.empty:
-                m = create_folium_map(location=[4.57, -74.29], zoom=5,
-                                      base_map_config=selected_base_map_config, overlays_config=selected_overlays_config,
-                                      fit_bounds_data=gdf_display)
+                m = create_folium_map(location=[4.57, -74.29], zoom=5, base_map_config=selected_base_map_config, overlays_config=selected_overlays_config, fit_bounds_data=gdf_display)
                 if 'gdf_municipios' in st.session_state and st.session_state.gdf_municipios is not None:
                     folium.GeoJson(st.session_state.gdf_municipios.to_json(), name='Municipios').add_to(m)
-
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
                 for _, row in gdf_display.iterrows():
                     popup_object = generate_station_popup_html(row, df_anual_melted, include_chart=False)
-                    folium.Marker(location=[row['geometry'].y, row['geometry'].x],
-                                  tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
-
+                    folium.Marker(location=[row['geometry'].y, row['geometry'].x], tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
                 folium.LayerControl().add_to(m)
                 m.add_child(MiniMap(toggle_display=True))
                 folium_static(m, height=450, width=None)
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
-
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
         if not gdf_display.empty:
