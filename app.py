@@ -5,7 +5,8 @@ import pandas as pd
 import numpy as np
 import warnings
 import os
-import pymannkendall as mk # Importar pymannkendall
+import pymannkendall as mk
+import plotly.graph_objects as go
 
 #--- Importaciones de Módulos
 from modules.config import Config
