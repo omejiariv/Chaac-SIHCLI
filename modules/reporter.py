@@ -149,70 +149,53 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font('Arial', 'B', 16)
-    pdf.multi_cell(0, 10, report_title, 0, 'C')
+    pdf.cell(0, 10, report_title, 0, 'C') # Título principal debajo del header
     pdf.ln(10)
 
     if sections_to_include.get("Resumen de Filtros"):
-        pdf.add_section_title("1. Resumen de Filtros Aplicados")
+        pdf.add_section_title("Resumen de Filtros Aplicados")
         filter_text = ""
         for key, value in summary_data.items():
-            filter_text += f"- **{key}:** {value}\n"
+            filter_text += f"- {key}: {value}\n"
         pdf.add_body_text(filter_text)
 
     if sections_to_include.get("Mapa de Distribución"):
-        pdf.add_section_title("2. Mapa de Distribución Espacial")
+        pdf.add_section_title("Mapa de Distribución Espacial")
         if not gdf_filtered.empty:
-            m = create_folium_map(
-                location=[4.57, -74.29], zoom=5,
-                base_map_config={"tiles": "cartodbpositron", "attr": "CartoDB"},
-                overlays_config=[],
-                fit_bounds_data=gdf_filtered
-            )
+            m = create_folium_map(location=[4.57, -74.29], zoom=5, base_map_config={"tiles": "cartodbpositron", "attr": "CartoDB"}, overlays_config=[], fit_bounds_data=gdf_filtered)
             for _, row in gdf_filtered.iterrows():
                 popup = generate_station_popup_html(row, df_anual_melted)
-                folium.Marker(
-                    location=[row.geometry.y, row.geometry.x],
-                    tooltip=row[Config.STATION_NAME_COL],
-                    popup=popup
-                ).add_to(m)
+                folium.Marker(location=[row.geometry.y, row.geometry.x], tooltip=row[Config.STATION_NAME_COL], popup=popup).add_to(m)
             pdf.add_folium_map(m)
         else:
             pdf.add_body_text("No hay estaciones seleccionadas para mostrar en el mapa.")
 
     if sections_to_include.get("Serie Anual"):
-        pdf.add_section_title("3. Precipitación Anual por Estación")
+        pdf.add_section_title("Precipitación Anual por Estación")
         if not df_anual_melted.empty:
-            fig = px.line(
-                df_anual_melted,
-                x=Config.YEAR_COL,
-                y=Config.PRECIPITATION_COL,
-                color=Config.STATION_NAME_COL,
-                title="Precipitación Anual por Estación",
-                markers=True
-            )
+            fig = px.line(df_anual_melted, x=Config.YEAR_COL, y=Config.PRECIPITATION_COL, color=Config.STATION_NAME_COL, title="Precipitación Anual por Estación", markers=True)
             pdf.add_plotly_fig(fig)
         else:
             pdf.add_body_text("No hay datos anuales para mostrar.")
 
     if sections_to_include.get("Anomalías Mensuales"):
-        pdf.add_section_title("4. Anomalías Mensuales de Precipitación")
+        pdf.add_section_title("Anomalías Mensuales de Precipitación")
         if not df_anomalies.empty:
             df_plot = df_anomalies.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
             df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
-            fig = go.Figure(go.Bar(
-                x=df_plot[Config.DATE_COL], y=df_plot['anomalia'],
-                marker_color=df_plot['color'], name='Anomalía'
-            ))
+            fig = go.Figure(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color'], name='Anomalía'))
             fig.update_layout(title="Anomalías Mensuales de Precipitación (Promedio Regional)")
             pdf.add_plotly_fig(fig)
         else:
             pdf.add_body_text("No hay datos de anomalías para mostrar.")
-
-        if sections_to_include.get("Resumen Mensual"):
+            
+    if sections_to_include.get("Resumen Mensual"):
         pdf.add_section_title("Resumen de Estadísticas Mensuales por Estación")
         df_summary = kwargs.get('df_summary_monthly')
         if df_summary is not None and not df_summary.empty:
-             pdf.add_dataframe(df_summary.round(1))
+            # --- INICIO DE LA CORRECCIÓN DE SANGRÍA ---
+            pdf.add_dataframe(df_summary.round(1))
+            # --- FIN DE LA CORRECCIÓN DE SANGRÍA ---
         else:
             pdf.add_body_text("No se calcularon los datos del resumen mensual.")
 
@@ -224,26 +207,8 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No se calcularon los datos de la síntesis general.")
 
-    if sections_to_include.get("Matriz de Correlación"):
-        pdf.add_section_title("5. Matriz de Correlación entre Estaciones")
-        if len(summary_data.get("Estaciones Seleccionadas", "").split(" de ")[0]) > 1:
-            df_pivot = df_monthly_filtered.pivot_table(index=Config.DATE_COL, columns=Config.STATION_NAME_COL, values=Config.PRECIPITATION_COL)
-            corr_matrix = df_pivot.corr()
-            fig = px.imshow(corr_matrix, text_auto='.2f', aspect="auto", color_continuous_scale='RdBu_r')
-            pdf.add_plotly_fig(fig, width=180)
-        else:
-            pdf.add_body_text("Se necesitan al menos dos estaciones para generar la matriz de correlación.")
-
-    if sections_to_include.get("Tabla de Tendencias"):
-        pdf.add_section_title("6. Tabla Comparativa de Tendencias")
-        df_trends = kwargs.get('df_trends')
-        if df_trends is not None and not df_trends.empty:
-            pdf.add_dataframe(df_trends)
-        else:
-            pdf.add_body_text("No se calcularon los datos de tendencias para el reporte.")
-
     if sections_to_include.get("Matriz de Disponibilidad"):
-        pdf.add_section_title("7. Matriz de Disponibilidad de Datos Originales (%)")
+        pdf.add_section_title("Matriz de Disponibilidad de Datos Originales (%)")
         heatmap_df = kwargs.get('heatmap_df')
         if heatmap_df is not None and not heatmap_df.empty:
              fig = px.imshow(heatmap_df, text_auto=True, aspect="auto", color_continuous_scale='Greens', labels=dict(color="%"))
@@ -251,8 +216,19 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No se pudieron generar los datos de disponibilidad.")
 
+    if sections_to_include.get("Matriz de Correlación"):
+        pdf.add_section_title("Matriz de Correlación entre Estaciones")
+        num_stations_str = summary_data.get("Estaciones Seleccionadas", "0 de 0").split(" de ")[0]
+        if num_stations_str.isdigit() and int(num_stations_str) > 1:
+            df_pivot = df_monthly_filtered.pivot_table(index=Config.DATE_COL, columns=Config.STATION_NAME_COL, values=Config.PRECIPITATION_COL)
+            corr_matrix = df_pivot.corr()
+            fig = px.imshow(corr_matrix, text_auto='.2f', aspect="auto", color_continuous_scale='RdBu_r')
+            pdf.add_plotly_fig(fig, width=180)
+        else:
+            pdf.add_body_text("Se necesitan al menos dos estaciones para generar la matriz de correlación.")
+
     if sections_to_include.get("Serie Regional"):
-        pdf.add_section_title("8. Serie de Tiempo Promedio Regional")
+        pdf.add_section_title("Serie de Tiempo Promedio Regional")
         df_regional = kwargs.get('df_regional')
         if df_regional is not None and not df_regional.empty:
             fig = px.line(df_regional, x=Config.DATE_COL, y='Precipitación Promedio', title="Serie de Tiempo Promedio Regional")
@@ -260,8 +236,16 @@ def generate_pdf_report(report_title, sections_to_include, gdf_filtered, df_anua
         else:
             pdf.add_body_text("No hay datos para la serie regional.")
 
+    if sections_to_include.get("Tabla de Tendencias"):
+        pdf.add_section_title("Tabla Comparativa de Tendencias (Mann-Kendall)")
+        df_trends = kwargs.get('df_trends')
+        if df_trends is not None and not df_trends.empty:
+            pdf.add_dataframe(df_trends)
+        else:
+            pdf.add_body_text("No se calcularon los datos de tendencias para el reporte.")
+
     if sections_to_include.get("SARIMA vs Prophet"):
-        pdf.add_section_title("9. Comparación de Pronósticos: SARIMA vs Prophet")
+        pdf.add_section_title("Comparación de Pronósticos: SARIMA vs Prophet")
         fig_compare = kwargs.get('fig_compare_forecast')
         if fig_compare:
             pdf.add_plotly_fig(fig_compare)
