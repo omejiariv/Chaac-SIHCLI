@@ -1,4 +1,4 @@
-iariv# modules/config.py
+# modules/config.py
 
 import os
 import streamlit as st
