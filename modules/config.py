@@ -9,7 +9,7 @@ class Config:
     APP_TITLE = "Sistema de Información de Lluvias y Clima en el norte de la región Andina"
 
     #--- URLs para carga automática desde GitHub ---
-    # --- INICIO DE LA CORRECCIÓN ---
+   
     GITHUB_USER = "omejiariv"
     GITHUB_REPO = "Chaac-SIHCLI" # Solo el nombre del repositorio
     BRANCH = "main" 
@@ -18,13 +18,24 @@ class Config:
     URL_ESTACIONES_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.csv"
     URL_PRECIPITACION_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/DatosPptnmes_ENSO.csv"
     URL_SHAPEFILE_ZIP = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.zip"
-    # --- FIN DE LA CORRECCIÓN ---
+
 
     #--- RUTAS ROBUSTAS A LOS ARCHIVOS DEL PROYECTO ---
     _MODULES_DIR = os.path.dirname(__file__)
     _PROJECT_ROOT = os.path.abspath(os.path.join(_MODULES_DIR, '..'))
     GIF_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'PPAM.gif')
     LOGO_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'CuencaVerde_Logo.jpg')
+    
+    CHAAC_IMAGE_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'chaac.png') # Asumiremos que guardarás una imagen llamada 'chaac.png' en tu carpeta 'assets'
+    CHAAC_STORY = """
+    ### Chaac, el Señor de la Lluvia
+
+    En la mitología maya, **Chaac** es una de las deidades más importantes y veneradas. No es un solo dios, sino una deidad cuádruple que reside en los cuatro puntos cardinales, cada uno asociado a un color y un destino.
+
+    Representado como un anciano con rasgos de reptil, una nariz larga y curva, y dos colmillos, Chaac blande su hacha de relámpagos para golpear las nubes y producir la lluvia, esencial para la vida y la cosecha del maíz. Su llanto eran las gotas que caían sobre la tierra.
+
+    Esta plataforma lleva su nombre como un homenaje a la vital importancia del agua y la lluvia en nuestra región, buscando, al igual que los mayas, entender sus patrones para anticipar nuestro futuro.
+    """
     
     WELCOME_TEXT = """
     "El futuro, también depende del pasado y de nuestra capacidad presente para anticiparlo"
