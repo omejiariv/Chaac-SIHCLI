@@ -228,15 +228,15 @@ def main():
             report_title = st.text_input("Título del Reporte", "Análisis Hidroclimático de Estaciones Seleccionadas")
             st.markdown("**Seleccione las secciones a incluir:**")
             
-    select_all = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=True, key="select_all_report_sections")
+            select_all = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=True, key="select_all_report_sections")
 
             col1, col2, col3 = st.columns(3)
+            
             sections_to_include = {
                 "Resumen de Filtros": col1.checkbox("Resumen de Filtros Aplicados", value=select_all),
                 "Mapa de Distribución": col1.checkbox("Mapa de Distribución Espacial", value=select_all),
                 "Serie Anual": col1.checkbox("Gráfico de Serie de Tiempo Anual", value=select_all),
                 "Anomalías Mensuales": col1.checkbox("Gráfico de Anomalías Mensuales", value=select_all),
-                # --- INICIO DE LA MODIFICACIÓN 2: Nuevas secciones de Estadísticas ---
                 "Resumen Mensual": col1.checkbox("Resumen Mensual de Estadísticas", value=select_all),
                 "Matriz de Disponibilidad": col2.checkbox("Matriz de Disponibilidad de Datos", value=select_all),
                 "Matriz de Correlación": col2.checkbox("Matriz de Correlación", value=select_all),
@@ -245,11 +245,10 @@ def main():
                 "Tabla de Tendencias": col3.checkbox("Tabla de Tendencias (MK)", value=select_all),
                 "SARIMA vs Prophet": col3.checkbox("Gráfico Comparativo de Pronósticos", value=select_all),
             }
-            
+
         if st.button("Generar y Descargar Reporte PDF"):
             with st.spinner("Generando reporte... Este proceso puede tardar varios segundos."):
                 
-                # Preparar datos para el reporte
                 summary_data = {
                     "Estaciones Seleccionadas": f"{len(stations_for_analysis)} de {len(st.session_state.gdf_stations)}",
                     "Período de Análisis": f"{year_range[0]} - {year_range[1]}",
@@ -259,8 +258,6 @@ def main():
                 }
                 df_anomalies = calculate_monthly_anomalies(df_monthly_filtered, st.session_state.df_long)
                 
-                # --- INICIO DE LA MODIFICACIÓN 2: Lógica para obtener datos de estadísticas ---
-                # Datos para Resumen Mensual
                 df_summary_report = pd.DataFrame()
                 if sections_to_include.get("Resumen Mensual"):
                     summary_data_list = []
@@ -278,7 +275,6 @@ def main():
                             })
                     df_summary_report = pd.DataFrame(summary_data_list)
 
-                # Datos para Síntesis General
                 synthesis_stats_report = {}
                 if sections_to_include.get("Síntesis General"):
                     df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
@@ -293,7 +289,6 @@ def main():
                             "max_ppt_mensual": f"{max_monthly_row[Config.PRECIPITATION_COL]:.0f} mm ({max_monthly_row[Config.STATION_NAME_COL]}, {max_monthly_row[Config.DATE_COL].strftime('%Y-%m')})",
                             "ano_mas_lluvioso": f"{year_max_avg[Config.PRECIPITATION_COL]:.0f} mm (Año: {int(year_max_avg[Config.YEAR_COL])})"
                         }
-                # --- FIN DE LA MODIFICACIÓN 2 ---
 
                 trend_results = []
                 for station in stations_for_analysis:
@@ -339,7 +334,6 @@ def main():
                         heatmap_df=heatmap_df_report,
                         df_regional=df_regional_report,
                         fig_compare_forecast=fig_compare_forecast_report,
-                        # --- Pasar los nuevos datos al reporte ---
                         df_summary_monthly=df_summary_report,
                         synthesis_stats=synthesis_stats_report
                     )
@@ -353,6 +347,7 @@ def main():
                 except Exception as e:
                     st.error(f"Error al generar el PDF: {e}")
                     st.error("Asegúrese de tener el navegador (Chromium) instalado y accesible en su sistema para la generación de reportes.")
+
 
 if __name__ == "__main__":
     main()
