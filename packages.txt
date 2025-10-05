@@ -1,4 +1,7 @@
+# packages.txt
+
 ffmpeg
 libsm6
 libxext6
-google-chrome-stable
+chromium
+chromium-driver
