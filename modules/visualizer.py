@@ -1882,9 +1882,10 @@ def display_validation_tab(df_anual_melted, gdf_filtered, stations_for_analysis)
             else:
                 st.error("No se pudieron calcular los resultados de la validación.")
 
-def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_anual_melted,
+                                    df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes,
+                                    **kwargs):
     st.header("Análisis de Tendencias y Pronósticos")
-    
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -1899,21 +1900,19 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-
-    # Se restaura la lista completa de pestañas, incluyendo "SARIMA vs Prophet"
+        
     tab_names = [
         "Análisis Lineal", "Tendencia Mann-Kendall", "Tabla Comparativa",
         "Descomposición de Series", "Autocorrelación (ACF/PACF)",
         "Pronóstico SARIMA", "Pronóstico Prophet", "SARIMA vs Prophet"
     ]
-    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, compare_forecast_tab = st.tabs(tab_names)
+    tendencia_individual_tab, mann_kendall_tab, tendencia_tabla_tab, descomposicion_tab, \
+    autocorrelacion_tab, pronostico_sarima_tab, pronostico_prophet_tab, compare_forecast_tab = st.tabs(tab_names)
 
     with tendencia_individual_tab:
         st.subheader("Tendencia de Precipitación Anual (Regresión Lineal)")
         analysis_type = st.radio("Tipo de Análisis de Tendencia:", ["Promedio de la selección", "Estación individual"], horizontal=True, key="linear_trend_type")
-        
         df_to_analyze = None
-        title_for_download = "promedio"
         
         if analysis_type == "Promedio de la selección":
             df_to_analyze = df_anual_melted.groupby(Config.YEAR_COL)[Config.PRECIPITATION_COL].mean().reset_index()
@@ -1921,17 +1920,14 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             station_to_analyze = st.selectbox("Seleccione una estación para analizar:", options=stations_for_analysis, key="tendencia_station_select")
             if station_to_analyze:
                 df_to_analyze = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze]
-                title_for_download = station_to_analyze.replace(" ", "_")
-
+        
         if df_to_analyze is not None and len(df_to_analyze.dropna(subset=[Config.PRECIPITATION_COL])) > 2:
             df_to_analyze['año_num'] = pd.to_numeric(df_to_analyze[Config.YEAR_COL])
             df_clean = df_to_analyze.dropna(subset=[Config.PRECIPITATION_COL])
             slope, intercept, r_value, p_value, std_err = stats.linregress(df_clean['año_num'], df_clean[Config.PRECIPITATION_COL])
-            
             tendencia_texto = "aumentando" if slope > 0 else "disminuyendo"
             significancia_texto = "**estadísticamente significativa**" if p_value < 0.05 else "no es **estadísticamente significativa**"
             st.markdown(f"La tendencia de la precipitación es de **{slope:.2f} mm/año** (es decir, está {tendencia_texto}). Con un valor p de **{p_value:.3f}**, esta tendencia {significancia_texto}.")
-            
             df_to_analyze['tendencia'] = slope * df_to_analyze['año_num'] + intercept
             
             fig_tendencia = px.scatter(df_to_analyze, x='año_num', y=Config.PRECIPITATION_COL, title='Tendencia de la Precipitación Anual')
@@ -1942,14 +1938,12 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             st.warning("No hay suficientes datos en el período seleccionado para calcular una tendencia.")
 
     with mann_kendall_tab:
-        st.subheader("Tendencia de Precipitación Anual (Prueba de Mann-Kendall)")
+        st.subheader("Tendencia de Precipitación Anual (Prueba de Mann-Kendall y Pendiente de Sen)")
         with st.expander("¿Qué es la prueba de Mann-Kendall?"):
             st.markdown("""
-            La **Prueba de Mann-Kendall** es un método estadístico no paramétrico utilizado para detectar
-            tendencias en series de tiempo. No asume que los datos sigan una distribución particular.
-            - **Tendencia**: Indica si es 'increasing' (creciente), 'decreasing' (decreciente) o 'no trend'.
-            - **Valor p**: Si es menor a 0.05, la tendencia se considera estadísticamente significativa.
-            - **Pendiente de Sen**: Cuantifica la magnitud de la tendencia y es robusto frente a valores atípicos.
+            - **Prueba de Mann-Kendall**: Detecta si existe una tendencia (creciente o decreciente) en el tiempo.
+            - **Valor p**: Si es < 0.05, la tendencia es estadísticamente significativa.
+            - **Pendiente de Sen**: Cuantifica la magnitud de la tendencia (ej. "aumento de 5 mm/año"). Es un método robusto que no se ve muy afectado por valores atípicos.
             """)
         
         mk_analysis_type = st.radio("Tipo de Análisis de Tendencia:", ["Promedio de la selección", "Estación individual"], horizontal=True, key="mk_trend_type")
@@ -1960,20 +1954,45 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
             station_to_analyze_mk = st.selectbox("Seleccione una estación para analizar:", options=stations_for_analysis, key="mk_station_select")
             if station_to_analyze_mk:
                 df_to_analyze_mk = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze_mk]
-        
+
         if df_to_analyze_mk is not None and len(df_to_analyze_mk.dropna(subset=[Config.PRECIPITATION_COL])) > 3:
             df_clean_mk = df_to_analyze_mk.dropna(subset=[Config.PRECIPITATION_COL]).sort_values(by=Config.YEAR_COL)
             mk_result = mk.original_test(df_clean_mk[Config.PRECIPITATION_COL])
+            
             title = 'Promedio de la selección' if mk_analysis_type == 'Promedio de la selección' else station_to_analyze_mk
             st.markdown(f"#### Resultados para: {title}")
             col1, col2, col3 = st.columns(3)
             col1.metric("Tendencia Detectada", mk_result.trend.capitalize())
             col2.metric("Valor p", f"{mk_result.p:.4f}")
             col3.metric("Pendiente de Sen (mm/año)", f"{mk_result.slope:.2f}")
-            if mk_result.p < 0.05:
-                st.success("La tendencia es estadísticamente significativa (p < 0.05).")
-            else:
-                st.warning("La tendencia no es estadísticamente significativa (p >= 0.05).")
+
+            # --- INICIO DE LA MODIFICACIÓN 4: Añadir gráfico de tendencia MK ---
+            df_clean_mk['año_num'] = pd.to_numeric(df_clean_mk[Config.YEAR_COL])
+            median_x = df_clean_mk['año_num'].median()
+            median_y = df_clean_mk[Config.PRECIPITATION_COL].median()
+            intercept = median_y - (mk_result.slope * median_x)
+            df_clean_mk['tendencia_sen'] = (mk_result.slope * df_clean_mk['año_num']) + intercept
+
+            fig_mk = go.Figure()
+            fig_mk.add_trace(go.Scatter(
+                x=df_clean_mk['año_num'], 
+                y=df_clean_mk[Config.PRECIPITATION_COL], 
+                mode='markers', 
+                name='Datos Anuales'
+            ))
+            fig_mk.add_trace(go.Scatter(
+                x=df_clean_mk['año_num'], 
+                y=df_clean_mk['tendencia_sen'], 
+                mode='lines', 
+                name="Tendencia (Sen's Slope)", 
+                line=dict(color='orange')
+            ))
+            fig_mk.update_layout(
+                title=f"Tendencia de Mann-Kendall para {title}",
+                xaxis_title="Año", 
+                yaxis_title="Precipitación Anual (mm)"
+            )
+            st.plotly_chart(fig_mk, use_container_width=True)
         else:
             st.warning("No hay suficientes datos (se requieren al menos 4 puntos) para calcular la tendencia de Mann-Kendall.")
 
@@ -2126,7 +2145,6 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis, df_a
 
     with pronostico_prophet_tab:
         st.subheader("Pronóstico (Modelo Prophet)")
-        st.info("La interpolación de datos para llenar vacíos se realiza automáticamente solo para la estación seleccionada al generar el pronóstico.", icon="ℹ️")
         station_to_forecast_prophet = st.selectbox("Seleccione una estación:", options=stations_for_analysis, key="prophet_station_select")
         
         c1, c2 = st.columns(2)
