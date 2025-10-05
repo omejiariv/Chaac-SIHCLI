@@ -1,4 +1,4 @@
-# modules/config.py
+iariv# modules/config.py
 
 import os
 import streamlit as st
@@ -10,8 +10,8 @@ class Config:
 
     #--- URLs para carga automática desde GitHub ---
     # REEMPLAZA con tu usuario y nombre de repositorio
-    GITHUB_USER = "TU_USUARIO_DE_GITHUB"
-    GITHUB_REPO = "TU_REPOSITORIO"
+    GITHUB_USER = "omejiariv"
+    GITHUB_REPO = "https://github.com/omejiariv/Chaac-SIHCLI/edit/main/modules/config.py"
     BRANCH = "main" # O la rama que estés usando ('master', etc.)
 
     # Construimos las URLs a los archivos RAW en GitHub
