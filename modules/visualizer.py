@@ -229,7 +229,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
     
-    # La sangría de las siguientes líneas ha sido corregida
     col1, col2 = st.columns([0.6, 0.4])
     with col1:
         st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
@@ -358,9 +357,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 folium.LayerControl().add_to(m)
                 m.add_child(MiniMap(toggle_display=True))
                 folium_static(m, height=450, width=None)
-                # --- INICIO DEL CAMBIO 1: Botón de descarga para el mapa ---
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
-                # --- FIN DEL CAMBIO 1 ---
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
 
@@ -450,12 +447,10 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     df_monthly_pre_merge = df_monthly_filtered.drop(columns=cols_to_drop, errors='ignore')
     df_monthly_rich = df_monthly_pre_merge.merge(gdf_metadata, on=Config.STATION_NAME_COL, how='left')
 
-    # --- INICIO DEL CAMBIO 2 y 3: Reorganización de pestañas y añadir descarga ---
     sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional, sub_tab_descarga = st.tabs([
         "Análisis Anual", "Análisis Mensual", "Comparación Rápida", "Boxplot Anual", "Distribución",
         "Acumulada", "Relación Altitud", "Serie Regional", "Descargar Datos"
     ])
-    # --- FIN DEL CAMBIO 2 y 3 ---
 
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
@@ -595,7 +590,6 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
             fig_avg_monthly.update_layout(height=500, xaxis=dict(tickmode='array', tickvals=list(meses_dict.values()), ticktext=list(meses_dict.keys())))
             st.plotly_chart(fig_avg_monthly, use_container_width=True)
 
-    # --- INICIO DEL CAMBIO 2: Mover el boxplot a su propia pestaña ---
     with sub_tab_boxplot:
         st.subheader("Distribución de Precipitación Anual por Estación")
         if len(stations_for_analysis) < 1:
@@ -612,7 +606,6 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                 st.plotly_chart(fig_box_annual, use_container_width=True, key="box_anual_comparacion")
             else:
                 st.warning("No hay datos anuales para mostrar el gráfico de cajas.")
-    # --- FIN DEL CAMBIO 2 ---
 
     with sub_tab_distribucion:
         st.subheader("Distribución de la Precipitación")
@@ -720,7 +713,6 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                     df_regional_avg_display = df_regional_avg.rename(columns={'Precipitación Promedio': 'Precipitación Promedio Regional (mm)'})
                     st.dataframe(df_regional_avg_display.round(1), use_container_width=True)
 
-    # --- INICIO DEL CAMBIO 3: Nueva pestaña para descargar datos ---
     with sub_tab_descarga:
         st.subheader("Descargar Datos de la Pestaña Gráficos")
         st.markdown("Descarga los datos procesados y enriquecidos utilizados en esta pestaña de visualización.")
