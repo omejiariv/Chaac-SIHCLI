@@ -324,7 +324,7 @@ def main():
                     file_name_safe = "".join([c for c in report_title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
                     st.download_button(
                         label="📥 Descargar PDF",
-                        data=pdf_bytes,
+                        data=bytes(pdf_bytes), # <--- AQUÍ ESTÁ EL CAMBIO
                         file_name=f"{file_name_safe.replace(' ', '_').lower()}.pdf",
                         mime="application/pdf"
                     )
