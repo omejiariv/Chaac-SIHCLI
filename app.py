@@ -228,8 +228,7 @@ def main():
             report_title = st.text_input("Título del Reporte", "Análisis Hidroclimático de Estaciones Seleccionadas")
             st.markdown("**Seleccione las secciones a incluir:**")
             
-            select_all = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=True, key="select_all_report_sections")
-            # --- FIN DE LA MODIFICACIÓN 1 ---
+    select_all = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=True, key="select_all_report_sections")
 
             col1, col2, col3 = st.columns(3)
             sections_to_include = {
