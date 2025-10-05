@@ -172,30 +172,38 @@ def main():
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
+
+        # --- LÓGICA CORREGIDA PARA EVITAR EL ERROR "Bad message format" ---
         
+        # Guardamos el estado anterior del checkbox para detectar cuándo cambia.
         if 'select_all_prev_state' not in st.session_state:
             st.session_state.select_all_prev_state = False
 
+        # Creamos el checkbox sin el 'on_change'
         select_all_checkbox = st.checkbox(
             "Seleccionar/Deseleccionar todas las estaciones", 
-            value=st.session_state.select_all_prev_state,
+            value=st.session_state.select_all_prev_state, # Usamos el estado guardado
             key='select_all_checkbox_main'
         )
 
+        # Si el estado del checkbox cambió en esta ejecución...
         if select_all_checkbox != st.session_state.select_all_prev_state:
-            if select_all_checkbox:
+            if select_all_checkbox:  # Si se acaba de marcar
                 st.session_state.station_multiselect = stations_options
-            else:
+            else:  # Si se acaba de desmarcar
                 st.session_state.station_multiselect = []
             
+            # Actualizamos el estado guardado y forzamos un refresco de la app.
             st.session_state.select_all_prev_state = select_all_checkbox
             st.rerun()
         
+        # El widget multiselect ahora usa el st.session_state que ya hemos preparado.
         selected_stations = st.multiselect(
             'Seleccionar Estaciones', 
             options=stations_options, 
             key='station_multiselect'
         )
+        # --- FIN DE LA LÓGICA CORREGIDA ---
 
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
@@ -214,7 +222,6 @@ def main():
             key='meses_nombres'
         )
         meses_numeros = [meses_dict[m] for m in meses_nombres]
-
     with st.sidebar.expander("Opciones de Preprocesamiento"):
         st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode", help="La opción 'Completar series' utiliza interpolación para rellenar los datos faltantes. Afecta a todas las pestañas de análisis y a las descargas.")
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
