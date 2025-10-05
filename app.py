@@ -132,12 +132,37 @@ def main():
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
-        if 'filtered_station_options' not in st.session_state or st.session_state.filtered_station_options != stations_options:
-            st.session_state.filtered_station_options = stations_options
-            st.session_state.station_multiselect = []
-            st.session_state.select_all_checkbox = False
-        st.checkbox("Seleccionar/Deseleccionar todas las estaciones", key='select_all_checkbox', on_change=sync_station_selection, args=(stations_options,))
-        selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect', default=st.session_state.get('station_multiselect', []))
+
+        # --- INICIO DE LA CORRECCIÓN PARA EL ERROR "Bad message format" ---
+        
+        # Guardamos el estado anterior del checkbox para detectar cuándo cambia.
+        if 'select_all_prev_state' not in st.session_state:
+            st.session_state.select_all_prev_state = False
+
+        # Creamos el checkbox sin el 'on_change'
+        select_all_checkbox = st.checkbox(
+            "Seleccionar/Deseleccionar todas las estaciones", 
+            value=st.session_state.select_all_prev_state, # Usamos el estado guardado
+            key='select_all_checkbox_main'
+        )
+
+        # Si el estado del checkbox cambió en esta ejecución...
+        if select_all_checkbox != st.session_state.select_all_prev_state:
+            if select_all_checkbox:  # Si se acaba de marcar
+                st.session_state.station_multiselect = stations_options
+            else:  # Si se acaba de desmarcar
+                st.session_state.station_multiselect = []
+            
+            # Actualizamos el estado guardado y forzamos un refresco de la app.
+            st.session_state.select_all_prev_state = select_all_checkbox
+            st.rerun()
+        
+        # El widget multiselect ahora usa el st.session_state que ya hemos preparado.
+        selected_stations = st.multiselect(
+            'Seleccionar Estaciones', 
+            options=stations_options, 
+            key='station_multiselect'
+        )
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
         year_range = st.slider("Seleccionar Rango de Años", min_value=year_range_default[0], max_value=year_range_default[1], value=st.session_state.get('year_range', year_range_default), key='year_range')
