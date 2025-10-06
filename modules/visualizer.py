@@ -73,6 +73,11 @@ def get_map_options():
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": "OpenTopoMap"},
     }
 
+def display_map_controls(container_object, key_prefix):
+    map_options = get_map_options()
+    selected_base_map_name = container_object.selectbox("Seleccionar Mapa Base", list(map_options.keys()), key=f"{key_prefix}_base_map")
+    return map_options[selected_base_map_name]
+
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
         return go.Figure()
