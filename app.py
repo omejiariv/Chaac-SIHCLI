@@ -29,10 +29,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celdas):
     stations_filtered = df.copy()
     if Config.PERCENTAGE_COL in stations_filtered.columns:
-        stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(
-            stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False),
-            errors='coerce'
-        ).fillna(0)
+        stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
     if min_perc > 0:
         stations_filtered = stations_filtered[stations_filtered[Config.PERCENTAGE_COL] >= min_perc]
     if altitudes:
@@ -57,10 +54,9 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
 def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     progress_placeholder = st.empty()
-
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-
     Config.initialize_session_state()
+
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
@@ -70,10 +66,8 @@ def main():
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
     st.sidebar.header("Panel de Control")
-    
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga de Archivos", ("Automático (desde GitHub)", "Manual (Subir archivos)"), key="load_mode", horizontal=True)
-
         def process_and_store_data(file_mapa, file_precip, file_shape):
             st.cache_data.clear()
             st.cache_resource.clear()
@@ -86,9 +80,7 @@ def main():
                     st.session_state.data_loaded = True
                     st.success("¡Datos cargados y listos!")
                     st.rerun()
-                else:
-                    st.error("Hubo un error al procesar los archivos. Verifique el formato y contenido.")
-
+                else: st.error("Hubo un error al procesar los archivos. Verifique el formato y contenido.")
         if load_mode == "Manual (Subir archivos)":
             uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
             uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
@@ -96,8 +88,7 @@ def main():
             if st.button("Procesar Datos Manuales", key='process_data_manual_button'):
                 if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
-                else:
-                    st.warning("Por favor, suba los tres archivos requeridos.")
+                else: st.warning("Por favor, suba los tres archivos requeridos.")
         else:
             st.info(f"Los datos se cargarán desde el repositorio de GitHub: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
             if st.button("Cargar Datos desde GitHub", key='process_data_github_button'):
@@ -107,8 +98,7 @@ def main():
                     github_file_shape = load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
                 if all([github_file_mapa, github_file_precip, github_file_shape]):
                     process_and_store_data(github_file_mapa, github_file_precip, github_file_shape)
-                else:
-                    st.error("No se pudieron descargar uno o más archivos desde GitHub. Revisa las URLs en config.py y que el repositorio sea público.")
+                else: st.error("No se pudieron descargar uno o más archivos desde GitHub. Revisa las URLs en config.py y que el repositorio sea público.")
 
     if not st.session_state.get('data_loaded', False):
         display_welcome_tab()
@@ -179,29 +169,24 @@ def main():
     if not stations_for_analysis:
         with tabs[0]:
             display_welcome_tab()
-            st.warning("No hay estaciones seleccionadas. Por favor, seleccione al menos una estación en el panel de control para comenzar el análisis.")
+            st.warning("No hay estaciones seleccionadas.")
         return
 
     gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
     df_monthly_filtered = st.session_state.df_long[(st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) & (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))].copy()
     if st.session_state.analysis_mode == "Completar series (interpolación)":
-        bar = progress_placeholder.progress(0, text="Iniciando interpolación de series...")
+        bar = progress_placeholder.progress(0, text="Iniciando interpolación...")
         df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
         progress_placeholder.empty()
-        annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), meses_validos=(Config.MONTH_COL, 'nunique')).reset_index()
-        annual_agg.loc[annual_agg['meses_validos'] < 12, 'precipitation_sum'] = np.nan
-        df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
-    else:
-        annual_data_filtered = st.session_state.df_long[(st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) & (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])].copy()
-        if st.session_state.get('exclude_na', False): annual_data_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-        if st.session_state.get('exclude_zeros', False): annual_data_filtered = annual_data_filtered[annual_data_filtered[Config.PRECIPITATION_COL] > 0]
-        annual_agg = annual_data_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), meses_validos=(Config.PRECIPITATION_COL, 'count')).reset_index()
-        annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
-        df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
     if st.session_state.get('exclude_na', False): df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
     if st.session_state.get('exclude_zeros', False): df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
+    
+    annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), meses_validos=(Config.MONTH_COL, 'nunique')).reset_index()
+    annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
+    df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
     display_args = {"gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis, "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered, "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions, "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes}
+    
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
@@ -212,7 +197,7 @@ def main():
     with tabs[7]: display_correlation_tab(**display_args)
     with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
     with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    with tabs[10]: display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, analysis_mode=st.session_state.analysis_mode)
+    with tabs[10]: display_downloads_tab(**display_args)
     with tabs[11]: display_station_table_tab(**display_args)
     with tabs[12]:
         st.header("Generación de Reporte PDF")
