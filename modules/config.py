@@ -37,9 +37,10 @@ class Config:
     Esta plataforma lleva su nombre como un homenaje a la vital importancia del agua y la lluvia en nuestra región, buscando, al igual que los mayas, entender sus patrones para anticipar nuestro futuro.
     """
     
+    QUOTE_TEXT = '"El futuro, también depende del pasado y de nuestra capacidad presente para anticiparlo"'
+    QUOTE_AUTHOR = "omr."
+
     WELCOME_TEXT = """
-    "El futuro, también depende del pasado y de nuestra capacidad presente para anticiparlo"
-    omr.
     Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de
     precipitación y su relación con el fenómeno ENSO en el norte de la región Andina.
     #### ¿Cómo empezar?
