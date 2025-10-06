@@ -198,7 +198,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                 name=layer_config.get("attr", "Overlay")
             ).add_to(m)
 
-    # Añadir esta línea al final asegura que el control de capas siempre esté presente y actualizado
     folium.LayerControl().add_to(m)
     
     return m
