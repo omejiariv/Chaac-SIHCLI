@@ -79,9 +79,9 @@ def get_map_options():
         },
 
         # --- INICIO DE LA CORRECCIÓN ---
-        # Cambiamos al servidor de IRI/LDEO que es más estable para WMS en Folium
+        # Cambiamos la URL a https para evitar problemas de contenido mixto
         "Precipitación Satelital (CHIRPS)": {
-            "url": "http://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p05/wms",
+            "url": "https://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p05/wms",
             "layers": "prcp",
             "fmt": "image/png",
             "transparent": True,
