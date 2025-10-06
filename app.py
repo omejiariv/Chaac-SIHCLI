@@ -13,19 +13,11 @@ from scipy import stats
 from modules.config import Config
 from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem, download_and_load_remote_dem
 from modules.visualizer import (
-    display_welcome_tab,
-    display_spatial_distribution_tab,
-    display_graphs_tab,
-    display_advanced_maps_tab,
-    display_anomalies_tab,
-    display_drought_analysis_tab,
-    display_stats_tab,
-    display_correlation_tab,
-    display_enso_tab,
-    display_trends_and_forecast_tab,
-    display_downloads_tab,
-    display_station_table_tab,
-    display_forecast_tab # Nueva función añadida
+    display_welcome_tab, display_spatial_distribution_tab, display_graphs_tab,
+    display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
+    display_stats_tab, display_correlation_tab, display_enso_tab,
+    display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
+    display_forecast_tab
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
@@ -171,10 +163,7 @@ def main():
                         st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations, remote_dem_data)
                     except Exception as e: st.error(f"No se pudo cargar el DEM desde la URL: {e}")
 
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
-                 "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas",
-                 "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
-                 "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"] # <--- Lista de pestañas actualizada
+    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
     tabs = st.tabs(tab_names)
     stations_for_analysis = selected_stations
 
@@ -197,19 +186,8 @@ def main():
     annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
     df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
-    # Estos son los argumentos comunes que pasamos a casi todas las funciones de las pestañas
-    display_args = {
-        "gdf_filtered": gdf_filtered,
-        "stations_for_analysis": stations_for_analysis,
-        "df_anual_melted": df_anual_melted,
-        "df_monthly_filtered": df_monthly_filtered,
-        "analysis_mode": st.session_state.analysis_mode,
-        "selected_regions": selected_regions,
-        "selected_municipios": selected_municipios,
-        "selected_altitudes": selected_altitudes
-    }
+    display_args = {"gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis, "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered, "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions, "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes}
     
-    # --- Llamadas a las pestañas con sus argumentos correctos ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
@@ -220,8 +198,8 @@ def main():
     with tabs[7]: display_correlation_tab(**display_args)
     with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
     with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    with tabs[10]: display_forecast_tab(**display_args) # Nueva pestaña de pronóstico
-    with tabs[11]: # Pestaña de Descargas
+    with tabs[10]: display_forecast_tab(**display_args)
+    with tabs[11]: 
         display_downloads_tab(
             df_anual_melted=df_anual_melted,
             df_monthly_filtered=df_monthly_filtered,
@@ -229,7 +207,7 @@ def main():
             analysis_mode=st.session_state.analysis_mode
         )
     with tabs[12]: display_station_table_tab(**display_args)
-    with tabs[13]: # Pestaña de Reporte
+    with tabs[13]:
         st.header("Generación de Reporte PDF")
         
         # Opciones para el reporte
