@@ -1117,7 +1117,6 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, a
 
 def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Estadísticas de Precipitación")
-    # --- CORRECCIÓN ---
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -1128,34 +1127,106 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         selected_municipios=selected_municipios,
         selected_altitudes=selected_altitudes
     )
+
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
     matriz_tab, resumen_mensual_tab, series_tab, sintesis_tab = st.tabs(["Matriz de Disponibilidad", "Resumen Mensual", "Datos Series Pptn", "Síntesis General"])
+
+    with matriz_tab:
+        st.subheader("Matriz de Disponibilidad de Datos Anual")
+        heatmap_df = pd.DataFrame()
+        title_text = ""
+        color_scale = "Greens"
+        
+        if analysis_mode == "Completar series (interpolación)":
+            view_mode = st.radio(
+                "Seleccione la vista de la matriz:",
+                ("Porcentaje de Datos Originales", "Porcentaje de Datos Completados", "Porcentaje de Datos Totales"),
+                horizontal=True, key="matriz_view_mode"
+            )
+            if view_mode == "Porcentaje de Datos Completados":
+                df_counts = df_monthly_filtered[df_monthly_filtered[Config.ORIGIN_COL] == 'Completado'].groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
+                heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
+                color_scale = "Reds"
+                title_text = "Porcentaje de Datos Completados (Interpolados)"
+            elif view_mode == "Porcentaje de Datos Totales":
+                df_counts = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
+                heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
+                color_scale = "Blues"
+                title_text = "Disponibilidad de Datos Totales (Original + Completado)"
+            else: # Porcentaje de Datos Originales
+                df_original_filtered = df_long[(df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & (df_long[Config.DATE_COL].dt.year >= st.session_state.year_range[0]) & (df_long[Config.DATE_COL].dt.year <= st.session_state.year_range[1])]
+                df_counts = df_original_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
+                heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
+                title_text = "Disponibilidad de Datos Originales"
+        else: # Modo de datos originales
+            df_counts = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
+            df_counts['porc_value'] = (df_counts['count'] / 12) * 100
+            heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
+            title_text = "Disponibilidad de Datos Originales"
+
+        if not heatmap_df.empty:
+            st.markdown(f"**{title_text}**")
+            styled_df = heatmap_df.style.background_gradient(cmap=color_scale, axis=None, vmin=0, vmax=100).format("{:.0f}%", na_rep="-")
+            st.dataframe(styled_df)
+        else:
+            st.info("No hay datos para mostrar en la matriz con la selección actual.")
+
+    with resumen_mensual_tab:
+        st.subheader("Resumen de Estadísticas Mensuales por Estación")
+        if not df_monthly_filtered.empty:
+            summary_data = []
+            for station_name, group in df_monthly_filtered.groupby(Config.STATION_NAME_COL):
+                if not group[Config.PRECIPITATION_COL].dropna().empty:
+                    max_row = group.loc[group[Config.PRECIPITATION_COL].idxmax()]
+                    min_row = group.loc[group[Config.PRECIPITATION_COL].idxmin()]
+                    summary_data.append({
+                        "Estación": station_name,
+                        "Ppt. Máxima Mensual (mm)": max_row[Config.PRECIPITATION_COL],
+                        "Fecha Máxima": max_row[Config.DATE_COL].strftime('%Y-%m'),
+                        "Ppt. Mínima Mensual (mm)": min_row[Config.PRECIPITATION_COL],
+                        "Fecha Mínima": min_row[Config.DATE_COL].strftime('%Y-%m'),
+                        "Promedio Mensual (mm)": group[Config.PRECIPITATION_COL].mean()
+                    })
+            if summary_data:
+                summary_df = pd.DataFrame(summary_data)
+                st.dataframe(summary_df.round(1), use_container_width=True)
+            else:
+                st.info("No hay datos suficientes para calcular el resumen mensual.")
+        else:
+            st.info("No hay datos para mostrar el resumen mensual.")
     
+    with series_tab:
+        st.subheader("Series de Precipitación Anual por Estación (mm)")
+        if not df_anual_melted.empty:
+            ppt_series_df = df_anual_melted.pivot_table(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values=Config.PRECIPITATION_COL)
+            st.dataframe(ppt_series_df.style.format("{:.0f}", na_rep="-").background_gradient(cmap='viridis', axis=1))
+        else:
+            st.info("No hay datos anuales para mostrar en la tabla.")
+
     with sintesis_tab:
         st.subheader("Síntesis General de Precipitación")
         if not df_monthly_filtered.empty and not df_anual_melted.empty:
             df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             df_monthly_valid = df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL])
             if not df_anual_valid.empty and not df_monthly_valid.empty and not gdf_filtered.empty:
-
                 # --- A. EXTREMOS DE PRECIPITACIÓN ---
                 max_monthly_row = df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmax()]
                 min_monthly_row = df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmin()]
                 max_annual_row = df_anual_valid.loc[df_anual_valid[Config.PRECIPITATION_COL].idxmax()]
                 min_annual_row = df_anual_valid.loc[df_anual_valid[Config.PRECIPITATION_COL].idxmin()]
-
                 # --- B. PROMEDIOS REGIONALES/CLIMATOLÓGICOS ---
                 df_yearly_avg = df_anual_valid.groupby(Config.YEAR_COL)[Config.PRECIPITATION_COL].mean().reset_index()
                 year_max_avg = df_yearly_avg.loc[df_yearly_avg[Config.PRECIPITATION_COL].idxmax()]
                 year_min_avg = df_yearly_avg.loc[df_yearly_avg[Config.PRECIPITATION_COL].idxmin()]
-                
                 df_monthly_avg = df_monthly_valid.groupby(Config.MONTH_COL)[Config.PRECIPITATION_COL].mean().reset_index()
                 month_max_avg = df_monthly_avg.loc[df_monthly_avg[Config.PRECIPITATION_COL].idxmax()][Config.MONTH_COL]
                 month_min_avg = df_monthly_avg.loc[df_monthly_avg[Config.PRECIPITATION_COL].idxmin()][Config.MONTH_COL]
-
                 # --- C. EXTREMOS DE ALTITUD ---
                 df_stations_valid = gdf_filtered.dropna(subset=[Config.ALTITUDE_COL])
                 station_max_alt = None
@@ -1165,75 +1236,51 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
                     if not df_stations_valid[Config.ALTITUDE_COL].isnull().all():
                         station_max_alt = df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].idxmax()]
                         station_min_alt = df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].idxmin()]
-
                 # --- D. CÁLCULO DE TENDENCIAS (SEN'S SLOPE) ---
                 trend_results = []
                 for station in stations_for_analysis:
                     station_data = df_anual_valid[df_anual_valid[Config.STATION_NAME_COL] == station].copy()
                     if len(station_data) >= 4:
                         mk_result_table = mk.original_test(station_data[Config.PRECIPITATION_COL])
-                        trend_results.append({
-                            Config.STATION_NAME_COL: station,
-                            'slope_sen': mk_result_table.slope,
-                            'p_value': mk_result_table.p
-                        })
-                
+                        trend_results.append({'slope_sen': mk_result_table.slope, 'p_value': mk_result_table.p, Config.STATION_NAME_COL: station})
                 df_trends = pd.DataFrame(trend_results)
-                max_pos_trend_row = None
-                min_neg_trend_row = None
+                max_pos_trend_row, min_neg_trend_row = None, None
                 if not df_trends.empty:
                     df_pos_trends = df_trends[df_trends['slope_sen'] > 0]
                     df_neg_trends = df_trends[df_trends['slope_sen'] < 0]
-                    if not df_pos_trends.empty:
-                        max_pos_trend_row = df_pos_trends.loc[df_pos_trends['slope_sen'].idxmax()]
-                    if not df_neg_trends.empty:
-                        min_neg_trend_row = df_neg_trends.loc[df_neg_trends['slope_sen'].idxmin()]
-
+                    if not df_pos_trends.empty: max_pos_trend_row = df_pos_trends.loc[df_pos_trends['slope_sen'].idxmax()]
+                    if not df_neg_trends.empty: min_neg_trend_row = df_neg_trends.loc[df_neg_trends['slope_sen'].idxmin()]
+                
                 meses_map = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
-
+                
                 # --- DISPLAY DE RESULTADOS ---
                 st.markdown("#### 1. Extremos de Precipitación")
                 col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Máxima Ppt. Anual", f"{max_annual_row[Config.PRECIPITATION_COL]:.0f} mm", f"{max_annual_row[Config.STATION_NAME_COL]} ({int(max_annual_row[Config.YEAR_COL])})")
-                with col2:
-                    st.metric("Mínima Ppt. Anual", f"{min_annual_row[Config.PRECIPITATION_COL]:.0f} mm", f"{min_annual_row[Config.STATION_NAME_COL]} ({int(min_annual_row[Config.YEAR_COL])})")
-                with col3:
-                    st.metric("Máxima Ppt. Mensual", f"{max_monthly_row[Config.PRECIPITATION_COL]:.0f} mm", f"{max_monthly_row[Config.STATION_NAME_COL]} ({meses_map.get(max_monthly_row[Config.MONTH_COL])} {max_monthly_row[Config.DATE_COL].year})")
-                with col4:
-                    st.metric("Mínima Ppt. Mensual", f"{min_monthly_row[Config.PRECIPITATION_COL]:.0f} mm", f"{min_monthly_row[Config.STATION_NAME_COL]} ({meses_map.get(min_monthly_row[Config.MONTH_COL])} {min_monthly_row[Config.DATE_COL].year})")
-
+                with col1: st.metric("Máxima Ppt. Anual", f"{max_annual_row[Config.PRECIPITATION_COL]:.0f} mm", f"{max_annual_row[Config.STATION_NAME_COL]} ({int(max_annual_row[Config.YEAR_COL])})")
+                with col2: st.metric("Mínima Ppt. Anual", f"{min_annual_row[Config.PRECIPITATION_COL]:.0f} mm", f"{min_annual_row[Config.STATION_NAME_COL]} ({int(min_annual_row[Config.YEAR_COL])})")
+                with col3: st.metric("Máxima Ppt. Mensual", f"{max_monthly_row[Config.PRECIPITATION_COL]:.0f} mm", f"{max_monthly_row[Config.STATION_NAME_COL]} ({meses_map.get(max_monthly_row[Config.MONTH_COL])} {max_monthly_row[Config.DATE_COL].year})")
+                with col4: st.metric("Mínima Ppt. Mensual", f"{min_monthly_row[Config.PRECIPITATION_COL]:.0f} mm", f"{min_monthly_row[Config.STATION_NAME_COL]} ({meses_map.get(min_monthly_row[Config.MONTH_COL])} {min_monthly_row[Config.DATE_COL].year})")
+                
                 st.markdown("#### 2. Promedios Históricos y Climatológicos")
                 col5, col6, col7 = st.columns(3)
-                with col5:
-                    st.metric("Año más Lluvioso (Promedio Regional)", f"{year_max_avg[Config.PRECIPITATION_COL]:.0f} mm", f"Año: {int(year_max_avg[Config.YEAR_COL])}")
-                with col6:
-                    st.metric("Año menos Lluvioso (Promedio Regional)", f"{year_min_avg[Config.PRECIPITATION_COL]:.0f} mm", f"Año: {int(year_min_avg[Config.YEAR_COL])}")
-                with col7:
-                    st.metric("Mes Climatológico más Lluvioso", f"{df_monthly_avg.loc[df_monthly_avg[Config.MONTH_COL] == month_max_avg, Config.PRECIPITATION_COL].iloc[0]:.0f} mm", f"{meses_map.get(month_max_avg)} (Mín: {meses_map.get(month_min_avg)})")
-                
+                with col5: st.metric("Año más Lluvioso (Promedio Regional)", f"{year_max_avg[Config.PRECIPITATION_COL]:.0f} mm", f"Año: {int(year_max_avg[Config.YEAR_COL])}")
+                with col6: st.metric("Año menos Lluvioso (Promedio Regional)", f"{year_min_avg[Config.PRECIPITATION_COL]:.0f} mm", f"Año: {int(year_min_avg[Config.YEAR_COL])}")
+                with col7: st.metric("Mes Climatológico más Lluvioso", f"{df_monthly_avg.loc[df_monthly_avg[Config.MONTH_COL] == month_max_avg, Config.PRECIPITATION_COL].iloc[0]:.0f} mm", f"{meses_map.get(month_max_avg)} (Min: {meses_map.get(month_min_avg)})")
+
                 st.markdown("#### 3. Geografía y Tendencias")
                 col8, col9, col10, col11 = st.columns(4)
                 with col8:
-                    if station_max_alt is not None:
-                        st.metric("Estación a Mayor Altitud", f"{float(station_max_alt[Config.ALTITUDE_COL]):.0f} m", f"{station_max_alt[Config.STATION_NAME_COL]}")
-                    else:
-                        st.info("No hay datos de altitud.")
+                    if station_max_alt is not None: st.metric("Estación a Mayor Altitud", f"{float(station_max_alt[Config.ALTITUDE_COL]):.0f} m", f"{station_max_alt[Config.STATION_NAME_COL]}")
+                    else: st.info("No hay datos de altitud.")
                 with col9:
-                    if station_min_alt is not None:
-                        st.metric("Estación a Menor Altitud", f"{float(station_min_alt[Config.ALTITUDE_COL]):.0f} m", f"{station_min_alt[Config.STATION_NAME_COL]}")
-                    else:
-                        st.info("No hay datos de altitud.")
+                    if station_min_alt is not None: st.metric("Estación a Menor Altitud", f"{float(station_min_alt[Config.ALTITUDE_COL]):.0f} m", f"{station_min_alt[Config.STATION_NAME_COL]}")
+                    else: st.info("No hay datos de altitud.")
                 with col10:
-                    if max_pos_trend_row is not None:
-                        st.metric("Mayor Tendencia Positiva", f"+{max_pos_trend_row['slope_sen']:.2f} mm/año", f"{max_pos_trend_row[Config.STATION_NAME_COL]} (p={max_pos_trend_row['p_value']:.3f})")
-                    else:
-                        st.info("No hay tendencias positivas para mostrar.")
+                    if max_pos_trend_row is not None: st.metric("Mayor Tendencia Positiva", f"+{max_pos_trend_row['slope_sen']:.2f} mm/año", f"{max_pos_trend_row[Config.STATION_NAME_COL]} (p={max_pos_trend_row['p_value']:.3f})")
+                    else: st.info("No hay tendencias positivas.")
                 with col11:
-                    if min_neg_trend_row is not None:
-                        st.metric("Mayor Tendencia Negativa", f"{min_neg_trend_row['slope_sen']:.2f} mm/año", f"{min_neg_trend_row[Config.STATION_NAME_COL]} (p={min_neg_trend_row['p_value']:.3f})")
-                    else:
-                        st.info("No hay tendencias negativas para mostrar.")
+                    if min_neg_trend_row is not None: st.metric("Mayor Tendencia Negativa", f"{min_neg_trend_row['slope_sen']:.2f} mm/año", f"{min_neg_trend_row[Config.STATION_NAME_COL]} (p={min_neg_trend_row['p_value']:.3f})")
+                    else: st.info("No hay tendencias negativas.")
             else:
                 st.info("No hay datos anuales, mensuales o geográficos válidos para mostrar la síntesis.")
         else:
