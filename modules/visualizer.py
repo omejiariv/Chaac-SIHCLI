@@ -20,6 +20,7 @@ import pymannkendall as mk
 from scipy import stats
 from prophet.plot import plot_plotly
 import io
+from modules.forecast_api import get_weather_forecast
 
 #--- Importaciones de Módulos Propios
 from modules.analysis import (
@@ -68,7 +69,15 @@ def get_map_options():
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
         "Mapa de Colombia (WMS IDEAM)": {"url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", "layers": "ideam:col_admin", "transparent": True, "attr": "IDEAM", "overlay": True},
-    }
+        # --- INICIO DE LA MODIFICACIÓN ---
+        "Precipitación Satelital (CHIRPS)": {
+            "url": "https://climateserv.servirglobal.net/chirps/wms",
+            "layers": "chirps_global_daily_p05",
+            "fmt": "image/png",
+            "transparent": True,
+            "attr": "CHIRPS/UCSB",
+            "overlay": True
+        }
 
 def display_map_controls(container_object, key_prefix):
     map_options = get_map_options()
@@ -2167,3 +2176,76 @@ def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_p
         except Exception as e:
             st.error(f"Error al calcular el análisis de percentiles: {e}")
             st.info("Asegúrese de que el archivo histórico de datos ('df_long') contenga datos suficientes para la estación seleccionada.")
+
+def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
+    st.header("Pronóstico del Tiempo a 7 Días (Open-Meteo)")
+
+    if not stations_for_analysis:
+        st.warning("Seleccione al menos una estación para ver el pronóstico.")
+        return
+
+    station_to_forecast = st.selectbox(
+        "Seleccione una estación para obtener su pronóstico:",
+        options=sorted(stations_for_analysis),
+        key="forecast_station_select"
+    )
+
+    if station_to_forecast:
+        station_info = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL] == station_to_forecast].iloc[0]
+        lat = station_info.geometry.y
+        lon = station_info.geometry.x
+
+        st.info(f"Obteniendo pronóstico para **{station_to_forecast}** (Lat: {lat:.4f}, Lon: {lon:.4f})")
+        
+        forecast_df = get_weather_forecast(lat, lon)
+
+        if forecast_df is not None:
+            # Gráfico de Pronóstico
+            fig = go.Figure()
+
+            # Barras para precipitación
+            fig.add_trace(go.Bar(
+                x=forecast_df['date'],
+                y=forecast_df['precip_sum (mm)'],
+                name='Precipitación (mm)',
+                marker_color='blue',
+                yaxis='y2' # Asignar al eje Y secundario
+            ))
+
+            # Líneas para temperatura
+            fig.add_trace(go.Scatter(
+                x=forecast_df['date'],
+                y=forecast_df['temp_max (°C)'],
+                mode='lines+markers',
+                name='Temp. Máxima',
+                line=dict(color='red')
+            ))
+            fig.add_trace(go.Scatter(
+                x=forecast_df['date'],
+                y=forecast_df['temp_min (°C)'],
+                mode='lines+markers',
+                name='Temp. Mínima',
+                line=dict(color='orange'),
+                fill='tonexty', # Rellenar el área entre min y max
+                fillcolor='rgba(255, 165, 0, 0.2)'
+            ))
+            
+            fig.update_layout(
+                title=f'Pronóstico para {station_to_forecast}',
+                yaxis=dict(title='Temperatura (°C)'),
+                yaxis2=dict(
+                    title='Precipitación (mm)',
+                    overlaying='y',
+                    side='right',
+                    showgrid=False
+                ),
+                legend=dict(x=0, y=1.1, orientation="h")
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            with st.expander("Ver datos del pronóstico en tabla"):
+                st.dataframe(forecast_df.style.format({
+                    "temp_max (°C)": "{:.1f}",
+                    "temp_min (°C)": "{:.1f}",
+                    "precip_sum (mm)": "{:.1f}"
+                }))
