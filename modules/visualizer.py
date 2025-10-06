@@ -304,7 +304,8 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
             if "{Time}" in url:
                 yesterday = datetime.now() - timedelta(days=1)
                 time_str = yesterday.strftime('%Y-%m-%d')
-                url = url.format(Time=time_str)
+                # CORRECCIÓN: Usar .replace() en lugar de .format()
+                url = url.replace('{Time}', time_str)
 
             # Distingue entre WMS y TileLayer estándar
             if "layers" in layer_config:  # Es una capa WMS
@@ -324,10 +325,10 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                     name=layer_config.get("attr", "Overlay"),
                     overlay=True,
                     control=True,
-                    show=False # Por defecto no se muestra para no opacar el mapa base
+                    show=False 
                 ).add_to(m)
     return m
-
+    
 # --- MAIN TAB DISPLAY FUNCTIONS
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
