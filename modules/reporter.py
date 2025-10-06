@@ -3,15 +3,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import altair as alt
 import plotly.express as px
 import plotly.graph_objects as go
-import folium
 from fpdf import FPDF
 import io
 import os
 import tempfile
-from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
@@ -22,8 +19,6 @@ from modules.visualizer import create_folium_map, generate_station_popup_html
 # --- Configuración para Selenium ---
 def setup_driver():
     """Configura y retorna un driver de Selenium para usar Chromium en Streamlit Cloud."""
-    # Nota: estas rutas son específicas para el entorno de Streamlit Cloud.
-    # Para ejecución local, podrías necesitar webdriver-manager o rutas locales.
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -36,24 +31,16 @@ def setup_driver():
         driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
-        st.error(f"Error al iniciar el WebDriver para generar el mapa: {e}")
-        st.warning("No se pudo configurar Chromium. La imagen del mapa no estará disponible en el reporte.")
+        st.error(f"Error al iniciar WebDriver para generar mapa: {e}")
         return None
 
 # --- Clase para generar el PDF ---
 class PDF(FPDF):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.WIDTH = 210
-        self.HEIGHT = 297
-
     def header(self):
         if os.path.exists(Config.LOGO_PATH):
             self.image(Config.LOGO_PATH, 10, 8, 25)
-        
         self.set_font('Arial', 'B', 14)
-        self.cell(80)
-        self.cell(30, 10, 'Reporte de Análisis Hidroclimático', 0, 1, 'C')
+        self.cell(0, 10, 'Reporte de Análisis Hidroclimático', 0, 1, 'C')
         self.ln(15)
 
     def footer(self):
@@ -71,32 +58,22 @@ class PDF(FPDF):
         self.multi_cell(0, 5, text)
         self.ln()
 
-    def add_dataframe(self, df, col_widths=None):
-        self.set_font('Arial', '', 8)
+    def add_dataframe(self, df):
         if df.empty:
-            self.cell(0, 10, "No hay datos disponibles.", 0, 1)
+            self.add_body_text("No hay datos disponibles para esta tabla.")
             return
-
-        # Encabezados de la tabla
+        
         self.set_font('Arial', 'B', 8)
-        if col_widths is None:
-            num_cols = len(df.columns)
-            default_width = (self.WIDTH - 20) / num_cols
-            col_widths = [default_width] * num_cols
-
-        for i, col in enumerate(df.columns):
-            self.cell(col_widths[i], 8, str(col), 1, 0, 'C')
+        # Ancho de columnas simple para evitar errores
+        col_width = (self.w - 2 * self.l_margin) / len(df.columns)
+        for col_name in df.columns:
+            self.cell(col_width, 8, str(col_name), 1, 0, 'C')
         self.ln()
-
-        # Contenido de la tabla
+        
         self.set_font('Arial', '', 7)
         for _, row in df.iterrows():
-            for i, item in enumerate(row):
-                try:
-                    text = f"{item:.2f}" if isinstance(item, (float, np.floating)) else str(item)
-                except (ValueError, TypeError):
-                    text = str(item)
-                self.cell(col_widths[i], 8, text, 1, 0, 'L')
+            for item in row:
+                self.cell(col_width, 8, str(item), 1, 0, 'L')
             self.ln()
         self.ln(5)
 
@@ -108,16 +85,6 @@ class PDF(FPDF):
         except Exception as e:
             self.add_body_text(f"Error al generar imagen del gráfico: {e}")
 
-    def add_altair_chart(self, chart, width=190):
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
-                chart.save(tmpfile.name, format='png', scale_factor=2.0)
-                self.image(tmpfile.name, w=width)
-                os.unlink(tmpfile.name)
-            self.ln(5)
-        except Exception as e:
-            self.add_body_text(f"Error al generar imagen del gráfico Altair: {e}")
-
     def add_folium_map(self, map_obj, width=190):
         driver = setup_driver()
         if not driver:
@@ -128,8 +95,7 @@ class PDF(FPDF):
             map_obj.save(tmp_html.name)
             html_path = tmp_html.name
         
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
-            png_path = tmp_png.name
+        png_path = html_path.replace(".html", ".png")
 
         try:
             driver.get(f"file://{html_path}")
@@ -138,12 +104,11 @@ class PDF(FPDF):
             self.ln(5)
         finally:
             driver.quit()
-            if os.path.exists(html_path):
-                os.unlink(html_path)
-            if os.path.exists(png_path):
-                os.unlink(png_path)
+            if os.path.exists(html_path): os.unlink(html_path)
+            if os.path.exists(png_path): os.unlink(png_path)
 
-# --- Función Principal ---
+
+# --- Función Principal para Generar el Reporte ---
 def generate_pdf_report(report_title, sections_to_include, summary_data, df_anomalies, **data):
     pdf = PDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -155,11 +120,8 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
     # --- Extracción de DataFrames del diccionario 'data' ---
     gdf_filtered = data.get('gdf_filtered', pd.DataFrame())
     df_anual_melted = data.get('df_anual_melted', pd.DataFrame())
-    df_monthly_filtered = data.get('df_monthly_filtered', pd.DataFrame())
 
     # --- Secciones del Reporte ---
-    # La lógica ahora usa 'in' para verificar si la sección está en la lista
-    
     if "Resumen de Filtros" in sections_to_include:
         pdf.add_section_title("Resumen de Filtros Aplicados")
         filter_text = ""
@@ -201,7 +163,7 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
             df_plot = df_anomalies.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
             df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
             fig = go.Figure(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color'], name='Anomalía'))
-            fig.update_layout(title="Anomalías Mensuales de Precipitación (Promedio Regional)")
+            fig.update_layout(title="Anomalías Mensuales (Promedio Regional)")
             pdf.add_plotly_fig(fig)
         else:
             pdf.add_body_text("No hay datos de anomalías para mostrar.")
