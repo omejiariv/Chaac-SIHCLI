@@ -236,62 +236,79 @@ def main():
         )
     with tabs[12]: display_station_table_tab(**display_args)
     
-    with tabs[13]:
-        st.header("Generación de Reporte PDF")
-        report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático de Estaciones Seleccionadas")
-        
-        report_sections_options = [
-            "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
-            "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
-            "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
-            "Estadísticas Descriptivas", "Análisis de Correlación",
-            "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
-            "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
-        ]
-        
-        st.markdown("**Seleccione las secciones a incluir:**")
-        
-        def select_all_report_sections_on_change():
-            if st.session_state.select_all_report_sections_checkbox:
-                st.session_state.selected_report_sections_multiselect = report_sections_options
-            else:
-                st.session_state.selected_report_sections_multiselect = []
+with tabs[13]:
+    st.header("Generación de Reporte PDF")
+    report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático de Estaciones Seleccionadas")
+    
+    report_sections_options = [
+        "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
+        "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
+        "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
+        "Estadísticas Descriptivas", "Análisis de Correlación",
+        "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
+        "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
+    ]
+    
+    st.markdown("**Seleccione las secciones a incluir:**")
+    
+    # Lógica para el checkbox "Seleccionar todo"
+    def select_all_report_sections_on_change():
+        if st.session_state.select_all_report_sections_checkbox:
+            st.session_state.selected_report_sections_multiselect = report_sections_options
+        else:
+            st.session_state.selected_report_sections_multiselect = []
 
-        st.checkbox(
-            "Seleccionar/Deseleccionar todas las secciones", 
-            key='select_all_report_sections_checkbox', 
-            on_change=select_all_report_sections_on_change
-        )
+    st.checkbox(
+        "Seleccionar/Deseleccionar todas las secciones", 
+        key='select_all_report_sections_checkbox', 
+        on_change=select_all_report_sections_on_change
+    )
 
-        selected_report_sections = st.multiselect(
-            "Secciones del Reporte",
-            options=report_sections_options,
-            key='selected_report_sections_multiselect'
-        )
+    selected_report_sections = st.multiselect(
+        "Secciones del Reporte",
+        options=report_sections_options,
+        key='selected_report_sections_multiselect'
+    )
 
-        if st.button("Generar Reporte PDF", key="generate_report_button"):
-            if not stations_for_analysis:
-                st.warning("Seleccione al menos una estación en el panel de control para generar el reporte.")
-            elif not selected_report_sections:
-                st.warning("Seleccione al menos una sección para incluir en el reporte.")
-            else:
-                with st.spinner("Generando reporte PDF..."):
-                    try:
-                        report_pdf_bytes = generate_pdf_report(
-                            report_title=report_title,
-                            selected_sections=selected_report_sections,
-                            **display_args
-                        )
-                        st.download_button(
-                            label="Descargar Reporte PDF",
-                            data=report_pdf_bytes,
-                            file_name=f"{report_title.replace(' ', '_')}.pdf",
-                            mime="application/pdf"
-                        )
-                        st.success("¡Reporte generado con éxito!")
-                    except Exception as e:
-                        st.error(f"Error al generar el reporte: {e}")
-                        st.exception(e)
+    if st.button("Generar Reporte PDF", key="generate_report_button"):
+        if not stations_for_analysis:
+            st.warning("Seleccione al menos una estación en el panel de control para generar el reporte.")
+        elif not selected_report_sections:
+            st.warning("Seleccione al menos una sección para incluir en el reporte.")
+        else:
+            with st.spinner("Generando reporte PDF..."):
+                try:
+                    # Crear los argumentos summary_data y df_anomalies que la función necesita
+                    summary_data = {
+                        "Estaciones": f"{len(stations_for_analysis)}/{len(st.session_state.gdf_stations)}",
+                        "Periodo": f"{year_range[0]}-{year_range[1]}",
+                        "Modo de Análisis": st.session_state.analysis_mode,
+                        "Regiones": ", ".join(selected_regions) if selected_regions else "Todas",
+                        "Municipios": ", ".join(selected_municipios) if selected_municipios else "Todos"
+                    }
+                    
+                    df_anomalies = calculate_monthly_anomalies(df_monthly_filtered, st.session_state.df_long)
+                    
+                    # LLAMADA CORRECTA A LA FUNCIÓN CON TODOS LOS ARGUMENTOS
+                    report_pdf_bytes = generate_pdf_report(
+                        report_title=report_title,
+                        sections_to_include=selected_report_sections,
+                        summary_data=summary_data,
+                        df_anomalies=df_anomalies,
+                        # Pasando el resto de los datos necesarios
+                        **display_args
+                    )
+                    
+                    st.download_button(
+                        label="Descargar Reporte PDF",
+                        data=report_pdf_bytes,
+                        file_name=f"{report_title.replace(' ', '_')}.pdf",
+                        mime="application/pdf"
+                    )
+                    st.success("¡Reporte generado con éxito!")
+                except Exception as e:
+                    st.error(f"Error al generar el reporte: {e}")
+                    st.exception(e)
 
 if __name__ == "__main__":
     main()
