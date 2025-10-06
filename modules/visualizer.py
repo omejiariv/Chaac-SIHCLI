@@ -39,6 +39,7 @@ from modules.forecasting import (
 from modules.data_processor import complete_series
 from modules.forecast_api import get_weather_forecast
 
+
 #--- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN
 
 def display_filter_summary(total_stations_count, selected_stations_count, year_range,
@@ -109,7 +110,7 @@ def create_anomaly_chart(df_plot):
     fig.update_layout(height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO", yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True)
     return fig
 
-def generate_station_popup_html(row, df_anual_melted, include_chart=False, df_monthly_filtered=None):
+def generate_station_popup_html(row, df_anual_melted):
     station_name = row.get(Config.STATION_NAME_COL, 'N/A')
     try:
         year_range_val = st.session_state.get('year_range', (2000, 2020))
@@ -124,11 +125,10 @@ def generate_station_popup_html(row, df_anual_melted, include_chart=False, df_mo
         text_html += f"<p><b>Altitud:</b> {row.get(Config.ALTITUDE_COL, 'N/A')} m</p>"
         text_html += f"<p><b>Promedio Anual:</b> {precip_formatted} mm</p>"
         text_html += f"<small>(Calculado con <b>{valid_years}</b> de <b>{total_years_in_period}</b> años del período)</small>"
-        full_html = text_html
+        return folium.Popup(text_html, max_width=450)
     except Exception as e:
         st.warning(f"No se pudo generar el popup para '{station_name}'. Razón: {e}")
-        full_html = f"<h4>{station_name}</h4><p>Error al cargar datos del popup.</p>"
-    return folium.Popup(full_html, max_width=450)
+        return folium.Popup(f"<h4>{station_name}</h4><p>Error al cargar datos del popup.</p>", max_width=450)
 
 def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     station_name = row.get(Config.STATION_NAME_COL, 'N/A')
@@ -155,53 +155,7 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     """
     return folium.Popup(html, max_width=300)
 
-def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    # Creamos un mapa base simple. Las capas seleccionadas se añadirán después.
-    m = folium.Map(location=location, zoom_start=zoom, tiles="CartoDB positron", attr="CartoDB")
-    
-    # Añadimos el mapa base seleccionado
-    folium.TileLayer(
-        tiles=base_map_config.get("tiles", "OpenStreetMap"),
-        attr=base_map_config.get("attr"),
-        name=list(get_map_options().keys())[list(get_map_options().values()).index(base_map_config)] # Obtener el nombre
-    ).add_to(m)
-
-    # Añadimos las capas adicionales (overlays)
-    for layer_config in overlays_config:
-        layer_name = list(get_map_options().keys())[list(get_map_options().values()).index(layer_config)]
-        # Si es de tipo WMS
-        if layer_config.get("type") == "wms":
-            WmsTileLayer(
-                url=layer_config["url"],
-                layers=layer_config["layers"],
-                fmt=layer_config.get("fmt", 'image/png'),
-                transparent=layer_config.get("transparent", True),
-                overlay=True,
-                control=True,
-                name=layer_name
-            ).add_to(m)
-        # Si es de tipo XYZ (como la de NASA)
-        elif layer_config.get("type") == "xyz":
-            folium.TileLayer(
-                tiles=layer_config["tiles"],
-                attr=layer_config["attr"],
-                name=layer_name,
-                overlay=True
-            ).add_to(m)
-
-    if fit_bounds_data is not None and not fit_bounds_data.empty:
-        if len(fit_bounds_data) > 1:
-            bounds = fit_bounds_data.total_bounds
-            if np.all(np.isfinite(bounds)):
-                m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-        elif len(fit_bounds_data) == 1:
-            point = fit_bounds_data.iloc[0].geometry
-            m.location = [point.y, point.x]
-            m.zoom_start = 12
-            
-    return m
-    
-# --- MAIN TAB DISPLAY FUNCTIONS ---
+#--- MAIN TAB DISPLAY FUNCTIONS ---
 
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
@@ -255,7 +209,6 @@ def display_welcome_tab():
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
     display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
-
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
@@ -265,7 +218,6 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 
     with sub_tab_mapa:
         controls_col, map_col = st.columns([1, 3])
-        
         with controls_col:
             st.subheader("Controles del Mapa")
             map_options = get_map_options()
@@ -303,7 +255,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 yesterday = datetime.now() - timedelta(days=1)
                 yesterday_str = yesterday.strftime('%Y-%m-%d')
                 folium.TileLayer(tiles=f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{yesterday_str}/GoogleMapsCompatible_Level9/{{z}}/{{y}}/{{x}}.png", attr="NASA GIBS", name="Precipitación Satelital (NASA GPM)", overlay=True, show=False).add_to(m)
-
+                
                 if 'gdf_municipios' in st.session_state and st.session_state.gdf_municipios is not None:
                     folium.GeoJson(st.session_state.gdf_municipios, name='Municipios').add_to(m)
 
@@ -311,8 +263,8 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 for _, row in gdf_display.iterrows():
                     popup_object = generate_station_popup_html(row, df_anual_melted)
                     folium.Marker(location=[row['geometry'].y, row['geometry'].x], tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
-
-                m.fit_bounds(m.get_bounds())
+                
+                m.fit_bounds(gdf_display.total_bounds.tolist())
                 m.add_child(MiniMap(toggle_display=True))
                 folium.LayerControl().add_to(m)
                 
