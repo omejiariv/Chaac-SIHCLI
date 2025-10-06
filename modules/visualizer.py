@@ -281,18 +281,24 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    gdf_display = gdf_filtered.copy()
-    sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
+                                     df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
+                                     selected_altitudes, **kwargs):
+    st.header("Distribución espacial de las Estaciones de Lluvia")
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
 
-    with sub_tab_mapa:
-        controls_col, map_col = st.columns([1, 3])
-        
-        with controls_col:
-            st.subheader("Controles del Mapa")
-            selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
-            
-            if not gdf_display.empty:
-                st.metric("Estaciones en Vista", len(gdf_display))
+    if not stations_for_analysis:
+        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
+        return
 
                 # --- INICIO DE LA MODIFICACIÓN: Aquí va la cuadrícula con las imágenes ---
                 st.markdown("""
