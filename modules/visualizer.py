@@ -183,47 +183,26 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
 
 def display_welcome_tab():
     st.header("Bienvenido al Sistema de Información de Lluvias y Clima")
-
-    # 1. Inyectamos el CSS para importar la fuente y definir el estilo de la cita
     st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
-        
-        .quote {
-            font-family: 'Playfair Display', serif;
-            font-weight: 700; /* Negrita */
-            font-size: 22px;
-            text-align: center;
-            padding: 20px;
-        }
-        .author {
-            font-family: 'Playfair Display', serif;
-            text-align: right;
-            font-style: italic;
-            font-size: 18px;
-            padding-right: 20px;
-        }
+        .quote { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 22px; text-align: center; padding: 20px; }
+        .author { font-family: 'Playfair Display', serif; text-align: right; font-style: italic; font-size: 18px; padding-right: 20px; }
         </style>
     """, unsafe_allow_html=True)
-
-    # 2. Mostramos la cita con el nuevo estilo
     st.markdown(f'<p class="quote">{Config.QUOTE_TEXT}</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="author">— {Config.QUOTE_AUTHOR}</p>', unsafe_allow_html=True)
     
-    # 3. Mostramos el resto del contenido como antes
     col1, col2 = st.columns([0.6, 0.4])
     with col1:
         st.markdown(Config.WELCOME_TEXT, unsafe_allow_html=True)
         with st.expander("La Inspiración: Chaac, Divinidad Maya", expanded=False):
             st.markdown(Config.CHAAC_STORY)
-
     with col2:
         if os.path.exists(Config.CHAAC_IMAGE_PATH):
             st.image(Config.CHAAC_IMAGE_PATH, caption="Representación de Chaac, Códice de Dresde.")
         if os.path.exists(Config.LOGO_PATH):
             st.image(Config.LOGO_PATH, width=250, caption="Corporación Cuenca Verde")
-            
-
     st.markdown("---")
     with st.expander("Conceptos Clave, Métodos y Ecuaciones", expanded=True):
         st.markdown("""
