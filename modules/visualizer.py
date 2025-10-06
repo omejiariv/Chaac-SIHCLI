@@ -74,9 +74,17 @@ def get_map_options():
     }
 
 def display_map_controls(container_object, key_prefix):
+    """Muestra los controles para seleccionar mapa base y retorna el diccionario de configuración."""
     map_options = get_map_options()
-    selected_base_map_name = container_object.selectbox("Seleccionar Mapa Base", list(map_options.keys()), key=f"{key_prefix}_base_map")
-    return map_options[selected_base_map_name]
+    base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
+
+    selected_base_map_name = container_object.selectbox(
+        "Seleccionar Mapa Base",
+        list(base_maps.keys()),
+        key=f"{key_prefix}_base_map"
+    )
+
+    return base_maps[selected_base_map_name]
 
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
