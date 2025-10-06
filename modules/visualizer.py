@@ -21,6 +21,7 @@ from scipy import stats
 from prophet.plot import plot_plotly
 import io
 from modules.forecast_api import get_weather_forecast
+from datetime import datetime, timedelta
 
 #--- Importaciones de Módulos Propios
 from modules.analysis import (
@@ -65,30 +66,32 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
 
 def get_map_options():
     """Retorna un diccionario con las configuraciones de los mapas base y capas."""
+
+    # Obtenemos la fecha de ayer para asegurar que haya datos disponibles en el servidor de NASA
+    yesterday = datetime.now() - timedelta(days=1)
+    yesterday_str = yesterday.strftime('%Y-%m-%d')
+
     return {
-        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
-        "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
-        
+        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False, "type": "xyz"},
+        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False, "type": "xyz"},
+        "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False, "type": "xyz"},
+
         "Mapa de Colombia (WMS IDEAM)": {
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", 
             "layers": "ideam:col_admin", 
             "transparent": True, 
             "attr": "IDEAM", 
-            "overlay": True
+            "overlay": True,
+            "type": "wms" # Especificamos el tipo
         },
 
-        # --- INICIO DE LA CORRECCIÓN ---
-        # Cambiamos la URL a https para evitar problemas de contenido mixto
-        "Precipitación Satelital (CHIRPS)": {
-            "url": "https://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p05/wms",
-            "layers": "prcp",
-            "fmt": "image/png",
-            "transparent": True,
-            "attr": "IRI/LDEO",
-            "overlay": True
+        "Precipitación Satelital (NASA GPM)": {
+            # Esta es una URL de tipo WMTS (XYZ), mucho más rápida y fiable
+            "tiles": f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{yesterday_str}/GoogleMapsCompatible_Level9/{{z}}/{{y}}/{{x}}.png",
+            "attr": "NASA GIBS",
+            "overlay": True,
+            "type": "xyz" # Especificamos el tipo
         }
-        # --- FIN DE LA CORRECCIÓN ---
     }
 
 def display_map_controls(container_object, key_prefix):
@@ -185,8 +188,39 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     return folium.Popup(html, max_width=300)
 
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    m = folium.Map(location=location, zoom_start=zoom, tiles=base_map_config.get("tiles", "OpenStreetMap"), attr=base_map_config.get("attr", None))
+    # Creamos un mapa base simple. Las capas seleccionadas se añadirán después.
+    m = folium.Map(location=location, zoom_start=zoom, tiles="CartoDB positron", attr="CartoDB")
     
+    # Añadimos el mapa base seleccionado
+    folium.TileLayer(
+        tiles=base_map_config.get("tiles", "OpenStreetMap"),
+        attr=base_map_config.get("attr"),
+        name=list(get_map_options().keys())[list(get_map_options().values()).index(base_map_config)] # Obtener el nombre
+    ).add_to(m)
+
+    # Añadimos las capas adicionales (overlays)
+    for layer_config in overlays_config:
+        layer_name = list(get_map_options().keys())[list(get_map_options().values()).index(layer_config)]
+        # Si es de tipo WMS
+        if layer_config.get("type") == "wms":
+            WmsTileLayer(
+                url=layer_config["url"],
+                layers=layer_config["layers"],
+                fmt=layer_config.get("fmt", 'image/png'),
+                transparent=layer_config.get("transparent", True),
+                overlay=True,
+                control=True,
+                name=layer_name
+            ).add_to(m)
+        # Si es de tipo XYZ (como la de NASA)
+        elif layer_config.get("type") == "xyz":
+            folium.TileLayer(
+                tiles=layer_config["tiles"],
+                attr=layer_config["attr"],
+                name=layer_name,
+                overlay=True
+            ).add_to(m)
+
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         if len(fit_bounds_data) > 1:
             bounds = fit_bounds_data.total_bounds
@@ -196,18 +230,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
             point = fit_bounds_data.iloc[0].geometry
             m.location = [point.y, point.x]
             m.zoom_start = 12
-
-    for layer_config in overlays_config:
-        if layer_config.get("url"):
-            WmsTileLayer(
-                url=layer_config["url"],
-                layers=layer_config["layers"],
-                fmt=layer_config.get("fmt", 'image/png'),
-                transparent=layer_config.get("transparent", True),
-                overlay=True,
-                control=True,
-                name=layer_config.get("attr", "Overlay")
-            ).add_to(m)
             
     return m
     
