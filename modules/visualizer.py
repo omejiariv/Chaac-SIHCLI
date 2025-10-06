@@ -175,6 +175,36 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
 
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
     m = folium.Map(location=location, zoom_start=zoom, tiles=base_map_config.get("tiles", "OpenStreetMap"), attr=base_map_config.get("attr", None))
+    
+    if fit_bounds_data is not None and not fit_bounds_data.empty:
+        if len(fit_bounds_data) > 1:
+            bounds = fit_bounds_data.total_bounds
+            if np.all(np.isfinite(bounds)):
+                m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+        elif len(fit_bounds_data) == 1:
+            point = fit_bounds_data.iloc[0].geometry
+            m.location = [point.y, point.x]
+            m.zoom_start = 12
+
+    for layer_config in overlays_config:
+        if layer_config.get("url"):
+            WmsTileLayer(
+                url=layer_config["url"],
+                layers=layer_config["layers"],
+                fmt=layer_config.get("fmt", 'image/png'),
+                transparent=layer_config.get("transparent", True),
+                overlay=True,
+                control=True,
+                name=layer_config.get("attr", "Overlay")
+            ).add_to(m)
+
+    # Añadir esta línea al final asegura que el control de capas siempre esté presente y actualizado
+    folium.LayerControl().add_to(m)
+    
+    return m
+    
+    (location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
+    m = folium.Map(location=location, zoom_start=zoom, tiles=base_map_config.get("tiles", "OpenStreetMap"), attr=base_map_config.get("attr", None))
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         if len(fit_bounds_data) > 1:
             bounds = fit_bounds_data.total_bounds
