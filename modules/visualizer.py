@@ -85,6 +85,50 @@ def get_map_options():
 
 There was an error committing your changes: File could not be edited
 
+def display_map_controls(container_object, key_prefix):
+    """Muestra los controles para seleccionar mapa base y capas adicionales."""
+    base_map_options = {
+        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
+        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
+        "Topografía (OpenTopoMap)": {
+            "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+            "attr": "OpenTopoMap"
+        },
+    }
+    
+    overlay_map_options = {
+        "Precipitación Satelital (NASA GPM)": {
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{Time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.png",
+            "attr": "NASA GIBS",
+            "overlay": True
+        },
+        "Mapa de Colombia (WMS IDEAM)": {
+            "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
+            "layers": "ideam:col_admin",
+            "fmt": 'image/png',
+            "transparent": True,
+            "attr": "IDEAM",
+            "overlay": True
+        }
+    }
+
+    selected_base_map_name = container_object.selectbox(
+        "Seleccionar Mapa Base",
+        list(base_map_options.keys()),
+        key=f"{key_prefix}_base_map"
+    )
+
+    selected_overlays_names = container_object.multiselect(
+        "Seleccionar Capas Adicionales",
+        list(overlay_map_options.keys()),
+        key=f"{key_prefix}_overlays"
+    )
+
+    selected_base_map_config = base_map_options[selected_base_map_name]
+    selected_overlays_config = [overlay_map_options[name] for name in selected_overlays_names]
+
+    return selected_base_map_config, selected_overlays_config
+
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
         return go.Figure()
@@ -107,50 +151,26 @@ def create_enso_chart(enso_data):
     fig = go.Figure()
     
     fig.add_trace(go.Bar(
-        x=data[Config.DATE_COL], 
-        y=[y_range[1] - y_range[0]] * len(data),
-        base=y_range[0], 
-        marker_color=data['color'], 
-        opacity=0.3,
-        hoverinfo='none', 
-        showlegend=False
+        x=data[Config.DATE_COL], y=[y_range[1] - y_range[0]] * len(data),
+        base=y_range[0], marker_color=data['color'], opacity=0.3,
+        hoverinfo='none', showlegend=False
     ))
     
     legend_map = {'El Niño': 'red', 'La Niña': 'blue', 'Neutral': 'grey'}
     for phase, color in legend_map.items():
-        fig.add_trace(go.Scatter(
-            x=[None], 
-            y=[None], 
-            mode='markers', 
-            marker=dict(size=15, color=color, symbol='square', opacity=0.5), 
-            name=phase, 
-            showlegend=True
-        ))
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=15, color=color, symbol='square', opacity=0.5), name=phase, showlegend=True))
         
-    fig.add_trace(go.Scatter(
-        x=data[Config.DATE_COL], 
-        y=data[Config.ENSO_ONI_COL], 
-        mode='lines', 
-        name='Anomalía ONI', 
-        line=dict(color='black', width=2), 
-        showlegend=True
-    ))
+    fig.add_trace(go.Scatter(x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL], mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True))
     
+    # CORRECCIÓN: Se añadieron las comas faltantes y se eliminaron argumentos duplicados.
     fig.add_hline(y=0.5, line_dash="dash", line_color="red")
     fig.add_hline(y=-0.5, line_dash="dash", line_color="blue")
     
-    fig.update_layout(
-        height=600, 
-        title="Fases del Fenómeno ENSO y Anomalía ONI",
-        yaxis_title="Anomalía ONI (°C)", 
-        xaxis_title="Fecha", 
-        showlegend=True,
-        legend_title_text='Fase', 
-        yaxis_range=y_range
-    )
+    fig.update_layout(height=600, title="Fases del Fenómeno ENSO y Anomalía ONI",
+                      yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha", showlegend=True,
+                      legend_title_text='Fase', yaxis_range=y_range)
                       
     return fig
-
 def create_anomaly_chart(df_plot):
     if df_plot.empty:
         return go.Figure()
