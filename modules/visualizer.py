@@ -806,9 +806,23 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         validation_results_df = perform_loocv_for_all_methods(selected_year, gdf_metadata, df_anual_non_na)
                         if not validation_results_df.empty:
                             st.subheader(f"Resultados de la Validación para el Año {selected_year}")
-                            # ... (resto de la lógica de validación para mostrar gráficos y tablas) ...
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**Error Cuadrático Medio (RMSE)**")
+                                fig_rmse = px.bar(validation_results_df.sort_values("RMSE"), x="Método", y="RMSE", color="Método", text_auto='.2f')
+                                fig_rmse.update_layout(showlegend=False)
+                                st.plotly_chart(fig_rmse, use_container_width=True)
+                            with col2:
+                                st.markdown("**Error Absoluto Medio (MAE)**")
+                                fig_mae = px.bar(validation_results_df.sort_values("MAE"), x="Método", y="MAE", color="Método", text_auto='.2f')
+                                fig_mae.update_layout(showlegend=False)
+                                st.plotly_chart(fig_mae, use_container_width=True)
+                            st.markdown("**Tabla Comparativa de Errores**")
+                            st.dataframe(validation_results_df.style.format({"RMSE": "{:.2f}", "MAE": "{:.2f}"}))
+                            best_rmse = validation_results_df.loc[validation_results_df['RMSE'].idxmin()]
+                            st.success(f"**Mejor método según RMSE:** {best_rmse['Método']} (RMSE: {best_rmse['RMSE']:.2f})")
                         else:
-                            st.error("No se pudieron calcular los resultados.")
+                            st.error("No se pudieron calcular los resultados de la validación.")
 
 # --- NUEVA FUNCIÓN PARA MOSTRAR EL ANÁLISIS DE EVENTOS ---
 def display_event_analysis(index_values, index_type):
@@ -904,19 +918,7 @@ def display_event_analysis(index_values, index_type):
 
 def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_anual_melted, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Extremos Hidrológicos")
-    
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Se añaden los argumentos que faltaban a la llamada de la función
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
     if not stations_for_analysis:
         st.warning("Seleccione al menos una estación.")
         return
@@ -976,13 +978,10 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_
     with frequency_sub_tab:
         st.subheader("Análisis de Frecuencia de Precipitaciones Anuales Máximas")
         st.markdown("Este análisis estima la probabilidad de ocurrencia de un evento de precipitación de cierta magnitud utilizando la distribución de Gumbel para calcular los **períodos de retorno**.")
-        
         station_to_analyze = st.selectbox("Seleccione una estación para el análisis de frecuencia:", options=sorted(stations_for_analysis), key="freq_station_select")
-        
         if station_to_analyze:
             station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze].copy()
             annual_max_precip = station_data['precipitation'].dropna()
-            
             if len(annual_max_precip) < 10:
                 st.warning("Se recomiendan al menos 10 años de datos para un análisis de frecuencia confiable.")
             else:
@@ -1015,7 +1014,107 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_
                         fig.update_layout(title="Curva de Períodos de Retorno", xaxis_title="Período de Retorno (años)", yaxis_title="Precipitación Anual (mm)", xaxis_type="log")
                         st.plotly_chart(fig, use_container_width=True)
                         
-def display_anomalies_tab
+def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+    st.header("Análisis de Anomalías de Precipitación")
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
+    if not stations_for_analysis:
+        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
+        return
+
+    st.subheader("Configuración del Análisis")
+    analysis_type = st.radio(
+        "Calcular anomalía con respecto a:",
+        ("El promedio de todo el período", "Una Normal Climatológica (período base fijo)"),
+        key="anomaly_type"
+    )
+    
+    df_anomalias = pd.DataFrame()
+    avg_col_name = '' 
+
+    if analysis_type == "Una Normal Climatológica (período base fijo)":
+        years_in_long = sorted(df_long[Config.YEAR_COL].unique())
+        default_start = 1991 if 1991 in years_in_long else years_in_long[0]
+        default_end = 2020 if 2020 in years_in_long else years_in_long[-1]
+        c1, c2 = st.columns(2)
+        with c1:
+            baseline_start = st.selectbox("Año de inicio del período base:", years_in_long, index=years_in_long.index(default_start))
+        with c2:
+            baseline_end = st.selectbox("Año de fin del período base:", years_in_long, index=years_in_long.index(default_end))
+        
+        if baseline_start >= baseline_end:
+            st.error("El año de inicio del período base debe ser anterior al año de fin.")
+            return
+        
+        with st.spinner(f"Calculando anomalías vs. normal climatológica ({baseline_start}-{baseline_end})..."):
+            df_anomalias = calculate_climatological_anomalies(df_monthly_filtered, df_long, baseline_start, baseline_end)
+            avg_col_name = 'precip_promedio_climatologico'
+    else:
+        with st.spinner("Calculando anomalías vs. promedio de todo el período..."):
+            df_anomalias = calculate_monthly_anomalies(df_monthly_filtered, df_long)
+            avg_col_name = 'precip_promedio_mes'
+
+    if df_anomalias.empty or df_anomalias['anomalia'].isnull().all():
+        st.warning("No hay suficientes datos históricos para calcular y mostrar las anomalías con los filtros actuales.")
+        return
+
+    anom_graf_tab, anom_fase_tab, anom_extremos_tab = st.tabs(["Gráfico de Anomalías", "Anomalías por Fase ENSO", "Tabla de Eventos Extremos"])
+    
+    with anom_graf_tab:
+        df_plot = df_anomalias.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
+        fig = create_anomaly_chart(df_plot)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with anom_fase_tab:
+        if Config.ENSO_ONI_COL in df_anomalias.columns:
+            df_anomalias_enso = df_anomalias.dropna(subset=[Config.ENSO_ONI_COL]).copy()
+            conditions = [df_anomalias_enso[Config.ENSO_ONI_COL] >= 0.5, df_anomalias_enso[Config.ENSO_ONI_COL] <= -0.5]
+            phases = ['El Niño', 'La Niña']
+            df_anomalias_enso['enso_fase'] = np.select(conditions, phases, default='Neutral')
+            fig_box = px.box(df_anomalias_enso, x='enso_fase', y='anomalia', color='enso_fase', title="Distribución de Anomalías de Precipitación por Fase ENSO", labels={'anomalia': 'Anomalía de Precipitación (mm)', 'enso_fase': 'Fase ENSO'}, points='all')
+            st.plotly_chart(fig_box, use_container_width=True)
+        else:
+            st.warning(f"La columna '{Config.ENSO_ONI_COL}' no está disponible para este análisis.")
+
+    with anom_extremos_tab:
+        st.subheader("Eventos Mensuales Extremos (Basado en Anomalías)")
+        df_extremos = df_anomalias.dropna(subset=['anomalia']).copy()
+        df_extremos['fecha'] = df_extremos[Config.DATE_COL].dt.strftime('%Y-%m')
+        
+        if avg_col_name and avg_col_name in df_extremos.columns:
+            cols_to_show = ['fecha', Config.STATION_NAME_COL, 'anomalia', Config.PRECIPITATION_COL, avg_col_name]
+            col_rename_dict = {
+                Config.STATION_NAME_COL: 'Estación',
+                'anomalia': 'Anomalía (mm)',
+                Config.PRECIPITATION_COL: 'Ppt. (mm)',
+                avg_col_name: 'Ppt. Media (mm)'
+            }
+        else:
+            cols_to_show = ['fecha', Config.STATION_NAME_COL, 'anomalia', Config.PRECIPITATION_COL]
+            col_rename_dict = {
+                Config.STATION_NAME_COL: 'Estación',
+                'anomalia': 'Anomalía (mm)',
+                Config.PRECIPITATION_COL: 'Ppt. (mm)'
+            }
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### 10 Meses más Secos")
+            secos = df_extremos.nsmallest(10, 'anomalia')[cols_to_show]
+            st.dataframe(secos.rename(columns=col_rename_dict).round(0), use_container_width=True)
+        with col2:
+            st.markdown("##### 10 Meses más Húmedos")
+            humedos = df_extremos.nlargest(10, 'anomalia')[cols_to_show]
+            st.dataframe(humedos.rename(columns=col_rename_dict).round(0), use_container_width=True)
+
 def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Estadísticas de Precipitación")
     # --- CORRECCIÓN ---
