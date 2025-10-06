@@ -17,6 +17,7 @@ from modules.visualizer import (
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab
+    display_forecast_tab
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
@@ -162,14 +163,17 @@ def main():
                         st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations, remote_dem_data)
                     except Exception as e: st.error(f"No se pudo cargar el DEM desde la URL: {e}")
 
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
+    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
+                 "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas",
+                 "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
+                 "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"] # <--- Lista de pestañas actualizada
     tabs = st.tabs(tab_names)
     stations_for_analysis = selected_stations
 
     if not stations_for_analysis:
         with tabs[0]:
             display_welcome_tab()
-            st.warning("No hay estaciones seleccionadas.")
+            st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda y seleccione estaciones.")
         return
 
     gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
@@ -185,8 +189,19 @@ def main():
     annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
     df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
-    display_args = {"gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis, "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered, "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions, "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes}
+    # Estos son los argumentos comunes que pasamos a casi todas las funciones de las pestañas
+    display_args = {
+        "gdf_filtered": gdf_filtered,
+        "stations_for_analysis": stations_for_analysis,
+        "df_anual_melted": df_anual_melted,
+        "df_monthly_filtered": df_monthly_filtered,
+        "analysis_mode": st.session_state.analysis_mode,
+        "selected_regions": selected_regions,
+        "selected_municipios": selected_municipios,
+        "selected_altitudes": selected_altitudes
+    }
     
+    # --- Llamadas a las pestañas con sus argumentos correctos ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
@@ -197,140 +212,87 @@ def main():
     with tabs[7]: display_correlation_tab(**display_args)
     with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
     with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    with tabs[10]: 
+    with tabs[10]: display_forecast_tab(**display_args) # Nueva pestaña de pronóstico
+    with tabs[11]: # Pestaña de Descargas
         display_downloads_tab(
             df_anual_melted=df_anual_melted,
             df_monthly_filtered=df_monthly_filtered,
             stations_for_analysis=stations_for_analysis,
             analysis_mode=st.session_state.analysis_mode
         )
-    
-    with tabs[11]: display_station_table_tab(**display_args)
-    with tabs[12]:
+    with tabs[12]: display_station_table_tab(**display_args)
+    with tabs[13]: # Pestaña de Reporte
         st.header("Generación de Reporte PDF")
-        with st.expander("Opciones del Reporte", expanded=True):
-            report_title = st.text_input("Título del Reporte", "Análisis Hidroclimático de Estaciones Seleccionadas")
-            st.markdown("**Seleccione las secciones a incluir:**")
-            
-            select_all = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=True, key="select_all_report_sections")
+        
+        # Opciones para el reporte
+        report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático de Estaciones Seleccionadas")
+        st.markdown("**Seleccione las secciones a incluir:**")
+        
+        # Checkbox para seleccionar todas las secciones
+        select_all_report_sections = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=st.session_state.get('select_all_report_sections_default', False), key='select_all_report_sections')
+        
+        # Lista de secciones para el reporte
+        report_sections_options = [
+            "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
+            "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
+            "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
+            "Estadísticas Descriptivas", "Análisis de Correlación",
+            "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
+            "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
+        ]
+        
+        # Actualizar selección de secciones si el checkbox "seleccionar todas" cambia
+        if select_all_report_sections != st.session_state.get('select_all_report_sections_default', False):
+            st.session_state.selected_report_sections = report_sections_options if select_all_report_sections else []
+            st.session_state.select_all_report_sections_default = select_all_report_sections
+            st.rerun()
 
-            col1, col2, col3 = st.columns(3)
-            
-            sections_to_include = {
-                "Resumen de Filtros": col1.checkbox("Resumen de Filtros Aplicados", value=select_all),
-                "Mapa de Distribución": col1.checkbox("Mapa de Distribución Espacial", value=select_all),
-                "Serie Anual": col1.checkbox("Gráfico de Serie de Tiempo Anual", value=select_all),
-                "Anomalías Mensuales": col1.checkbox("Gráfico de Anomalías Mensuales", value=select_all),
-                "Resumen Mensual": col1.checkbox("Resumen Mensual de Estadísticas", value=select_all),
-                "Matriz de Disponibilidad": col2.checkbox("Matriz de Disponibilidad de Datos", value=select_all),
-                "Matriz de Correlación": col2.checkbox("Matriz de Correlación", value=select_all),
-                "Serie Regional": col2.checkbox("Gráfico de Serie Regional", value=select_all),
-                "Síntesis General": col2.checkbox("Síntesis General de Estadísticas", value=select_all),
-                "Tabla de Tendencias": col3.checkbox("Tabla de Tendencias (MK)", value=select_all),
-                "SARIMA vs Prophet": col3.checkbox("Gráfico Comparativo de Pronósticos", value=select_all),
-            }
+        # Multiselect para las secciones del reporte
+        selected_report_sections = st.multiselect(
+            "Secciones del Reporte",
+            options=report_sections_options,
+            default=st.session_state.get('selected_report_sections', report_sections_options),
+            key='selected_report_sections_multiselect'
+        )
 
-        if st.button("Generar y Descargar Reporte PDF"):
-            with st.spinner("Generando reporte... Este proceso puede tardar varios segundos."):
-                
-                summary_data = {
-                    "Estaciones Seleccionadas": f"{len(stations_for_analysis)} de {len(st.session_state.gdf_stations)}",
-                    "Período de Análisis": f"{year_range[0]} - {year_range[1]}",
-                    "Regiones": ", ".join(selected_regions) if selected_regions else "Todas",
-                    "Municipios": ", ".join(selected_municipios) if selected_municipios else "Todos",
-                    "Modo de Análisis": st.session_state.analysis_mode
-                }
-                df_anomalies = calculate_monthly_anomalies(df_monthly_filtered, st.session_state.df_long)
-                
-                df_summary_report = pd.DataFrame()
-                if sections_to_include.get("Resumen Mensual"):
-                    summary_data_list = []
-                    for station_name, group in df_monthly_filtered.groupby(Config.STATION_NAME_COL):
-                        if not group[Config.PRECIPITATION_COL].dropna().empty:
-                            max_row = group.loc[group[Config.PRECIPITATION_COL].idxmax()]
-                            min_row = group.loc[group[Config.PRECIPITATION_COL].idxmin()]
-                            summary_data_list.append({
-                                "Estación": station_name,
-                                "Ppt. Máx (mm)": max_row[Config.PRECIPITATION_COL],
-                                "Fecha Máx": max_row[Config.DATE_COL].strftime('%Y-%m'),
-                                "Ppt. Mín (mm)": min_row[Config.PRECIPITATION_COL],
-                                "Fecha Mín": min_row[Config.DATE_COL].strftime('%Y-%m'),
-                                "Promedio (mm)": group[Config.PRECIPITATION_COL].mean()
-                            })
-                    df_summary_report = pd.DataFrame(summary_data_list)
+        st.session_state.selected_report_sections = selected_report_sections # Asegura que el estado de la sesión se actualice
 
-                synthesis_stats_report = {}
-                if sections_to_include.get("Síntesis General"):
-                    df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-                    df_monthly_valid = df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL])
-                    if not df_anual_valid.empty and not df_monthly_valid.empty:
-                        max_monthly_row = df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmax()]
-                        max_annual_row = df_anual_valid.loc[df_anual_valid[Config.PRECIPITATION_COL].idxmax()]
-                        df_yearly_avg = df_anual_valid.groupby(Config.YEAR_COL)[Config.PRECIPITATION_COL].mean().reset_index()
-                        year_max_avg = df_yearly_avg.loc[df_yearly_avg[Config.PRECIPITATION_COL].idxmax()]
-                        synthesis_stats_report = {
-                            "max_ppt_anual": f"{max_annual_row[Config.PRECIPITATION_COL]:.0f} mm ({max_annual_row[Config.STATION_NAME_COL]}, {int(max_annual_row[Config.YEAR_COL])})",
-                            "max_ppt_mensual": f"{max_monthly_row[Config.PRECIPITATION_COL]:.0f} mm ({max_monthly_row[Config.STATION_NAME_COL]}, {max_monthly_row[Config.DATE_COL].strftime('%Y-%m')})",
-                            "ano_mas_lluvioso": f"{year_max_avg[Config.PRECIPITATION_COL]:.0f} mm (Año: {int(year_max_avg[Config.YEAR_COL])})"
-                        }
-
-                trend_results = []
-                for station in stations_for_analysis:
-                    station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL])
-                    if len(station_data) >= 4:
-                        mk_res = mk.original_test(station_data[Config.PRECIPITATION_COL])
-                        trend_results.append({"Estación": station, "Tendencia": mk_res.trend, "p-valor": mk_res.p, "Pendiente Sen": mk_res.slope})
-                df_trends_report = pd.DataFrame(trend_results)
-
-                df_counts = st.session_state.df_long[(st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & (st.session_state.df_long[Config.YEAR_COL] >= year_range[0]) & (st.session_state.df_long[Config.YEAR_COL] <= year_range[1])].groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).size().reset_index(name='count')
-                df_counts['porc_value'] = (df_counts['count'] / 12) * 100
-                heatmap_df_report = df_counts.pivot(index=Config.STATION_NAME_COL, columns=Config.YEAR_COL, values='porc_value').fillna(0)
-
-                df_regional_report = df_monthly_filtered.groupby(Config.DATE_COL)[Config.PRECIPITATION_COL].mean().reset_index()
-                df_regional_report.rename(columns={Config.PRECIPITATION_COL: 'Precipitación Promedio'}, inplace=True)
-                
-                fig_compare_forecast_report = None
-                sarima_res = st.session_state.get('sarima_results')
-                prophet_res = st.session_state.get('prophet_results')
-                if sarima_res and prophet_res:
-                    fig_compare_forecast_report = go.Figure()
-                    if sarima_res.get('history') is not None:
-                        hist = sarima_res['history']
-                        fig_compare_forecast_report.add_trace(go.Scatter(x=hist.index, y=hist, mode='lines', name='Histórico'))
-                    if sarima_res.get('forecast') is not None:
-                        sarima_fc = sarima_res['forecast']
-                        fig_compare_forecast_report.add_trace(go.Scatter(x=sarima_fc['ds'], y=sarima_fc['yhat'], mode='lines', name='SARIMA'))
-                    if prophet_res.get('forecast') is not None:
-                        prophet_fc = prophet_res['forecast']
-                        fig_compare_forecast_report.add_trace(go.Scatter(x=prophet_fc['ds'], y=prophet_fc['yhat'], mode='lines', name='Prophet'))
-                    fig_compare_forecast_report.update_layout(title="Comparación de Pronósticos")
-
-                try:
-                    pdf_bytes = generate_pdf_report(
-                        report_title=report_title,
-                        sections_to_include=sections_to_include,
-                        gdf_filtered=gdf_filtered,
-                        df_anual_melted=df_anual_melted,
-                        df_monthly_filtered=df_monthly_filtered,
-                        summary_data=summary_data,
-                        df_anomalies=df_anomalies,
-                        df_trends=df_trends_report,
-                        heatmap_df=heatmap_df_report,
-                        df_regional=df_regional_report,
-                        fig_compare_forecast=fig_compare_forecast_report,
-                        df_summary_monthly=df_summary_report,
-                        synthesis_stats=synthesis_stats_report
-                    )
-                    file_name_safe = "".join([c for c in report_title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-                    st.download_button(
-                        label="📥 Descargar PDF",
-                        data=bytes(pdf_bytes),
-                        file_name=f"{file_name_safe.replace(' ', '_').lower()}.pdf",
-                        mime="application/pdf"
-                    )
-                except Exception as e:
-                    st.error(f"Error al generar el PDF: {e}")
-                    st.error("Asegúrese de tener el navegador (Chromium) instalado y accesible en su sistema para la generación de reportes.")
+        if st.button("Generar Reporte PDF", key="generate_report_button"):
+            if not stations_for_analysis:
+                st.warning("Seleccione al menos una estación para generar el reporte.")
+            elif not selected_report_sections:
+                st.warning("Seleccione al menos una sección para incluir en el reporte.")
+            else:
+                with st.spinner("Generando reporte PDF..."):
+                    try:
+                        report_pdf_bytes = generate_pdf_report(
+                            report_title=report_title,
+                            selected_sections=selected_report_sections,
+                            gdf_stations=st.session_state.gdf_stations,
+                            gdf_municipios=st.session_state.gdf_municipios,
+                            df_long=st.session_state.df_long,
+                            df_enso=st.session_state.df_enso,
+                            gdf_filtered=gdf_filtered,
+                            stations_for_analysis=stations_for_analysis,
+                            df_anual_melted=df_anual_melted,
+                            df_monthly_filtered=df_monthly_filtered,
+                            analysis_mode=st.session_state.analysis_mode,
+                            selected_regions=selected_regions,
+                            selected_municipios=selected_municipios,
+                            selected_altitudes=selected_altitudes,
+                            year_range=year_range,
+                            meses_numeros=meses_numeros
+                        )
+                        st.download_button(
+                            label="Descargar Reporte PDF",
+                            data=report_pdf_bytes,
+                            file_name=f"{report_title.replace(' ', '_')}.pdf",
+                            mime="application/pdf"
+                        )
+                        st.success("¡Reporte generado con éxito!")
+                    except Exception as e:
+                        st.error(f"Error al generar el reporte: {e}")
+                        st.exception(e) # Muestra el traceback completo para depuración
 
 
 if __name__ == "__main__":
