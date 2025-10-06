@@ -70,22 +70,26 @@ def get_map_options():
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
         
-        # --- INICIO DE LA MODIFICACIÓN ---
-        # Movemos la capa CHIRPS a los mapas base cambiando 'overlay' a False
-        "Precipitación Satelital (CHIRPS)": {
-            "tiles": "https://climateserv.servirglobal.net/chirps/wms?service=WMS&request=GetMap&layers=chirps_global_daily_p05&styles=&format=image/png&transparent=true&version=1.1.1&width=256&height=256&srs=EPSG:3857&bbox={bbox-epsg-3857}",
-            "attr": "CHIRPS/UCSB",
-            "overlay": False 
-        },
-        # --- FIN DE LA MODIFICACIÓN ---
-
+        # --- CORRECCIÓN ---
+        # La capa de Colombia se mantiene como una capa adicional ("overlay": True)
         "Mapa de Colombia (WMS IDEAM)": {
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", 
             "layers": "ideam:col_admin", 
             "transparent": True, 
             "attr": "IDEAM", 
             "overlay": True
+        },
+
+        # La capa CHIRPS se define correctamente como una capa adicional ("overlay": True)
+        "Precipitación Satelital (CHIRPS)": {
+            "url": "https://climateserv.servirglobal.net/chirps/wms",
+            "layers": "chirps_global_daily_p05",
+            "fmt": "image/png",
+            "transparent": True,
+            "attr": "CHIRPS/UCSB",
+            "overlay": True
         }
+        # --- FIN DE LA CORRECCIÓN ---
     }
 
 def display_map_controls(container_object, key_prefix):
