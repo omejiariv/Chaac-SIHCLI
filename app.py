@@ -269,19 +269,17 @@ def main():
             key='selected_report_sections_multiselect'
         )
 
-    if st.button("Generar Reporte PDF", key="generate_report_button"):
-        # VERIFICACIÓN AÑADIDA AQUÍ
-        if not stations_for_analysis:
-            st.warning("Seleccione al menos una estación en el panel de control para generar el reporte.")
-        elif not selected_report_sections:
-            st.warning("Seleccione al menos una sección para incluir en el reporte.")
-        else:
-            with st.spinner("Generando reporte PDF..."):
-                try:
+        if st.button("Generar Reporte PDF", key="generate_report_button"):
+            if not stations_for_analysis:
+                st.warning("Seleccione al menos una estación en el panel de control para generar el reporte.")
+            elif not selected_report_sections:
+                st.warning("Seleccione al menos una sección para incluir en el reporte.")
+            else:
+                with st.spinner("Generando reporte PDF..."):
+                    try:
                         report_pdf_bytes = generate_pdf_report(
                             report_title=report_title,
                             selected_sections=selected_report_sections,
-                            # Pasa todos los argumentos necesarios
                             **display_args
                         )
                         st.download_button(
