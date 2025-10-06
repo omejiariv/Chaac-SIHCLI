@@ -83,52 +83,7 @@ def get_map_options():
         },
     }
 
-def display_map_controls(container_object, key_prefix):
-    """Muestra los controles para seleccionar mapa base y capas adicionales."""
-    # Opciones de mapas base
-    base_map_options = {
-        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
-        # CORRECCIÓN EN LA SIGUIENTE LÍNEA:
-        "Topografía (OpenTopoMap)": {
-            "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", # Se corrigió 'opentopopmap' a 'opentopomap'
-            "attr": "OpenTopoMap"
-        },
-    }
-    
-    # Opciones de capas adicionales (overlays)
-    overlay_map_options = {
-        "Precipitación Satelital (NASA GPM)": {
-            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{Time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.png",
-            "attr": "NASA GIBS",
-            "overlay": True
-        },
-        "Mapa de Colombia (WMS IDEAM)": {
-            "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
-            "layers": "ideam:col_admin",
-            "fmt": 'image/png',
-            "transparent": True,
-            "attr": "IDEAM",
-            "overlay": True
-        }
-    }
-
-    selected_base_map_name = container_object.selectbox(
-        "Seleccionar Mapa Base",
-        list(base_map_options.keys()),
-        key=f"{key_prefix}_base_map"
-    )
-
-    selected_overlays_names = container_object.multiselect(
-        "Seleccionar Capas Adicionales",
-        list(overlay_map_options.keys()),
-        key=f"{key_prefix}_overlays"
-    )
-
-    selected_base_map_config = base_map_options[selected_base_map_name]
-    selected_overlays_config = [overlay_map_options[name] for name in selected_overlays_names]
-
-    return selected_base_map_config, selected_overlays_config
+There was an error committing your changes: File could not be edited
 
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
