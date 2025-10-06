@@ -65,33 +65,11 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
     st.info(" | ".join(summary_parts))
 
 def get_map_options():
-    """Retorna un diccionario con las configuraciones de los mapas base y capas."""
-
-    # Obtenemos la fecha de ayer para asegurar que haya datos disponibles en el servidor de NASA
-    yesterday = datetime.now() - timedelta(days=1)
-    yesterday_str = yesterday.strftime('%Y-%m-%d')
-
+    """Retorna un diccionario SOLO con las configuraciones de los mapas base."""
     return {
-        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False, "type": "xyz"},
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False, "type": "xyz"},
-        "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False, "type": "xyz"},
-
-        "Mapa de Colombia (WMS IDEAM)": {
-            "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", 
-            "layers": "ideam:col_admin", 
-            "transparent": True, 
-            "attr": "IDEAM", 
-            "overlay": True,
-            "type": "wms" # Especificamos el tipo
-        },
-
-        "Precipitación Satelital (NASA GPM)": {
-            # Esta es una URL de tipo WMTS (XYZ), mucho más rápida y fiable
-            "tiles": f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{yesterday_str}/GoogleMapsCompatible_Level9/{{z}}/{{y}}/{{x}}.png",
-            "attr": "NASA GIBS",
-            "overlay": True,
-            "type": "xyz" # Especificamos el tipo
-        }
+        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
+        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
+        "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": "OpenTopoMap"},
     }
 
 def display_map_controls(container_object, key_prefix):
