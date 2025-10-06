@@ -1000,18 +1000,109 @@ def display_event_analysis(index_values, index_type):
 
 def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_anual_melted, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Extremos Hidrológicos")
-    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
+
     if not stations_for_analysis:
         st.warning("Seleccione al menos una estación.")
         return
 
-    percentile_sub_tab, indices_sub_tab, frequency_sub_tab = st.tabs(["Análisis por Percentiles", "Índices de Sequía (SPI/SPEI)", "Análisis de Frecuencia de Extremos"])
+    # --- INICIO DE LA MODIFICACIÓN ---
+
+    # 1. Mover los controles y la lógica de cálculo fuera y encima de las pestañas
+    st.subheader("Configuración del Análisis por Percentiles")
+    station_to_analyze_perc = st.selectbox(
+        "Seleccione una estación para el análisis de percentiles:",
+        options=sorted(stations_for_analysis),
+        key="percentile_station_select"
+    )
+    col1, col2 = st.columns(2)
+    p_lower = col1.slider("Percentil Inferior (Sequía):", 1, 40, 10, key="p_lower_perc")
+    p_upper = col2.slider("Percentil Superior (Húmedo):", 60, 99, 90, key="p_upper_perc")
     
-    with percentile_sub_tab:
-        st.subheader("Análisis de Eventos Extremos por Percentiles Mensuales")
-        station_to_analyze_perc = st.selectbox("Seleccione una estación:", options=sorted(stations_for_analysis), key="percentile_station_select")
-        if station_to_analyze_perc:
-            display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_perc)
+    df_extremes, df_thresholds = pd.DataFrame(), pd.DataFrame()
+    if station_to_analyze_perc:
+        df_long = st.session_state.get('df_long')
+        if df_long is not None and not df_long.empty:
+            try:
+                with st.spinner(f"Calculando percentiles P{p_lower} y P{p_upper}..."):
+                    df_extremes, df_thresholds = calculate_percentiles_and_extremes(
+                        df_long, station_to_analyze_perc, p_lower, p_upper
+                    )
+            except Exception as e:
+                st.error(f"Error al calcular el análisis de percentiles: {e}")
+
+    # 2. Crear las nuevas pestañas
+    (
+        percentile_series_tab,
+        percentile_thresholds_tab,
+        indices_sub_tab,
+        frequency_sub_tab,
+    ) = st.tabs([
+        "Serie de Tiempo por Percentiles",
+        "Umbrales de Percentil Mensual",
+        "Índices de Sequía (SPI/SPEI)",
+        "Análisis de Frecuencia de Extremos"
+    ])
+
+    # 3. Lógica de la primera pestaña (Serie de Tiempo)
+    with percentile_series_tab:
+        if not df_extremes.empty:
+            year_range_val = st.session_state.get('year_range', (2000, 2020))
+            if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and isinstance(year_range_val[0], int):
+                year_min, year_max = year_range_val
+            else:
+                year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
+            
+            df_plot = df_extremes[
+                (df_extremes[Config.DATE_COL].dt.year >= year_min) &
+                (df_extremes[Config.DATE_COL].dt.year <= year_max) &
+                (df_extremes[Config.DATE_COL].dt.month.isin(st.session_state.meses_numeros))
+            ].copy()
+
+            if not df_plot.empty:
+                st.subheader(f"Serie de Tiempo con Eventos Extremos (P{p_lower} y P{p_upper} Percentiles)")
+                color_map = {f'Sequía Extrema (<P{p_lower}%)': 'red', f'Húmedo Extremo (>P{p_upper}%)': 'blue', 'Normal': 'gray'}
+                fig_series = px.scatter(
+                    df_plot, x=Config.DATE_COL, y=Config.PRECIPITATION_COL,
+                    color='event_type', color_discrete_map=color_map,
+                    title=f"Precipitación Mensual y Eventos Extremos en {station_to_analyze_perc}",
+                    labels={Config.PRECIPITATION_COL: "Precipitación (mm)", Config.DATE_COL: "Fecha"},
+                    hover_data={'event_type': True, 'p_lower': ':.0f', 'p_upper': ':.0f'}
+                )
+                mean_precip = st.session_state.df_long[st.session_state.df_long[Config.STATION_NAME_COL] == station_to_analyze_perc][Config.PRECIPITATION_COL].mean()
+                fig_series.add_hline(y=mean_precip, line_dash="dash", line_color="green", annotation_text="Media Histórica")
+                fig_series.update_layout(height=500)
+                st.plotly_chart(fig_series, use_container_width=True)
+            else:
+                st.warning("No hay datos que coincidan con los filtros de tiempo para la estación seleccionada.")
+        else:
+            st.info("Seleccione una estación para ver el análisis.")
+
+    # 4. Lógica de la nueva pestaña (Umbrales)
+    with percentile_thresholds_tab:
+        if not df_thresholds.empty:
+            st.subheader("Umbrales de Percentil Mensual (Climatología Histórica)")
+            meses_map_inv = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
+            df_thresholds['Month_Name'] = df_thresholds[Config.MONTH_COL].map(meses_map_inv)
+            fig_thresh = go.Figure()
+            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_upper'], mode='lines+markers', name=f'Percentil Superior (P{p_upper}%)', line=dict(color='blue')))
+            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_lower'], mode='lines+markers', name=f'Percentil Inferior (P{p_lower}%)', line=dict(color='red')))
+            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['mean_monthly'], mode='lines', name='Media Mensual', line=dict(color='green', dash='dot')))
+            fig_thresh.update_layout(title='Umbrales de Precipitación por Mes (Basado en Climatología)', xaxis_title="Mes", yaxis_title="Precipitación (mm)", height=400)
+            st.plotly_chart(fig_thresh, use_container_width=True)
+        else:
+            st.info("Seleccione una estación para ver los umbrales.")
+    
+    # --- FIN DE LA MODIFICACIÓN ---
 
     with indices_sub_tab:
         st.subheader("Análisis con Índices Estandarizados")
@@ -2026,49 +2117,53 @@ def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_p
     if df_long is None or df_long.empty:
         st.warning("No se puede realizar el análisis de percentiles. El DataFrame histórico no está disponible.")
         return
+
     st.markdown("#### Parámetros del Análisis")
     col1, col2 = st.columns(2)
     p_lower = col1.slider("Percentil Inferior (Sequía):", 1, 40, 10, key="p_lower_perc")
     p_upper = col2.slider("Percentil Superior (Húmedo):", 60, 99, 90, key="p_upper_perc")
     st.markdown("---")
+    
     with st.spinner(f"Calculando percentiles P{p_lower} y P{p_upper} para {station_to_analyze_perc}..."):
         try:
             df_extremes, df_thresholds = calculate_percentiles_and_extremes(df_long, station_to_analyze_perc, p_lower, p_upper)
+            
             year_range_val = st.session_state.get('year_range', (2000, 2020))
             if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and isinstance(year_range_val[0], int):
                 year_min, year_max = year_range_val
             else:
                 year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
+
             df_plot = df_extremes[
                 (df_extremes[Config.DATE_COL].dt.year >= year_min) &
                 (df_extremes[Config.DATE_COL].dt.year <= year_max) &
                 (df_extremes[Config.DATE_COL].dt.month.isin(st.session_state.meses_numeros))
             ].copy()
+
             if df_plot.empty:
                 st.warning("No hay datos que coincidan con los filtros de tiempo para la estación seleccionada.")
                 return
+
             st.subheader(f"Serie de Tiempo con Eventos Extremos (P{p_lower} y P{p_upper} Percentiles)")
             color_map = {f'Sequía Extrema (<P{p_lower}%)': 'red', f'Húmedo Extremo (>P{p_upper}%)': 'blue', 'Normal': 'gray'}
             fig_series = px.scatter(
                 df_plot, x=Config.DATE_COL, y=Config.PRECIPITATION_COL,
-                color='event_type', color_discrete_map=color_map,
+                color='event_type',
+                color_discrete_map=color_map,
                 title=f"Precipitación Mensual y Eventos Extremos en {station_to_analyze_perc}",
                 labels={Config.PRECIPITATION_COL: "Precipitación (mm)", Config.DATE_COL: "Fecha"},
                 hover_data={'event_type': True, 'p_lower': ':.0f', 'p_upper': ':.0f'}
             )
+            
             mean_precip = df_long[df_long[Config.STATION_NAME_COL] == station_to_analyze_perc][Config.PRECIPITATION_COL].mean()
             fig_series.add_hline(y=mean_precip, line_dash="dash", line_color="green", annotation_text="Media Histórica")
             fig_series.update_layout(height=500)
             st.plotly_chart(fig_series, use_container_width=True)
-            st.subheader("Umbrales de Percentil Mensual (Climatología Histórica)")
-            meses_map_inv = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
-            df_thresholds['Month_Name'] = df_thresholds[Config.MONTH_COL].map(meses_map_inv)
-            fig_thresh = go.Figure()
-            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_upper'], mode='lines+markers', name=f'Percentil Superior (P{p_upper}%)', line=dict(color='blue')))
-            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_lower'], mode='lines+markers', name=f'Percentil Inferior (P{p_lower}%)', line=dict(color='red')))
-            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['mean_monthly'], mode='lines', name='Media Mensual', line=dict(color='green', dash='dot')))
-            fig_thresh.update_layout(title='Umbrales de Precipitación por Mes (Basado en Climatología)', xaxis_title="Mes", yaxis_title="Precipitación (mm)", height=400)
-            st.plotly_chart(fig_thresh, use_container_width=True)
+
+            # --- CÓDIGO ELIMINADO ---
+            # El bloque de código que generaba el gráfico de "Umbrales" ha sido removido de aquí
+            # porque ahora vive en su propia sub-pestaña.
+            
         except Exception as e:
             st.error(f"Error al calcular el análisis de percentiles: {e}")
             st.info("Asegúrese de que el archivo histórico de datos ('df_long') contenga datos suficientes para la estación seleccionada.")
