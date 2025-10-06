@@ -5,9 +5,7 @@ import pandas as pd
 import numpy as np
 import warnings
 import os
-import pymannkendall as mk
-import plotly.graph_objects as go
-from scipy import stats
+from datetime import datetime
 
 #--- Importaciones de Módulos
 from modules.config import Config
@@ -20,7 +18,6 @@ from modules.visualizer import (
     display_forecast_tab
 )
 from modules.reporter import generate_pdf_report
-from modules.analysis import calculate_monthly_anomalies
 from modules.github_loader import load_csv_from_url, load_zip_from_url
 
 #--- Desactivar Advertencias
@@ -69,6 +66,7 @@ def main():
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga de Archivos", ("Automático (desde GitHub)", "Manual (Subir archivos)"), key="load_mode", horizontal=True)
+        
         def process_and_store_data(file_mapa, file_precip, file_shape):
             st.cache_data.clear()
             st.cache_resource.clear()
@@ -82,6 +80,7 @@ def main():
                     st.success("¡Datos cargados y listos!")
                     st.rerun()
                 else: st.error("Hubo un error al procesar los archivos. Verifique el formato y contenido.")
+
         if load_mode == "Manual (Subir archivos)":
             uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
             uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
@@ -129,13 +128,19 @@ def main():
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
-        if 'select_all_prev_state' not in st.session_state:
-            st.session_state.select_all_prev_state = False
-        select_all_checkbox = st.checkbox("Seleccionar/Deseleccionar todas las estaciones", value=st.session_state.select_all_prev_state, key='select_all_checkbox_main')
-        if select_all_checkbox != st.session_state.select_all_prev_state:
-            st.session_state.station_multiselect = stations_options if select_all_checkbox else []
-            st.session_state.select_all_prev_state = select_all_checkbox
-            st.rerun()
+        
+        def select_all_stations():
+            if st.session_state.select_all_checkbox_main:
+                st.session_state.station_multiselect = stations_options
+            else:
+                st.session_state.station_multiselect = []
+        
+        st.checkbox(
+            "Seleccionar/Deseleccionar todas las estaciones", 
+            key='select_all_checkbox_main', 
+            on_change=select_all_stations
+        )
+        
         selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect')
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
@@ -163,7 +168,12 @@ def main():
                         st.session_state.gdf_stations = extract_elevation_from_dem(st.session_state.gdf_stations, remote_dem_data)
                     except Exception as e: st.error(f"No se pudo cargar el DEM desde la URL: {e}")
 
-    tab_names = ["Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", "Análisis de Anomalías", "Análisis de extremos hid", "Estadísticas", "Análisis de Correlación", "Análisis ENSO", "Tendencias y Pronósticos", "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"]
+    tab_names = [
+        "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
+        "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
+        "Correlación", "Análisis ENSO", "Tendencias y Pronósticos", 
+        "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"
+    ]
     tabs = st.tabs(tab_names)
     stations_for_analysis = selected_stations
 
@@ -174,19 +184,38 @@ def main():
         return
 
     gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-    df_monthly_filtered = st.session_state.df_long[(st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) & (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))].copy()
+    df_monthly_filtered = st.session_state.df_long[
+        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & 
+        (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & 
+        (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) & 
+        (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
+    ].copy()
+
     if st.session_state.analysis_mode == "Completar series (interpolación)":
         bar = progress_placeholder.progress(0, text="Iniciando interpolación...")
         df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
         progress_placeholder.empty()
+
     if st.session_state.get('exclude_na', False): df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
     if st.session_state.get('exclude_zeros', False): df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
     
-    annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), meses_validos=(Config.MONTH_COL, 'nunique')).reset_index()
+    annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
+        precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), 
+        meses_validos=(Config.MONTH_COL, 'nunique')
+    ).reset_index()
     annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
     df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
-    display_args = {"gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis, "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered, "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions, "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes}
+    display_args = {
+        "gdf_filtered": gdf_filtered, 
+        "stations_for_analysis": stations_for_analysis, 
+        "df_anual_melted": df_anual_melted, 
+        "df_monthly_filtered": df_monthly_filtered, 
+        "analysis_mode": st.session_state.analysis_mode, 
+        "selected_regions": selected_regions, 
+        "selected_municipios": selected_municipios, 
+        "selected_altitudes": selected_altitudes
+    }
     
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
@@ -199,25 +228,18 @@ def main():
     with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
     with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
     with tabs[10]: display_forecast_tab(**display_args)
-    with tabs[11]: 
-        display_downloads_tab(
+    with tabs[11]: display_downloads_tab(
             df_anual_melted=df_anual_melted,
             df_monthly_filtered=df_monthly_filtered,
             stations_for_analysis=stations_for_analysis,
             analysis_mode=st.session_state.analysis_mode
         )
     with tabs[12]: display_station_table_tab(**display_args)
+    
     with tabs[13]:
         st.header("Generación de Reporte PDF")
-        
-        # Opciones para el reporte
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático de Estaciones Seleccionadas")
-        st.markdown("**Seleccione las secciones a incluir:**")
         
-        # Checkbox para seleccionar todas las secciones
-        select_all_report_sections = st.checkbox("Seleccionar/Deseleccionar todas las secciones", value=st.session_state.get('select_all_report_sections_default', False), key='select_all_report_sections')
-        
-        # Lista de secciones para el reporte
         report_sections_options = [
             "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
             "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
@@ -227,21 +249,25 @@ def main():
             "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
         ]
         
-        # Actualizar selección de secciones si el checkbox "seleccionar todas" cambia
-        if select_all_report_sections != st.session_state.get('select_all_report_sections_default', False):
-            st.session_state.selected_report_sections = report_sections_options if select_all_report_sections else []
-            st.session_state.select_all_report_sections_default = select_all_report_sections
-            st.rerun()
+        st.markdown("**Seleccione las secciones a incluir:**")
+        
+        def select_all_report_sections_on_change():
+            if st.session_state.select_all_report_sections_checkbox:
+                st.session_state.selected_report_sections_multiselect = report_sections_options
+            else:
+                st.session_state.selected_report_sections_multiselect = []
 
-        # Multiselect para las secciones del reporte
+        st.checkbox(
+            "Seleccionar/Deseleccionar todas las secciones", 
+            key='select_all_report_sections_checkbox', 
+            on_change=select_all_report_sections_on_change
+        )
+
         selected_report_sections = st.multiselect(
             "Secciones del Reporte",
             options=report_sections_options,
-            default=st.session_state.get('selected_report_sections', report_sections_options),
             key='selected_report_sections_multiselect'
         )
-
-        st.session_state.selected_report_sections = selected_report_sections # Asegura que el estado de la sesión se actualice
 
         if st.button("Generar Reporte PDF", key="generate_report_button"):
             if not stations_for_analysis:
@@ -254,20 +280,8 @@ def main():
                         report_pdf_bytes = generate_pdf_report(
                             report_title=report_title,
                             selected_sections=selected_report_sections,
-                            gdf_stations=st.session_state.gdf_stations,
-                            gdf_municipios=st.session_state.gdf_municipios,
-                            df_long=st.session_state.df_long,
-                            df_enso=st.session_state.df_enso,
-                            gdf_filtered=gdf_filtered,
-                            stations_for_analysis=stations_for_analysis,
-                            df_anual_melted=df_anual_melted,
-                            df_monthly_filtered=df_monthly_filtered,
-                            analysis_mode=st.session_state.analysis_mode,
-                            selected_regions=selected_regions,
-                            selected_municipios=selected_municipios,
-                            selected_altitudes=selected_altitudes,
-                            year_range=year_range,
-                            meses_numeros=meses_numeros
+                            # Pasa todos los argumentos necesarios
+                            **display_args
                         )
                         st.download_button(
                             label="Descargar Reporte PDF",
@@ -278,8 +292,7 @@ def main():
                         st.success("¡Reporte generado con éxito!")
                     except Exception as e:
                         st.error(f"Error al generar el reporte: {e}")
-                        st.exception(e) # Muestra el traceback completo para depuración
-
+                        st.exception(e)
 
 if __name__ == "__main__":
     main()
