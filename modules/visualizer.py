@@ -64,12 +64,12 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
     st.info(" | ".join(summary_parts))
 
 def get_map_options():
+    """Retorna un diccionario con las configuraciones de los mapas base y capas."""
     return {
         "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
         "Mapa de Colombia (WMS IDEAM)": {"url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", "layers": "ideam:col_admin", "transparent": True, "attr": "IDEAM", "overlay": True},
-        # --- INICIO DE LA MODIFICACIÓN ---
         "Precipitación Satelital (CHIRPS)": {
             "url": "https://climateserv.servirglobal.net/chirps/wms",
             "layers": "chirps_global_daily_p05",
@@ -78,6 +78,7 @@ def get_map_options():
             "attr": "CHIRPS/UCSB",
             "overlay": True
         }
+    }
 
 def display_map_controls(container_object, key_prefix):
     map_options = get_map_options()
