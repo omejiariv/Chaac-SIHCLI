@@ -20,7 +20,6 @@ import pymannkendall as mk
 from scipy import stats
 from prophet.plot import plot_plotly
 import io
-from modules.forecast_api import get_weather_forecast
 from datetime import datetime, timedelta
 
 #--- Importaciones de Módulos Propios
@@ -38,6 +37,7 @@ from modules.forecasting import (
     auto_arima_search
 )
 from modules.data_processor import complete_series
+from modules.forecast_api import get_weather_forecast
 
 #--- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN
 
@@ -71,16 +71,6 @@ def get_map_options():
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": "OpenTopoMap"},
     }
-
-def display_map_controls(container_object, key_prefix):
-    map_options = get_map_options()
-    base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
-    overlays = {k: v for k, v in map_options.items() if v.get("overlay")}
-    selected_base_map_name = container_object.selectbox("Seleccionar Mapa Base", list(base_maps.keys()), key=f"{key_prefix}_base_map")
-    default_overlays = ["Mapa de Colombia (WMS IDEAM)"]
-    selected_overlays_names = container_object.multiselect("Seleccionar Capas Adicionales", list(overlays.keys()), default=default_overlays, key=f"{key_prefix}_overlays")
-    selected_overlays_config = [overlays[k] for k in selected_overlays_names]
-    return base_maps[selected_base_map_name], selected_overlays_config
 
 def create_enso_chart(enso_data):
     if enso_data.empty or Config.ENSO_ONI_COL not in enso_data.columns:
@@ -262,126 +252,70 @@ def display_welcome_tab():
         - **Prophet**: Es un modelo desarrollado por Facebook, diseñado para ser más automático y robusto. Es especialmente bueno para manejar series de tiempo con fuertes efectos estacionales y datos faltantes, modelando la serie como una suma de tendencia, estacionalidad anual/semanal y efectos de días festivos.
         """)
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                     df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
-                                     selected_altitudes, **kwargs):
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
 
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                     df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
-                                     selected_altitudes, **kwargs):
-    st.header("Distribución espacial de las Estaciones de Lluvia")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    gdf_display = gdf_filtered.copy()
+    sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
 
-    if not stations_for_analysis:
-        st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
-        return
+    with sub_tab_mapa:
+        controls_col, map_col = st.columns([1, 3])
+        
+        with controls_col:
+            st.subheader("Controles del Mapa")
+            map_options = get_map_options()
+            selected_base_map = st.selectbox("Seleccionar Mapa Base", list(map_options.keys()))
+            
+            st.metric("Estaciones en Vista", len(gdf_display))
 
-                # --- INICIO DE LA MODIFICACIÓN: Aquí va la cuadrícula con las imágenes ---
-                st.markdown("""
-                    <style>
-                    .image-grid {
-                        display: grid;
-                        grid-template-columns: repeat(2, 1fr); /* Dos columnas */
-                        gap: 10px;
-                        padding: 10px 0;
-                    }
-                    .grid-item {
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        padding: 5px;
-                        background-color: #f0f2f6;
-                        border-radius: 5px;
-                        border: 1px solid #e0e0e0;
-                        height: 80px; /* Altura fija para alinear las celdas */
-                    }
-                    .grid-item img {
-                        max-width: 100%;
-                        height: auto;
-                        max-height: 60px;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-                
-                # Cargar y mostrar imágenes
-                image_html = '<div class="image-grid">'
-                
-                # Celda para el logo de la gota
-                if os.path.exists(Config.LOGO_PATH):
-                    logo_bytes = base64.b64encode(open(Config.LOGO_PATH, "rb").read()).decode()
-                    image_html += f'<div class="grid-item"><img src="data:image/jpeg;base64,{logo_bytes}"></div>'
-                else:
-                    image_html += '<div class="grid-item"></div>' # Celda vacía
-
-                # Celda para la imagen de Chaac
-                if os.path.exists(Config.CHAAC_IMAGE_PATH):
-                    chaac_bytes = base64.b64encode(open(Config.CHAAC_IMAGE_PATH, "rb").read()).decode()
-                    image_html += f'<div class="grid-item"><img src="data:image/png;base64,{chaac_bytes}"></div>'
-                else:
-                    image_html += '<div class="grid-item"></div>' # Celda vacía
-                    
-                image_html += '</div>'
-                st.markdown(image_html, unsafe_allow_html=True)
-                # --- FIN DE LA MODIFICACIÓN ---
+            st.markdown("""
+                <style>
+                .image-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px 0; }
+                .grid-item { display: flex; justify-content: center; align-items: center; padding: 5px; background-color: #f0f2f6; border-radius: 5px; border: 1px solid #e0e0e0; height: 80px; }
+                .grid-item img { max-width: 100%; height: auto; max-height: 60px; }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            image_html = '<div class="image-grid">'
+            if os.path.exists(Config.LOGO_PATH):
+                logo_bytes = base64.b64encode(open(Config.LOGO_PATH, "rb").read()).decode()
+                image_html += f'<div class="grid-item"><img src="data:image/jpeg;base64,{logo_bytes}"></div>'
+            else:
+                image_html += '<div class="grid-item"></div>'
+            if os.path.exists(Config.CHAAC_IMAGE_PATH):
+                chaac_bytes = base64.b64encode(open(Config.CHAAC_IMAGE_PATH, "rb").read()).decode()
+                image_html += f'<div class="grid-item"><img src="data:image/png;base64,{chaac_bytes}"></div>'
+            else:
+                image_html += '<div class="grid-item"></div>'
+            image_html += '</div>'
+            st.markdown(image_html, unsafe_allow_html=True)
 
         with map_col:
             if not gdf_display.empty:
-                # 1. Creamos el mapa base con las capas WMS (satelital, etc.)
-                m = create_folium_map(
-                    location=[6.2, -75.5], zoom=7,
-                    base_map_config=selected_base_map_config,
-                    overlays_config=selected_overlays_config,
-                    fit_bounds_data=gdf_display
-                )
+                map_config = map_options[selected_base_map]
+                m = folium.Map(location=[6.2, -75.5], zoom_start=7, tiles=map_config['tiles'], attr=map_config['attr'])
 
-                # 2. Añadimos la capa de municipios (si existe)
+                yesterday = datetime.now() - timedelta(days=1)
+                yesterday_str = yesterday.strftime('%Y-%m-%d')
+                folium.TileLayer(tiles=f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{yesterday_str}/GoogleMapsCompatible_Level9/{{z}}/{{y}}/{{x}}.png", attr="NASA GIBS", name="Precipitación Satelital (NASA GPM)", overlay=True, show=False).add_to(m)
+
                 if 'gdf_municipios' in st.session_state and st.session_state.gdf_municipios is not None:
-                    folium.GeoJson(
-                        st.session_state.gdf_municipios,
-                        name='Municipios'
-                    ).add_to(m)
+                    folium.GeoJson(st.session_state.gdf_municipios, name='Municipios').add_to(m)
 
-                # 3. Añadimos las estaciones en un clúster
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
                 for _, row in gdf_display.iterrows():
                     popup_object = generate_station_popup_html(row, df_anual_melted)
-                    folium.Marker(
-                        location=[row['geometry'].y, row['geometry'].x],
-                        tooltip=row[Config.STATION_NAME_COL],
-                        popup=popup_object
-                    ).add_to(marker_cluster)
+                    folium.Marker(location=[row['geometry'].y, row['geometry'].x], tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
 
-                # 4. Añadimos el minimapa
+                m.fit_bounds(m.get_bounds())
                 m.add_child(MiniMap(toggle_display=True))
-
-                # 5. Añadimos el control de capas UNA SOLA VEZ, AL FINAL
                 folium.LayerControl().add_to(m)
                 
-                # 6. Mostramos el mapa
                 folium_static(m, height=500, width=None)
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
