@@ -7,7 +7,7 @@ import warnings
 import os
 from datetime import datetime
 
-#--- Importaciones de Módulos
+#--- Importaciones de Módulos Propios ---
 from modules.config import Config
 from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem, download_and_load_remote_dem
 from modules.visualizer import (
@@ -18,13 +18,15 @@ from modules.visualizer import (
     display_forecast_tab
 )
 from modules.reporter import generate_pdf_report
+from modules.analysis import calculate_monthly_anomalies
 from modules.github_loader import load_csv_from_url, load_zip_from_url
 
-#--- Desactivar Advertencias
+#--- Desactivar Advertencias ---
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celdas):
+    """Aplica una serie de filtros al DataFrame de estaciones."""
     stations_filtered = df.copy()
     if Config.PERCENTAGE_COL in stations_filtered.columns:
         stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
@@ -50,11 +52,13 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
     return stations_filtered
 
 def main():
+    # --- Configuración Inicial de la Página ---
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    progress_placeholder = st.empty()
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
+    progress_placeholder = st.empty()
 
+    # --- Título Principal ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
@@ -63,9 +67,11 @@ def main():
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
+    # --- Panel Lateral (Sidebar) ---
     st.sidebar.header("Panel de Control")
+
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
-        load_mode = st.radio("Modo de Carga de Archivos", ("Automático (desde GitHub)", "Manual (Subir archivos)"), key="load_mode", horizontal=True)
+        load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
         
         def process_and_store_data(file_mapa, file_precip, file_shape):
             st.cache_data.clear()
@@ -75,45 +81,53 @@ def main():
             with st.spinner("Procesando archivos y cargando datos..."):
                 gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(file_mapa, file_precip, file_shape)
                 if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
-                    st.session_state.gdf_stations, st.session_state.gdf_municipios, st.session_state.df_long, st.session_state.df_enso = gdf_stations, gdf_municipios, df_long, df_enso
-                    st.session_state.data_loaded = True
+                    st.session_state.update({
+                        'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
+                        'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
+                    })
                     st.success("¡Datos cargados y listos!")
                     st.rerun()
-                else: st.error("Hubo un error al procesar los archivos. Verifique el formato y contenido.")
+                else: st.error("Hubo un error al procesar los archivos.")
 
-        if load_mode == "Manual (Subir archivos)":
-            uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (CSV)", type="csv", key='uploaded_file_mapa')
-            uploaded_file_precip = st.file_uploader("2. Cargar archivo de precipitación (CSV)", type="csv", key='uploaded_file_precip')
-            uploaded_zip_shapefile = st.file_uploader("3. Cargar shapefile de municipios (.zip)", type="zip", key='uploaded_zip_shapefile')
-            if st.button("Procesar Datos Manuales", key='process_data_manual_button'):
+        if load_mode == "Manual":
+            uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
+            uploaded_file_precip = st.file_uploader("2. Archivo de precipitación (CSV)", type="csv")
+            uploaded_zip_shapefile = st.file_uploader("3. Shapefile de municipios (.zip)", type="zip")
+            if st.button("Procesar Datos Manuales"):
                 if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 else: st.warning("Por favor, suba los tres archivos requeridos.")
         else:
-            st.info(f"Los datos se cargarán desde el repositorio de GitHub: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
-            if st.button("Cargar Datos desde GitHub", key='process_data_github_button'):
-                with st.spinner("Descargando archivos desde GitHub..."):
-                    github_file_mapa = load_csv_from_url(Config.URL_ESTACIONES_CSV)
-                    github_file_precip = load_csv_from_url(Config.URL_PRECIPITACION_CSV)
-                    github_file_shape = load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
-                if all([github_file_mapa, github_file_precip, github_file_shape]):
-                    process_and_store_data(github_file_mapa, github_file_precip, github_file_shape)
-                else: st.error("No se pudieron descargar uno o más archivos desde GitHub. Revisa las URLs en config.py y que el repositorio sea público.")
+            st.info(f"Datos desde: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
+            if st.button("Cargar Datos desde GitHub"):
+                with st.spinner("Descargando archivos..."):
+                    github_files = {
+                        'mapa': load_csv_from_url(Config.URL_ESTACIONES_CSV),
+                        'precip': load_csv_from_url(Config.URL_PRECIPITACION_CSV),
+                        'shape': load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
+                    }
+                if all(github_files.values()):
+                    process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
+                else: st.error("No se pudieron descargar los archivos desde GitHub.")
 
+    # Si los datos no están cargados, muestra la bienvenida y detiene la ejecución.
     if not st.session_state.get('data_loaded', False):
         display_welcome_tab()
-        st.info("Para comenzar, cargue los archivos requeridos en el panel de la izquierda.")
+        st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
         return
 
-    st.sidebar.success("Datos base cargados.")
-    if st.sidebar.button("Limpiar Caché y Reiniciar App"):
+    st.sidebar.success("Datos cargados.")
+    if st.sidebar.button("Limpiar Caché y Reiniciar"):
+        st.cache_data.clear()
+        st.cache_resource.clear()
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
-        min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0), key='min_data_perc_slider')
+        # (Esta sección no necesita cambios, la lógica de filtros es correcta)
+        min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0))
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
-        selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges, key='altitude_multiselect')
+        selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges)
         regions_list = sorted(st.session_state.gdf_stations[Config.REGION_COL].dropna().unique())
         selected_regions = st.multiselect('Filtrar por Depto/Región', options=regions_list, key='regions_multiselect')
         temp_gdf_for_mun = st.session_state.gdf_stations.copy()
