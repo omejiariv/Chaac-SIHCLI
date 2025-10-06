@@ -70,8 +70,6 @@ def get_map_options():
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
         
-        # --- CORRECCIÓN ---
-        # La capa de Colombia se mantiene como una capa adicional ("overlay": True)
         "Mapa de Colombia (WMS IDEAM)": {
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", 
             "layers": "ideam:col_admin", 
@@ -80,13 +78,14 @@ def get_map_options():
             "overlay": True
         },
 
-        # La capa CHIRPS se define correctamente como una capa adicional ("overlay": True)
+        # --- INICIO DE LA CORRECCIÓN ---
+        # Cambiamos al servidor de IRI/LDEO que es más estable para WMS en Folium
         "Precipitación Satelital (CHIRPS)": {
-            "url": "https://climateserv.servirglobal.net/chirps/wms",
-            "layers": "chirps_global_daily_p05",
+            "url": "http://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p05/wms",
+            "layers": "prcp",
             "fmt": "image/png",
             "transparent": True,
-            "attr": "CHIRPS/UCSB",
+            "attr": "IRI/LDEO",
             "overlay": True
         }
         # --- FIN DE LA CORRECCIÓN ---
