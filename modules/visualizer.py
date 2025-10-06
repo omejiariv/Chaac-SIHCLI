@@ -77,13 +77,14 @@ def display_map_controls(container_object, key_prefix):
     """Muestra los controles para seleccionar mapa base y retorna el diccionario de configuración."""
     map_options = get_map_options()
     base_maps = {k: v for k, v in map_options.items() if not v.get("overlay")}
-
+    
     selected_base_map_name = container_object.selectbox(
         "Seleccionar Mapa Base",
         list(base_maps.keys()),
         key=f"{key_prefix}_base_map"
     )
-
+    
+    # Correction: Return the full dictionary for the selected map, not just its name
     return base_maps[selected_base_map_name]
 
 def create_enso_chart(enso_data):
@@ -171,7 +172,6 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
     """Crea un mapa base de Folium y le añade capas de overlay."""
     
-    # Crea el mapa base usando la configuración para un mapa tipo XYZ (como OpenStreetMap)
     m = folium.Map(
         location=location,
         zoom_start=zoom,
@@ -179,7 +179,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
         attr=base_map_config.get('attr', 'OpenStreetMap')
     )
     
-    # Ajusta los límites del mapa si se proporcionan datos geográficos
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         if len(fit_bounds_data) > 1:
             bounds = fit_bounds_data.total_bounds
@@ -190,10 +189,9 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
             m.location = [point.y, point.x]
             m.zoom_start = 12
 
-    # Añade las capas adicionales (overlays), como las capas WMS
     if overlays_config:
         for layer_config in overlays_config:
-            if layer_config.get("url"): # Si es una capa WMS
+            if layer_config.get("url"): # If it's a WMS layer
                 WmsTileLayer(
                     url=layer_config["url"],
                     layers=layer_config["layers"],
