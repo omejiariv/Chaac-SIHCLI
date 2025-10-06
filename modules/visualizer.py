@@ -230,36 +230,108 @@ def display_welcome_tab():
         - **Prophet**: Es un modelo desarrollado por Facebook, diseñado para ser más automático y robusto. Es especialmente bueno para manejar series de tiempo con fuertes efectos estacionales y datos faltantes, modelando la serie como una suma de tendencia, estacionalidad anual/semanal y efectos de días festivos.
         """)
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
+                                     df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
+                                     selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
-    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
+
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
+
     gdf_display = gdf_filtered.copy()
     sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
+
     with sub_tab_mapa:
+        # La variable correcta es `controls_col`, no `map_controles_col`
         controls_col, map_col = st.columns([1, 3])
+        
         with controls_col:
             st.subheader("Controles del Mapa")
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
+            
             if not gdf_display.empty:
                 st.metric("Estaciones en Vista", len(gdf_display))
+
+                # --- INICIO DE LA MODIFICACIÓN: Aquí va la cuadrícula con las imágenes ---
+                st.markdown("""
+                    <style>
+                    .image-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr); /* Dos columnas */
+                        gap: 10px;
+                        padding: 10px 0;
+                    }
+                    .grid-item {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        padding: 5px;
+                        background-color: #f0f2f6;
+                        border-radius: 5px;
+                        border: 1px solid #e0e0e0;
+                        height: 80px; /* Altura fija para alinear las celdas */
+                    }
+                    .grid-item img {
+                        max-width: 100%;
+                        height: auto;
+                        max-height: 60px;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                # Cargar y mostrar imágenes
+                image_html = '<div class="image-grid">'
+                
+                # Celda para el logo de la gota
+                if os.path.exists(Config.LOGO_PATH):
+                    logo_bytes = base64.b64encode(open(Config.LOGO_PATH, "rb").read()).decode()
+                    image_html += f'<div class="grid-item"><img src="data:image/jpeg;base64,{logo_bytes}"></div>'
+                else:
+                    image_html += '<div class="grid-item"></div>' # Celda vacía
+
+                # Celda para la imagen de Chaac
+                if os.path.exists(Config.CHAAC_IMAGE_PATH):
+                    chaac_bytes = base64.b64encode(open(Config.CHAAC_IMAGE_PATH, "rb").read()).decode()
+                    image_html += f'<div class="grid-item"><img src="data:image/png;base64,{chaac_bytes}"></div>'
+                else:
+                    image_html += '<div class="grid-item"></div>' # Celda vacía
+                    
+                image_html += '</div>'
+                st.markdown(image_html, unsafe_allow_html=True)
+                # --- FIN DE LA MODIFICACIÓN ---
+
         with map_col:
             if not gdf_display.empty:
-                m = create_folium_map(location=[4.57, -74.29], zoom=5, base_map_config=selected_base_map_config, overlays_config=selected_overlays_config, fit_bounds_data=gdf_display)
+                m = create_folium_map(location=[4.57, -74.29], zoom=5,
+                                      base_map_config=selected_base_map_config, overlays_config=selected_overlays_config,
+                                      fit_bounds_data=gdf_display)
                 if 'gdf_municipios' in st.session_state and st.session_state.gdf_municipios is not None:
                     folium.GeoJson(st.session_state.gdf_municipios.to_json(), name='Municipios').add_to(m)
+
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
                 for _, row in gdf_display.iterrows():
                     popup_object = generate_station_popup_html(row, df_anual_melted, include_chart=False)
-                    folium.Marker(location=[row['geometry'].y, row['geometry'].x], tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
+                    folium.Marker(location=[row['geometry'].y, row['geometry'].x],
+                                  tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
+
                 folium.LayerControl().add_to(m)
                 m.add_child(MiniMap(toggle_display=True))
                 folium_static(m, height=450, width=None)
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
+
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
         if not gdf_display.empty:
