@@ -277,15 +277,14 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     return folium.Popup(html, max_width=300)
 
 def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    """Crea un mapa base de Folium y le añade capas de overlay."""
-    
+    """Crea un mapa base de Folium y le añade capas de overlay de forma inteligente."""
     m = folium.Map(
         location=location,
         zoom_start=zoom,
         tiles=base_map_config.get('tiles', 'OpenStreetMap'),
         attr=base_map_config.get('attr', 'OpenStreetMap')
     )
-    
+
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         if len(fit_bounds_data) > 1:
             bounds = fit_bounds_data.total_bounds
@@ -298,20 +297,22 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
 
     if overlays_config:
         for layer_config in overlays_config:
-            layer_name = [k for k, v in get_map_options().items() if v == layer_config][0]
-            
-            # --- INICIO DE LA CORRECCIÓN ---
-            # Solo formateamos la URL si contiene el marcador de tiempo
-            url = layer_config.get("tiles") or layer_config.get("url")
-            if url and "{Time}" in url:
+            url = layer_config.get("url")
+            if not url:
+                continue
+
+            # Reemplaza el marcador de tiempo si existe
+            if "{Time}" in url:
                 yesterday = datetime.now() - timedelta(days=1)
                 time_str = yesterday.strftime('%Y-%m-%d')
-                url = url.format(Time=time_str)
-            # --- FIN DE LA CORRECCIÓN ---
+                url = url.replace('{Time}', time_str)
 
+            layer_name = layer_config.get("attr", "Overlay")
+
+            # Distingue entre WMS y TileLayer estándar
             if "layers" in layer_config:  # Es una capa WMS
                 WmsTileLayer(
-                    url=url, # Usamos la URL ya formateada
+                    url=url,
                     layers=layer_config["layers"],
                     fmt=layer_config.get("fmt", 'image/png'),
                     transparent=layer_config.get("transparent", True),
@@ -319,14 +320,15 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                     control=True,
                     name=layer_name
                 ).add_to(m)
-            elif "tiles" in layer_config: # Es XYZ
+            else:  # Es una capa de teselas estándar (XYZ)
                 folium.TileLayer(
-                    tiles=url, # Usamos la URL ya formateada
-                    attr=layer_config["attr"],
+                    tiles=url,
+                    attr=layer_name,
                     name=layer_name,
                     overlay=True,
+                    control=True,
+                    show=False
                 ).add_to(m)
-            
     return m
     
 # --- MAIN TAB DISPLAY FUNCTIONS
