@@ -197,9 +197,7 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                 control=True,
                 name=layer_config.get("attr", "Overlay")
             ).add_to(m)
-
-    folium.LayerControl().add_to(m)
-    
+            
     return m
     
 # --- MAIN TAB DISPLAY FUNCTIONS ---
@@ -276,7 +274,6 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
     sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
 
     with sub_tab_mapa:
-        # La variable correcta es `controls_col`, no `map_controles_col`
         controls_col, map_col = st.columns([1, 3])
         
         with controls_col:
@@ -336,21 +333,39 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 
         with map_col:
             if not gdf_display.empty:
-                m = create_folium_map(location=[4.57, -74.29], zoom=5,
-                                      base_map_config=selected_base_map_config, overlays_config=selected_overlays_config,
-                                      fit_bounds_data=gdf_display)
-                if 'gdf_municipios' in st.session_state and st.session_state.gdf_municipios is not None:
-                    folium.GeoJson(st.session_state.gdf_municipios.to_json(), name='Municipios').add_to(m)
+                # 1. Creamos el mapa base con las capas WMS (satelital, etc.)
+                m = create_folium_map(
+                    location=[6.2, -75.5], zoom=7,
+                    base_map_config=selected_base_map_config,
+                    overlays_config=selected_overlays_config,
+                    fit_bounds_data=gdf_display
+                )
 
+                # 2. Añadimos la capa de municipios (si existe)
+                if 'gdf_municipios' in st.session_state and st.session_state.gdf_municipios is not None:
+                    folium.GeoJson(
+                        st.session_state.gdf_municipios,
+                        name='Municipios'
+                    ).add_to(m)
+
+                # 3. Añadimos las estaciones en un clúster
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
                 for _, row in gdf_display.iterrows():
-                    popup_object = generate_station_popup_html(row, df_anual_melted, include_chart=False)
-                    folium.Marker(location=[row['geometry'].y, row['geometry'].x],
-                                  tooltip=row[Config.STATION_NAME_COL], popup=popup_object).add_to(marker_cluster)
+                    popup_object = generate_station_popup_html(row, df_anual_melted)
+                    folium.Marker(
+                        location=[row['geometry'].y, row['geometry'].x],
+                        tooltip=row[Config.STATION_NAME_COL],
+                        popup=popup_object
+                    ).add_to(marker_cluster)
 
-                folium.LayerControl().add_to(m)
+                # 4. Añadimos el minimapa
                 m.add_child(MiniMap(toggle_display=True))
-                folium_static(m, height=450, width=None)
+
+                # 5. Añadimos el control de capas UNA SOLA VEZ, AL FINAL
+                folium.LayerControl().add_to(m)
+                
+                # 6. Mostramos el mapa
+                folium_static(m, height=500, width=None)
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
