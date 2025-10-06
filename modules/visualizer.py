@@ -66,16 +66,24 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
 def get_map_options():
     """Retorna un diccionario con las configuraciones de los mapas base y capas."""
     return {
-        "CartoDB Positron (Predeterminado)": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
+        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": '&copy; <a href="https://carto.com/attributions">CartoDB</a>', "overlay": False},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', "overlay": False},
         "Topografía (OpenTopoMap)": {"tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", "attr": 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>', "overlay": False},
-        "Mapa de Colombia (WMS IDEAM)": {"url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", "layers": "ideam:col_admin", "transparent": True, "attr": "IDEAM", "overlay": True},
+        
+        # --- INICIO DE LA MODIFICACIÓN ---
+        # Movemos la capa CHIRPS a los mapas base cambiando 'overlay' a False
         "Precipitación Satelital (CHIRPS)": {
-            "url": "https://climateserv.servirglobal.net/chirps/wms",
-            "layers": "chirps_global_daily_p05",
-            "fmt": "image/png",
-            "transparent": True,
+            "tiles": "https://climateserv.servirglobal.net/chirps/wms?service=WMS&request=GetMap&layers=chirps_global_daily_p05&styles=&format=image/png&transparent=true&version=1.1.1&width=256&height=256&srs=EPSG:3857&bbox={bbox-epsg-3857}",
             "attr": "CHIRPS/UCSB",
+            "overlay": False 
+        },
+        # --- FIN DE LA MODIFICACIÓN ---
+
+        "Mapa de Colombia (WMS IDEAM)": {
+            "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms", 
+            "layers": "ideam:col_admin", 
+            "transparent": True, 
+            "attr": "IDEAM", 
             "overlay": True
         }
     }
