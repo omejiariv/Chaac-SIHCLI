@@ -91,7 +91,7 @@ def display_map_controls(container_object, key_prefix):
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
         # CORRECCIÓN EN LA SIGUIENTE LÍNEA:
         "Topografía (OpenTopoMap)": {
-            "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", # Se corrigió 'opentopopmap'
+            "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", # Se corrigió 'opentopopmap' a 'opentopomap'
             "attr": "OpenTopoMap"
         },
     }
