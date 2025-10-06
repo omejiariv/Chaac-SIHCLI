@@ -72,19 +72,6 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
         
     st.info(" | ".join(summary_parts))
 
-def get_map_options():
-    """Retorna un diccionario con las configuraciones de los mapas base."""
-    return {
-        "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
-        "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
-        "Topografía (OpenTopoMap)": {
-            "tiles": "https://{s}.tile.opentopopmap.org/{z}/{x}/{y}.png",
-            "attr": "OpenTopoMap"
-        },
-    }
-
-There was an error committing your changes: File could not be edited
-
 def display_map_controls(container_object, key_prefix):
     """Muestra los controles para seleccionar mapa base y capas adicionales."""
     base_map_options = {
@@ -162,7 +149,7 @@ def create_enso_chart(enso_data):
         
     fig.add_trace(go.Scatter(x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL], mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True))
     
-    # CORRECCIÓN: Se añadieron las comas faltantes y se eliminaron argumentos duplicados.
+    # CORRECCIÓN DE SINTAXIS: Se añadieron las comas faltantes.
     fig.add_hline(y=0.5, line_dash="dash", line_color="red")
     fig.add_hline(y=-0.5, line_dash="dash", line_color="blue")
     
@@ -171,6 +158,7 @@ def create_enso_chart(enso_data):
                       legend_title_text='Fase', yaxis_range=y_range)
                       
     return fig
+    
 def create_anomaly_chart(df_plot):
     if df_plot.empty:
         return go.Figure()
