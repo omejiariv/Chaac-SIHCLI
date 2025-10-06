@@ -21,21 +21,45 @@ from scipy import stats
 from prophet.plot import plot_plotly
 import io
 
-from modules.analysis import (calculate_spi, calculate_spei, calculate_monthly_anomalies, calculate_percentiles_and_extremes, analyze_events, calculate_climatological_anomalies)
+#--- Importaciones de Módulos Propios
+from modules.analysis import (
+    calculate_spi, calculate_spei, calculate_monthly_anomalies,
+    calculate_percentiles_and_extremes, analyze_events,
+    calculate_climatological_anomalies
+)
 from modules.config import Config
 from modules.utils import add_folium_download_button
 from modules.interpolation import create_interpolation_surface, perform_loocv_for_all_methods
-from modules.forecasting import (generate_sarima_forecast, generate_prophet_forecast, get_decomposition_results, create_acf_chart, create_pacf_chart, auto_arima_search)
+from modules.forecasting import (
+    generate_sarima_forecast, generate_prophet_forecast,
+    get_decomposition_results, create_acf_chart, create_pacf_chart,
+    auto_arima_search
+)
 from modules.data_processor import complete_series
 
-def display_filter_summary(total_stations_count, selected_stations_count, year_range, selected_months_count, analysis_mode, selected_regions, selected_municipios, selected_altitudes):
-    if isinstance(year_range, tuple) and len(year_range) == 2: year_text = f"{year_range[0]}-{year_range[1]}"
-    else: year_text = "N/A"
-    mode_text = "Completado (interpolado)" if analysis_mode == "Completar series (interpolación)" else "Original (con huecos)"
-    summary_parts = [f"**Estaciones:** {selected_stations_count}/{total_stations_count}", f"**Período:** {year_text}", f"**Datos:** {mode_text}"]
-    if selected_regions: summary_parts.append(f"**Región:** {', '.join(selected_regions)}")
-    if selected_municipios: summary_parts.append(f"**Municipio:** {', '.join(selected_municipios)}")
-    if selected_altitudes: summary_parts.append(f"**Altitud:** {', '.join(selected_altitudes)}")
+#--- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN
+
+def display_filter_summary(total_stations_count, selected_stations_count, year_range,
+                           selected_months_count, analysis_mode, selected_regions,
+                           selected_municipios, selected_altitudes):
+    if isinstance(year_range, tuple) and len(year_range) == 2:
+        year_text = f"{year_range[0]}-{year_range[1]}"
+    else:
+        year_text = "N/A"
+    mode_text = "Original (con huecos)"
+    if analysis_mode == "Completar series (interpolación)":
+        mode_text = "Completado (interpolado)"
+    summary_parts = [
+        f"**Estaciones:** {selected_stations_count}/{total_stations_count}",
+        f"**Período:** {year_text}",
+        f"**Datos:** {mode_text}"
+    ]
+    if selected_regions:
+        summary_parts.append(f"**Región:** {', '.join(selected_regions)}")
+    if selected_municipios:
+        summary_parts.append(f"**Municipio:** {', '.join(selected_municipios)}")
+    if selected_altitudes:
+        summary_parts.append(f"**Altitud:** {', '.join(selected_altitudes)}")
     st.info(" | ".join(summary_parts))
 
 def get_map_options():
@@ -71,13 +95,9 @@ def create_enso_chart(enso_data):
     y_range = [data[Config.ENSO_ONI_COL].min() - 0.5, data[Config.ENSO_ONI_COL].max() + 0.5]
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=data[Config.DATE_COL],
-        y=[y_range[1] - y_range[0]] * len(data),
-        base=y_range[0],
-        marker_color=data['color'],
-        opacity=0.3,
-        hoverinfo='none',
-        showlegend=False
+        x=data[Config.DATE_COL], y=[y_range[1] - y_range[0]] * len(data),
+        base=y_range[0], marker_color=data['color'], opacity=0.3,
+        hoverinfo='none', showlegend=False
     ))
     legend_map = {'El Niño': 'red', 'La Niña': 'blue', 'Neutral': 'grey'}
     for phase, color in legend_map.items():
@@ -85,15 +105,7 @@ def create_enso_chart(enso_data):
     fig.add_trace(go.Scatter(x=data[Config.DATE_COL], y=data[Config.ENSO_ONI_COL], mode='lines', name='Anomalía ONI', line=dict(color='black', width=2), showlegend=True))
     fig.add_hline(y=0.5, line_dash="dash", line_color="red")
     fig.add_hline(y=-0.5, line_dash="dash", line_color="blue")
-    fig.update_layout(
-        height=600,
-        title="Fases del Fenómeno ENSO y Anomalía ONI",
-        yaxis_title="Anomalía ONI (°C)",
-        xaxis_title="Fecha",
-        showlegend=True,
-        legend_title_text='Fase',
-        yaxis_range=y_range
-    )
+    fig.update_layout(height=600, title="Fases del Fenómeno ENSO y Anomalía ONI", yaxis_title="Anomalía ONI (°C)", xaxis_title="Fecha", showlegend=True, legend_title_text='Fase', yaxis_range=y_range)
     return fig
 
 def create_anomaly_chart(df_plot):
@@ -101,19 +113,8 @@ def create_anomaly_chart(df_plot):
         return go.Figure()
     df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df_plot[Config.DATE_COL],
-        y=df_plot['anomalia'],
-        marker_color=df_plot['color'],
-        name='Anomalía de Precipitación'
-    ))
-    fig.update_layout(
-        height=600,
-        title="Anomalías Mensuales de Precipitación y Fases ENSO",
-        yaxis_title="Anomalía de Precipitación (mm)",
-        xaxis_title="Fecha",
-        showlegend=True
-    )
+    fig.add_trace(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color'], name='Anomalía de Precipitación'))
+    fig.update_layout(height=600, title="Anomalías Mensuales de Precipitación y Fases ENSO", yaxis_title="Anomalía de Precipitación (mm)", xaxis_title="Fecha", showlegend=True)
     return fig
 
 def generate_station_popup_html(row, df_anual_melted, include_chart=False, df_monthly_filtered=None):
@@ -519,40 +520,30 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         st.markdown("Descarga los datos procesados y enriquecidos utilizados en esta pestaña de visualización.")
         @st.cache_data
         def convert_df_to_csv(df):
-            return df.to_csv(index=False).encode('utf-8')
+            return df.to_csv(index=False, sep=';').encode('utf-8')
         if not df_anual_rich.empty:
             st.markdown("#### Datos Anuales")
             csv_anual = convert_df_to_csv(df_anual_rich)
-            st.download_button(label="📥 Descargar CSV Anual", data=csv_anual, file_name='datos_graficos_anual.csv', mime='text/csv')
+            st.download_button(label="📥 Descargar CSV Anual", data=csv_anual, file_name='datos_graficos_anual.csv', mime='text/csv', key='dl_anual_graphs')
         else:
             st.info("No hay datos anuales para descargar.")
         if not df_monthly_rich.empty:
             st.markdown("#### Datos Mensuales")
             csv_mensual = convert_df_to_csv(df_monthly_rich)
-            st.download_button(label="📥 Descargar CSV Mensual", data=csv_mensual, file_name='datos_graficos_mensual.csv', mime='text/csv')
+            st.download_button(label="📥 Descargar CSV Mensual", data=csv_mensual, file_name='datos_graficos_mensual.csv', mime='text/csv', key='dl_monthly_graphs')
         else:
             st.info("No hay datos mensuales para descargar.")
 
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
-    
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Se añaden los argumentos que faltaban a la llamada de la función
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
+
     tab_names = ["Animación GIF", "Superficies de Interpolación", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
     gif_tab, kriging_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
+    
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
         col_controls, col_gif = st.columns([1, 3])
