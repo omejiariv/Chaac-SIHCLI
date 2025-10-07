@@ -116,18 +116,22 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
     pdf.cell(0, 10, report_title, 0, 1, 'C')
     pdf.ln(10)
 
+    # --- Extracción de DataFrames para fácil acceso ---
     gdf_filtered = data.get('gdf_filtered', pd.DataFrame())
     df_anual_melted = data.get('df_anual_melted', pd.DataFrame())
+    df_monthly_filtered = data.get('df_monthly_filtered', pd.DataFrame())
 
+    # --- LÓGICA COMPLETA PARA TODAS LAS SECCIONES ---
+    
     if "Resumen de Filtros" in sections_to_include:
-        pdf.add_section_title("Resumen de Filtros Aplicados")
+        pdf.add_section_title("1. Resumen de Filtros Aplicados")
         filter_text = ""
         for key, value in summary_data.items():
             filter_text += f"- {key}: {value}\n"
         pdf.add_body_text(filter_text)
 
     if "Distribución Espacial" in sections_to_include:
-        pdf.add_section_title("Mapa de Distribución Espacial")
+        pdf.add_section_title("2. Mapa de Distribución Espacial")
         if not gdf_filtered.empty:
             m = create_folium_map(
                 location=[4.57, -74.29], zoom=5, 
@@ -144,8 +148,36 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
                 ).add_to(m)
             pdf.add_folium_map(m)
         else:
-            pdf.add_body_text("No hay estaciones para mostrar en el mapa.")
-    # ... (Otras secciones del reporte que quieras añadir) ...
+            pdf.add_body_text("No hay estaciones seleccionadas para mostrar en el mapa.")
+            
+    if "Gráficos de Series Temporales" in sections_to_include:
+        pdf.add_section_title("3. Gráficos de Series Temporales")
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(0, 10, "Precipitación Anual por Estación", 0, 1, 'L')
+        if not df_anual_melted.empty:
+            fig_anual = px.line(df_anual_melted, x=Config.YEAR_COL, y=Config.PRECIPITATION_COL, color=Config.STATION_NAME_COL, markers=True)
+            pdf.add_plotly_fig(fig_anual)
+        else:
+            pdf.add_body_text("No hay datos anuales para mostrar.")
+
+    if "Análisis de Anomalías" in sections_to_include:
+        pdf.add_section_title("4. Análisis de Anomalías")
+        if not df_anomalies.empty:
+            df_plot = df_anomalies.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
+            df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
+            fig_anom = go.Figure(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color']))
+            fig_anom.update_layout(title="Anomalías Mensuales de Precipitación (Promedio Regional)")
+            pdf.add_plotly_fig(fig_anom)
+        else:
+            pdf.add_body_text("No hay datos de anomalías para mostrar.")
+
+    if "Estadísticas Descriptivas" in sections_to_include:
+        pdf.add_section_title("5. Estadísticas Descriptivas")
+        if not df_monthly_filtered.empty:
+            stats_df = df_monthly_filtered.groupby(Config.STATION_NAME_COL)[Config.PRECIPITATION_COL].describe().round(1)
+            pdf.add_dataframe(stats_df)
+        else:
+            pdf.add_body_text("No hay datos para calcular estadísticas.")
 
     # CORRECCIÓN: Se elimina .encode('latin-1')
     return bytes(pdf.output(dest='S'))
