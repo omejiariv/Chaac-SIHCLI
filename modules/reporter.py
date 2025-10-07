@@ -149,4 +149,4 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
     # ... (Otras secciones del reporte que quieras añadir) ...
 
     # CORRECCIÓN: Se elimina .encode('latin-1')
-    return pdf.output(dest='S')
+    return bytes(pdf.output(dest='S'))
