@@ -1,0 +1,24 @@
+# Archivo: config.yaml
+
+credentials:
+  usernames:
+    jsmith:
+      email: jsmith@gmail.com
+      name: John Smith
+      password: 'XXX' # Reemplazar con la contraseña hasheada
+    rdoe:
+      email: rdoe@gmail.com
+      name: Rebecca Doe
+      password: 'YYY' # Reemplazar con la contraseña hasheada
+cookie:
+  expiry_days: 30
+  key: some_signature_key # Puede ser cualquier cadena de texto
+  name: some_cookie_name
+preauthorized:
+  emails:
+  - jhon.duque@cuencaverde.org
+  - andres.zapata@cuencaverde.org
+  - linda.berrio@cuencaverde.org
+  - direccion@cuencaverde.org
+  - subdir.tecnica@cuencaverde.org
+  - jose.gutierrez@cuencaverde.org
