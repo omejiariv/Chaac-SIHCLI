@@ -239,8 +239,16 @@ def main():
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         
-        report_sections_options = ["Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial"]
-        
+report_sections_options = [
+    "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
+    "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
+    "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
+    "Estadísticas Descriptivas", "Análisis de Correlación",
+    "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
+    "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
+]
+
+st.markdown("**Seleccione las secciones a incluir:**")        
         selected_report_sections = st.multiselect("Secciones a incluir:", options=report_sections_options, default=report_sections_options)
 
         if st.button("Generar Reporte PDF"):
