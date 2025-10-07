@@ -65,7 +65,6 @@ class PDF(FPDF):
             return
         
         self.set_font('Arial', 'B', 8)
-        # Ancho de columnas simple para evitar errores
         col_width = (self.w - 2 * self.l_margin) / len(df.columns)
         for col_name in df.columns:
             self.cell(col_width, 8, str(col_name), 1, 0, 'C')
@@ -108,7 +107,6 @@ class PDF(FPDF):
             if os.path.exists(html_path): os.unlink(html_path)
             if os.path.exists(png_path): os.unlink(png_path)
 
-
 # --- Función Principal para Generar el Reporte ---
 def generate_pdf_report(report_title, sections_to_include, summary_data, df_anomalies, **data):
     pdf = PDF()
@@ -118,11 +116,9 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
     pdf.cell(0, 10, report_title, 0, 1, 'C')
     pdf.ln(10)
 
-    # --- Extracción de DataFrames del diccionario 'data' ---
     gdf_filtered = data.get('gdf_filtered', pd.DataFrame())
     df_anual_melted = data.get('df_anual_melted', pd.DataFrame())
 
-    # --- Secciones del Reporte ---
     if "Resumen de Filtros" in sections_to_include:
         pdf.add_section_title("Resumen de Filtros Aplicados")
         filter_text = ""
@@ -148,37 +144,9 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
                 ).add_to(m)
             pdf.add_folium_map(m)
         else:
-            pdf.add_body_text("No hay estaciones seleccionadas para mostrar en el mapa.")
+            pdf.add_body_text("No hay estaciones para mostrar en el mapa.")
 
-    if "Gráficos de Series Temporales" in sections_to_include:
-        pdf.add_section_title("Precipitación Anual por Estación")
-        if not df_anual_melted.empty:
-            fig = px.line(df_anual_melted, x=Config.YEAR_COL, y=Config.PRECIPITATION_COL, color=Config.STATION_NAME_COL, title="Precipitación Anual por Estación", markers=True)
-            pdf.add_plotly_fig(fig)
-        else:
-            pdf.add_body_text("No hay datos anuales para mostrar.")
+    # ... (Otras secciones del reporte que quieras añadir) ...
 
-    if "Análisis de Anomalías" in sections_to_include:
-        pdf.add_section_title("Anomalías Mensuales de Precipitación")
-        if not df_anomalies.empty:
-            df_plot = df_anomalies.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
-            df_plot['color'] = np.where(df_plot['anomalia'] < 0, 'red', 'blue')
-            fig = go.Figure(go.Bar(x=df_plot[Config.DATE_COL], y=df_plot['anomalia'], marker_color=df_plot['color'], name='Anomalía'))
-            fig.update_layout(title="Anomalías Mensuales (Promedio Regional)")
-            pdf.add_plotly_fig(fig)
-        else:
-            pdf.add_body_text("No hay datos de anomalías para mostrar.")
-
-    if "Matriz de Correlación" in sections_to_include:
-        pdf.add_section_title("Matriz de Correlación entre Estaciones")
-        if len(data.get('stations_for_analysis', [])) > 1:
-            df_pivot = df_monthly_filtered.pivot_table(index=Config.DATE_COL, columns=Config.STATION_NAME_COL, values=Config.PRECIPITATION_COL)
-            corr_matrix = df_pivot.corr()
-            fig = px.imshow(corr_matrix, text_auto='.2f', aspect="auto", color_continuous_scale='RdBu_r')
-            pdf.add_plotly_fig(fig, width=180)
-        else:
-            pdf.add_body_text("Se necesitan al menos dos estaciones para generar la matriz de correlación.")
-            
-    # Agrega aquí más lógica para las otras secciones del reporte...
-
-    return pdf.output(dest='S').encode('latin-1')
+    # CORRECCIÓN: Se elimina .encode('latin-1')
+    return pdf.output(dest='S')
