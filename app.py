@@ -239,18 +239,35 @@ def main():
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         
-report_sections_options = [
-    "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
-    "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
-    "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
-    "Estadísticas Descriptivas", "Análisis de Correlación",
-    "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
-    "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
-]
+        report_sections_options = [
+            "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
+            "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
+            "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
+            "Estadísticas Descriptivas", "Análisis de Correlación",
+            "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
+            "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
+        ]
+        
+        st.markdown("**Seleccione las secciones a incluir:**")
+        
+        def select_all_report_sections_on_change():
+            if st.session_state.select_all_report_sections_checkbox:
+                st.session_state.selected_report_sections_multiselect = report_sections_options
+            else:
+                st.session_state.selected_report_sections_multiselect = []
 
-st.markdown("**Seleccione las secciones a incluir:**")        
-        selected_report_sections = st.multiselect("Secciones a incluir:", options=report_sections_options, default=report_sections_options)
+        st.checkbox(
+            "Seleccionar/Deseleccionar todas", 
+            key='select_all_report_sections_checkbox', 
+            on_change=select_all_report_sections_on_change
+        )
 
+        # CORRECCIÓN: Esta línea ya no tiene indentación extra.
+        selected_report_sections = st.multiselect(
+            "Secciones a incluir:", 
+            options=report_sections_options, 
+            key='selected_report_sections_multiselect'
+        )
         if st.button("Generar Reporte PDF"):
             if not selected_report_sections:
                 st.warning("Seleccione al menos una sección.")
