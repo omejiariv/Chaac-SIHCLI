@@ -6,6 +6,9 @@ import numpy as np
 import warnings
 import os
 from datetime import datetime
+import yaml
+from yaml.loader import SafeLoader
+import streamlit_authenticator as stauth
 
 #--- Importaciones de Módulos Propios ---
 from modules.config import Config
@@ -94,8 +97,26 @@ def main():
 
         return selected_base_map_config, selected_overlays_config    
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-    Config.initialize_session_state()
+    
+    # --- LÓGICA DE AUTENTICACIÓN ---
+    with open('config.yaml') as file:
+        config = yaml.load(file, Loader=SafeLoader)
+
+    authenticator = stauth.Authenticate(
+        config['credentials'],
+        config['cookie']['name'],
+        config['cookie']['key'],
+        config['cookie']['expiry_days'],
+        config['preauthorized']
+    )
+
+    name, authentication_status, username = authenticator.login('main')
+
+    # --- FLUJO DE LA APLICACIÓN BASADO EN EL LOGIN ---
+    if st.session_state["authentication_status"]:
+        # --- Si el login es exitoso, se ejecuta la app completa ---
+        st.sidebar.write(f'Bienvenido *{st.session_state["name"]}*')
+        authenticator.logout('Logout', 'sidebar')
     progress_placeholder = st.empty()
 
     title_col1, title_col2 = st.columns([0.05, 0.95])
