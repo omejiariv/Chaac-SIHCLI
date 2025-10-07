@@ -78,7 +78,7 @@ def display_map_controls(container_object, key_prefix):
     base_map_options = {
         "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
-        # URL CORREGIDA PARA EL MAPA TOPOGRÁFICO
+        # CORRECCIÓN DEFINITIVA DE LA URL
         "Topografía (OpenTopoMap)": {
             "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
             "attr": "OpenTopoMap"
@@ -87,7 +87,6 @@ def display_map_controls(container_object, key_prefix):
     
     # Opciones de capas adicionales (overlays)
     overlay_map_options = {
-        # SE ELIMINÓ LA CAPA SATELITAL DE LA NASA
         "Mapa de Colombia (WMS IDEAM)": {
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
             "layers": "ideam:col_admin",
