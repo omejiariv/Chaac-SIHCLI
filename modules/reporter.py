@@ -13,6 +13,7 @@ import tempfile
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
+import pymannkendall as mk
 
 from modules.config import Config
 from modules.visualizer import create_folium_map, generate_station_popup_html
