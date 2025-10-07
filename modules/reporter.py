@@ -120,16 +120,42 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
     gdf_filtered = data.get('gdf_filtered', pd.DataFrame())
     df_anual_melted = data.get('df_anual_melted', pd.DataFrame())
     df_monthly_filtered = data.get('df_monthly_filtered', pd.DataFrame())
+    stations_for_analysis = data.get('stations_for_analysis', [])
 
     # --- LÓGICA COMPLETA PARA TODAS LAS SECCIONES ---
     
+    if "Resumen Ejecutivo" in sections_to_include:
+        # NUEVA SECCIÓN: Resumen Ejecutivo (Texto de ejemplo)
+        pdf.add_section_title("1. Resumen Ejecutivo")
+        pdf.add_body_text(
+            "Este reporte presenta un análisis hidroclimático detallado de las estaciones seleccionadas. "
+            "Se evalúan las tendencias de precipitación, la ocurrencia de anomalías y eventos extremos, "
+            "y se realizan análisis de correlación con fenómenos macroclimáticos. El objetivo es proporcionar "
+            "una visión integral del comportamiento de la lluvia en la región de estudio."
+        )
+
     if "Resumen de Filtros" in sections_to_include:
-        pdf.add_section_title("1. Resumen de Filtros Aplicados")
+        pdf.add_section_title("2. Resumen de Filtros Aplicados")
         filter_text = ""
         for key, value in summary_data.items():
             filter_text += f"- {key}: {value}\n"
         pdf.add_body_text(filter_text)
 
+    if "Tabla de Estaciones" in sections_to_include:
+        # NUEVA SECCIÓN: Tabla de Estaciones
+        pdf.add_section_title("3. Tabla de Estaciones Analizadas")
+        if not gdf_filtered.empty:
+            stations_table = gdf_filtered[[Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.REGION_COL, Config.ALTITUDE_COL]].copy()
+            stations_table.rename(columns={
+                Config.STATION_NAME_COL: "Estacion",
+                Config.MUNICIPALITY_COL: "Municipio",
+                Config.REGION_COL: "Region",
+                Config.ALTITUDE_COL: "Altitud (m)"
+            }, inplace=True)
+            pdf.add_dataframe(stations_table)
+        else:
+            pdf.add_body_text("No hay datos de estaciones para mostrar.")
+            
     if "Distribución Espacial" in sections_to_include:
         pdf.add_section_title("2. Mapa de Distribución Espacial")
         if not gdf_filtered.empty:
@@ -172,12 +198,54 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
             pdf.add_body_text("No hay datos de anomalías para mostrar.")
 
     if "Estadísticas Descriptivas" in sections_to_include:
-        pdf.add_section_title("5. Estadísticas Descriptivas")
+        pdf.add_section_title("7. Estadísticas Descriptivas Mensuales")
         if not df_monthly_filtered.empty:
-            stats_df = df_monthly_filtered.groupby(Config.STATION_NAME_COL)[Config.PRECIPITATION_COL].describe().round(1)
+            # CORRECCIÓN: Se añade .reset_index() para incluir la columna de la estación
+            stats_df = df_monthly_filtered.groupby(Config.STATION_NAME_COL)[Config.PRECIPITATION_COL].describe().reset_index().round(1)
             pdf.add_dataframe(stats_df)
         else:
             pdf.add_body_text("No hay datos para calcular estadísticas.")
 
-    # CORRECCIÓN: Se elimina .encode('latin-1')
+    if "Análisis de Correlación" in sections_to_include:
+        # NUEVA SECCIÓN: Matriz de Correlación
+        pdf.add_section_title("8. Matriz de Correlación entre Estaciones")
+        if len(stations_for_analysis) > 1:
+            df_pivot = df_monthly_filtered.pivot_table(index=Config.DATE_COL, columns=Config.STATION_NAME_COL, values=Config.PRECIPITATION_COL)
+            corr_matrix = df_pivot.corr()
+            fig = px.imshow(corr_matrix, text_auto='.2f', aspect="auto", color_continuous_scale='RdBu_r', title="Correlación de Precipitación Mensual")
+            pdf.add_plotly_fig(fig, width=180)
+        else:
+            pdf.add_body_text("Se necesitan al menos dos estaciones para generar la matriz de correlación.")
+
+    if "Análisis de Tendencias y Pronósticos" in sections_to_include:
+        # NUEVA SECCIÓN: Análisis de Tendencias
+        pdf.add_section_title("9. Análisis de Tendencias (Mann-Kendall)")
+        if not df_anual_melted.empty:
+            results = []
+            for station in stations_for_analysis:
+                station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL])
+                if len(station_data) > 3:
+                    mk_result = mk.original_test(station_data[Config.PRECIPITATION_COL])
+                    results.append({
+                        "Estacion": station,
+                        "Tendencia": mk_result.trend,
+                        "p-valor": mk_result.p,
+                        "Pendiente Sen (mm/año)": mk_result.slope
+                    })
+            if results:
+                trends_df = pd.DataFrame(results)
+                pdf.add_dataframe(trends_df)
+            else:
+                pdf.add_body_text("No hay suficientes datos para calcular las tendencias.")
+        else:
+            pdf.add_body_text("No hay datos anuales para el análisis de tendencias.")
+
+    if "Metodología y Fuentes de Datos" in sections_to_include:
+        # NUEVA SECCIÓN: Metodología (Texto de ejemplo)
+        pdf.add_section_title("10. Metodología y Fuentes")
+        pdf.add_body_text(
+            "Los datos de precipitación fueron obtenidos de [Tu Fuente de Datos]. El análisis se realizó utilizando Python y las librerías Pandas, Plotly y Streamlit. "
+            "Las tendencias se evaluaron con la prueba no paramétrica de Mann-Kendall y la pendiente de Sen. Las anomalías se calcularon con respecto al promedio histórico del período seleccionado."
+        )
+
     return bytes(pdf.output(dest='S'))
