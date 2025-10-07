@@ -1,19 +1,19 @@
-# Archivo: config.yaml
+caverde# Archivo: config.yaml
 
 credentials:
   usernames:
-    jsmith:
+    omejia:
       email: omejiariv@gmail.com
       name: Oscar Mejia
       password: '$2b$12$.55RmOPsIdWkYuiEw0egCeoSUnxq1qJDEsVV6ahKgHrG3QagGwpzy'
-    rdoe:
+    cduque:
       email: jhon.duque@cuencaverde.org
       name: Camilo Duque
       password: '$2b$12$G5aEryYgLFI49QwW/3adCerEsHZkYkkoe7py3XpdMfian/3lt/rLC'
 cookie:
   expiry_days: 30
-  key: some_signature_key # Puede ser cualquier cadena de texto
-  name: some_cookie_name
+  key: cuencaverde2025
+  name: cuencaverde
 preauthorized:
   emails:
   - jhon.duque@cuencaverde.org
