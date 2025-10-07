@@ -359,5 +359,10 @@ def main():
                         st.error(f"Error al generar el reporte: {e}")
                         st.exception(e)
 
+    elif st.session_state["authentication_status"] is False:
+        st.error('Usuario/contraseña incorrecto')
+    elif st.session_state["authentication_status"] is None:
+        st.warning('Por favor, ingrese su usuario y contraseña')
+
 if __name__ == "__main__":
     main()
