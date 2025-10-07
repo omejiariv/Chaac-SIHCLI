@@ -78,6 +78,7 @@ def display_map_controls(container_object, key_prefix):
     base_map_options = {
         "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
+        
         # CORRECCIÓN DEFINITIVA DE LA URL
         "Topografía (OpenTopoMap)": {
             "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
