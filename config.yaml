@@ -14,7 +14,7 @@ credentials:
     invitado:
       email: invitado@none.com
       name: Invitado
-      password: 'cv2025'
+      password: '$2b$12$G5aEry/yGLFT49kQVW/3adCErESHZkYkkoe7py3XpdwFian/3lt/rLC'
       
 cookie:
   expiry_days: 90
