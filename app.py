@@ -1,3 +1,5 @@
+# app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -27,7 +29,10 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
     """Aplica una serie de filtros al DataFrame de estaciones."""
     stations_filtered = df.copy()
     if Config.PERCENTAGE_COL in stations_filtered.columns:
-        stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
+        stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(
+            stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False), 
+            errors='coerce'
+        ).fillna(0)
     if min_perc > 0:
         stations_filtered = stations_filtered[stations_filtered[Config.PERCENTAGE_COL] >= min_perc]
     if altitudes:
@@ -50,31 +55,30 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
     return stations_filtered
 
 def main():
-    # --- Configuración Inicial de la Página ---
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
     progress_placeholder = st.empty()
 
-    # --- Título Principal ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
-            try: st.image(Config.LOGO_PATH, width=60)
-            except Exception: pass
+            try:
+                st.image(Config.LOGO_PATH, width=60)
+            except Exception:
+                pass
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
-    # --- Panel Lateral (Sidebar) ---
     st.sidebar.header("Panel de Control")
-
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
-        
+
         def process_and_store_data(file_mapa, file_precip, file_shape):
             st.cache_data.clear()
             st.cache_resource.clear()
-            for key in list(st.session_state.keys()): del st.session_state[key]
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
             Config.initialize_session_state()
             with st.spinner("Procesando archivos y cargando datos..."):
                 gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(file_mapa, file_precip, file_shape)
@@ -85,7 +89,8 @@ def main():
                     })
                     st.success("¡Datos cargados y listos!")
                     st.rerun()
-                else: st.error("Hubo un error al procesar los archivos.")
+                else:
+                    st.error("Hubo un error al procesar los archivos.")
 
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
@@ -94,7 +99,8 @@ def main():
             if st.button("Procesar Datos Manuales"):
                 if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
-                else: st.warning("Por favor, suba los tres archivos requeridos.")
+                else:
+                    st.warning("Por favor, suba los tres archivos requeridos.")
         else:
             st.info(f"Datos desde: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
             if st.button("Cargar Datos desde GitHub"):
@@ -106,7 +112,8 @@ def main():
                     }
                 if all(github_files.values()):
                     process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
-                else: st.error("No se pudieron descargar los archivos desde GitHub.")
+                else:
+                    st.error("No se pudieron descargar los archivos desde GitHub.")
 
     if not st.session_state.get('data_loaded', False):
         display_welcome_tab()
@@ -117,7 +124,8 @@ def main():
     if st.sidebar.button("Limpiar Caché y Reiniciar"):
         st.cache_data.clear()
         st.cache_resource.clear()
-        for key in list(st.session_state.keys()): del st.session_state[key]
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
@@ -125,14 +133,14 @@ def main():
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
         selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges)
         regions_list = sorted(st.session_state.gdf_stations[Config.REGION_COL].dropna().unique())
-        selected_regions = st.multiselect('Filtrar por Depto/Región', options=regions_list)
+        selected_regions = st.multiselect('Filtrar por Depto/Región', options=regions_list, key='regions_multiselect')
         temp_gdf_for_mun = st.session_state.gdf_stations.copy()
         if selected_regions:
             temp_gdf_for_mun = temp_gdf_for_mun[temp_gdf_for_mun[Config.REGION_COL].isin(selected_regions)]
         municipios_list = sorted(temp_gdf_for_mun[Config.MUNICIPALITY_COL].dropna().unique())
-        selected_municipios = st.multiselect('Filtrar por Municipio', options=municipios_list)
+        selected_municipios = st.multiselect('Filtrar por Municipio', options=municipios_list, key='municipios_multiselect')
         celdas_list = sorted(temp_gdf_for_mun[Config.CELL_COL].dropna().unique()) if Config.CELL_COL in temp_gdf_for_mun.columns else []
-        selected_celdas = st.multiselect('Filtrar por Celda_XY', options=celdas_list)
+        selected_celdas = st.multiselect('Filtrar por Celda_XY', options=celdas_list, key='celdas_multiselect')
 
     gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
 
@@ -160,8 +168,6 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-    # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
-    
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
@@ -181,8 +187,6 @@ def main():
                 st.info("Seleccione al menos una estación para ver el contenido.")
         return
 
-    # --- PROCESAMIENTO DE DATOS POST-FILTROS ---
-    gdf_filtered = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations_for_analysis)]
     df_monthly_filtered = st.session_state.df_long[
         (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & 
         (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & 
@@ -214,7 +218,6 @@ def main():
         "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
     }
     
-    # --- RENDERIZADO DEL CONTENIDO DE CADA PESTAÑA ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
@@ -234,54 +237,25 @@ def main():
     
     with tabs[13]:
         st.header("Generación de Reporte PDF")
-        report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático de Estaciones Seleccionadas")
+        report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         
-        report_sections_options = [
-            "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
-            "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
-            "Análisis de Anomalías", "Análisis de Extremos Hidrológicos",
-            "Estadísticas Descriptivas", "Análisis de Correlación",
-            "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
-            "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
-        ]
+        report_sections_options = ["Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial"]
         
-        st.markdown("**Seleccione las secciones a incluir:**")
-        
-        def select_all_report_sections_on_change():
-            if st.session_state.select_all_report_sections_checkbox:
-                st.session_state.selected_report_sections_multiselect = report_sections_options
-            else:
-                st.session_state.selected_report_sections_multiselect = []
+        selected_report_sections = st.multiselect("Secciones a incluir:", options=report_sections_options, default=report_sections_options)
 
-        st.checkbox(
-            "Seleccionar/Deseleccionar todas las secciones", 
-            key='select_all_report_sections_checkbox', 
-            on_change=select_all_report_sections_on_change
-        )
-
-        selected_report_sections = st.multiselect(
-            "Secciones del Reporte",
-            options=report_sections_options,
-            key='selected_report_sections_multiselect'
-        )
-
-        if st.button("Generar Reporte PDF", key="generate_report_button"):
+        if st.button("Generar Reporte PDF"):
             if not selected_report_sections:
-                st.warning("Seleccione al menos una sección para incluir en el reporte.")
+                st.warning("Seleccione al menos una sección.")
             else:
-                with st.spinner("Generando reporte PDF..."):
+                with st.spinner("Generando reporte..."):
                     try:
                         summary_data = {
                             "Estaciones": f"{len(stations_for_analysis)}/{len(st.session_state.gdf_stations)}",
                             "Periodo": f"{year_range[0]}-{year_range[1]}",
-                            "Modo de Análisis": st.session_state.analysis_mode,
-                            "Regiones": ", ".join(selected_regions) if selected_regions else "Todas",
-                            "Municipios": ", ".join(selected_municipios) if selected_municipios else "Todos"
+                            "Modo de Análisis": st.session_state.analysis_mode
                         }
-                        
                         df_anomalies = calculate_monthly_anomalies(df_monthly_filtered, st.session_state.df_long)
                         
-                        # Llamada a la función de reporte con todos los argumentos necesarios
                         report_pdf_bytes = generate_pdf_report(
                             report_title=report_title,
                             sections_to_include=selected_report_sections,
@@ -296,7 +270,10 @@ def main():
                             file_name=f"{report_title.replace(' ', '_')}.pdf",
                             mime="application/pdf"
                         )
-                        st.success("¡Reporte generado con éxito!")
+                        st.success("¡Reporte generado!")
                     except Exception as e:
                         st.error(f"Error al generar el reporte: {e}")
                         st.exception(e)
+
+if __name__ == "__main__":
+    main()
