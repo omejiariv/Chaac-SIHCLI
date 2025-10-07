@@ -145,7 +145,6 @@ def generate_pdf_report(report_title, sections_to_include, summary_data, df_anom
             pdf.add_folium_map(m)
         else:
             pdf.add_body_text("No hay estaciones para mostrar en el mapa.")
-
     # ... (Otras secciones del reporte que quieras añadir) ...
 
     # CORRECCIÓN: Se elimina .encode('latin-1')
