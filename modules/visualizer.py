@@ -74,21 +74,20 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
 
 def display_map_controls(container_object, key_prefix):
     """Muestra los controles para seleccionar mapa base y capas adicionales."""
+    # Opciones de mapas base
     base_map_options = {
         "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
+        # URL CORREGIDA PARA EL MAPA TOPOGRÁFICO
         "Topografía (OpenTopoMap)": {
             "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
             "attr": "OpenTopoMap"
         },
     }
     
+    # Opciones de capas adicionales (overlays)
     overlay_map_options = {
-        "Precipitación Satelital (NASA GPM)": {
-            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPM_3IMERGDL_Day/default/{Time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.png",
-            "attr": "NASA GIBS",
-            "overlay": True
-        },
+        # SE ELIMINÓ LA CAPA SATELITAL DE LA NASA
         "Mapa de Colombia (WMS IDEAM)": {
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
             "layers": "ideam:col_admin",
