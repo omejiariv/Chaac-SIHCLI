@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import folium  # <--- ESTA LÍNEA ES LA CORRECCIÓN
 from fpdf import FPDF
 import io
 import os
