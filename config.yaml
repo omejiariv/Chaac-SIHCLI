@@ -10,8 +10,14 @@ credentials:
       email: jhon.duque@cuencaverde.org
       name: Camilo Duque
       password: '$2b$12$G5aEryYgLFI49QwW/3adCerEsHZkYkkoe7py3XpdMfian/3lt/rLC'
+
+    invitado:
+      email: invitado@none.com
+      name: Invitado
+      password: 'cv2025'
+      
 cookie:
-  expiry_days: 30
+  expiry_days: 90
   key: cuencaverde2025
   name: cuencaverde
 preauthorized:
