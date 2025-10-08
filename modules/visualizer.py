@@ -377,6 +377,17 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         controls_col, map_col = st.columns([1, 3])
         with controls_col:
             st.subheader("Controles del Mapa")
+            if st.button("📌 Guardar Mapa en Dashboard", key="pin_spatial_map"):
+                # Para el mapa, solo necesitamos guardar las estaciones seleccionadas
+                params = {
+                    "stations": stations_for_analysis,
+                }
+                db_manager.save_preference(
+                    username=st.session_state["username"], 
+                    widget_type="spatial_map", # Un nuevo tipo de widget único
+                    params=params
+                )
+                st.toast("¡Mapa de distribución guardado en tu Dashboard!", icon="✅")            
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
             st.metric("Estaciones en Vista", len(gdf_display))
 
@@ -2577,62 +2588,79 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                     "precip_sum (mm)": "{:.1f}"
                 }))
 
-def display_dashboard_tab(df_full_monthly, gdf_stations, **kwargs):
+def display_dashboard_tab(df_anual_melted, gdf_filtered, **kwargs):
     """
     Muestra el dashboard personalizado para el usuario que ha iniciado sesión.
-    Lee las preferencias de la base de datos y renderiza los widgets guardados.
     """
     st.header(f"Dashboard Personalizado de {st.session_state.get('name', 'Usuario')}")
 
     username = st.session_state.get("username")
     if not username:
-        st.error("No se pudo identificar al usuario. Por favor, inicie sesión de nuevo.")
+        st.error("No se pudo identificar al usuario.")
         return
 
     preferences = db_manager.get_preferences(username)
 
     if not preferences:
-        st.info("Aún no has guardado ningún gráfico en tu dashboard. Busca el ícono 📌 en los análisis para añadirlos.")
+        st.info("Aún no has guardado nada en tu dashboard. Busca el ícono 📌 para añadir gráficos.")
         return
 
-    st.success(f"Mostrando {len(preferences)} elementos guardados en tu dashboard.")
+    st.success(f"Mostrando {len(preferences)} elementos guardados.")
     st.markdown("---")
 
     for pref in preferences:
         widget_type = pref.get('type')
         params = pref.get('params', {})
 
+        # --- Lógica para renderizar el Gráfico de Serie Anual ---
         if widget_type == 'annual_series_chart':
             st.subheader("Serie de Precipitación Anual Guardada")
             
             stations = params.get('stations', [])
             year_range = params.get('year_range', [1970, 2023])
 
-            df_filtered = df_full_monthly[
-                (df_full_monthly[Config.STATION_NAME_COL].isin(stations)) &
-                (df_full_monthly[Config.DATE_COL].dt.year >= year_range[0]) &
-                (df_full_monthly[Config.DATE_COL].dt.year <= year_range[1])
-            ].copy()
+            # Filtramos el DataFrame anual ya procesado
+            df_plot = df_anual_melted[
+                (df_anual_melted[Config.STATION_NAME_COL].isin(stations)) &
+                (df_anual_melted[Config.YEAR_COL] >= year_range[0]) &
+                (df_anual_melted[Config.YEAR_COL] <= year_range[1])
+            ]
 
-            if not df_filtered.empty:
-                # ▼▼▼ INICIO DE LA CORRECCIÓN ▼▼▼
-                annual_agg = df_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
-                    precipitation_sum=('precipitation', 'sum'),
-                    meses_validos=(Config.MONTH_COL, 'nunique') # Se cambió 'month' por Config.MONTH_COL
-                ).reset_index()
-                annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
-                df_anual_plot = annual_agg.rename(columns={'precipitation_sum': 'precipitation'})
-
-                chart = alt.Chart(df_anual_plot.dropna(subset=['precipitation'])).mark_line(point=True).encode(
+            if not df_plot.empty:
+                chart = alt.Chart(df_plot.dropna(subset=['precipitation'])).mark_line(point=True).encode(
                     x=alt.X(f'{Config.YEAR_COL}:O', title='Año'),
                     y=alt.Y('precipitation:Q', title='Precipitación (mm)'),
                     color=f'{Config.STATION_NAME_COL}:N'
-                ).properties(
-                    title=f"Estaciones: {', '.join(stations)}"
-                ).interactive()
+                ).properties(title=f"Estaciones: {', '.join(stations)}").interactive()
                 st.altair_chart(chart, use_container_width=True)
             else:
-                st.warning("No se encontraron datos para los parámetros guardados de este gráfico.")
+                st.warning("No se encontraron datos para los parámetros de este gráfico.")
+            
+            st.divider()
+
+        # --- Lógica para renderizar el Mapa de Distribución ---
+        elif widget_type == 'spatial_map':
+            st.subheader("Mapa de Distribución Guardado")
+            
+            stations = params.get('stations', [])
+            gdf_plot = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations)]
+
+            if not gdf_plot.empty:
+                map_config, overlay_config = display_map_controls(st, f"map_{hash(str(params))}")
+                m = create_folium_map(
+                    location=[4.57, -74.29], zoom=5,
+                    base_map_config=map_config,
+                    overlays_config=overlay_config,
+                    fit_bounds_data=gdf_plot
+                )
+                for _, row in gdf_plot.iterrows():
+                    folium.Marker(
+                        location=[row.geometry.y, row.geometry.x],
+                        tooltip=row[Config.STATION_NAME_COL]
+                    ).add_to(m)
+                folium_static(m, height=400)
+            else:
+                st.warning("No se encontraron datos para los parámetros de este mapa.")
             
             st.divider()
         
