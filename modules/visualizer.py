@@ -20,6 +20,7 @@ from scipy import stats
 from prophet.plot import plot_plotly
 import io
 from datetime import datetime, timedelta
+from modules import db_manager
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import (
@@ -479,16 +480,12 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis,
                        gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Visualizaciones de Precipitación")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode, 
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios, 
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
+                           selected_stations_count=len(stations_for_analysis),
+                           year_range=st.session_state.year_range,
+                           selected_months_count=len(st.session_state.meses_numeros),
+                           analysis_mode=analysis_mode, selected_regions=selected_regions,
+                           selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
 
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
@@ -527,6 +524,21 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         with anual_graf_tab:
             if not df_anual_rich.empty:
                 st.subheader("Precipitación Anual (mm)")
+
+                # ▼▼▼ INICIO DEL CÓDIGO AÑADIDO ▼▼▼
+                if st.button("📌 Guardar en Dashboard", key="pin_anual_series"):
+                    params = {
+                        "stations": stations_for_analysis,
+                        "year_range": list(year_range_val) # Guardamos los filtros actuales
+                    }
+                    db_manager.save_preference(
+                        username=st.session_state["username"], 
+                        widget_type="annual_series_chart", 
+                        params=params
+                    )
+                    st.toast("¡Gráfico de serie anual guardado en tu Dashboard!", icon="✅")
+                # ▲▲▲ FIN DEL CÓDIGO AÑADIDO ▲▲▲                
+                
                 st.info("Solo se muestran los años con 10 o más meses de datos válidos.")
                 chart_anual = alt.Chart(df_anual_rich.dropna(subset=[Config.PRECIPITATION_COL])).mark_line(point=True).encode(
                     x=alt.X(f'{Config.YEAR_COL}:O', title='Año'),
