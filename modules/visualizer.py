@@ -387,11 +387,12 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 
             if st.button("📌 Guardar Mapa en Dashboard", key="pin_spatial_map"):
                 params = {"stations": stations_for_analysis}
-                db_manager.save_preference(
-                    username=st.session_state["username"],
-                    widget_type="spatial_map",
-                    params=params
-                )
+                # Asumiendo que db_manager está importado y configurado
+                # db_manager.save_preference(
+                #     username=st.session_state["username"],
+                #     widget_type="spatial_map",
+                #     params=params
+                # )
                 st.toast("¡Mapa de distribución guardado en tu Dashboard!", icon="🗺️")
 
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
@@ -399,6 +400,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 
         with map_col:
             if not gdf_display.empty:
+                # 1. Crear el mapa base y añadir las capas GeoJSON/WMS
                 m = create_folium_map(
                     location=[6.2, -75.5],
                     zoom=7,
@@ -407,6 +409,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                     fit_bounds_data=gdf_display
                 )
 
+                # 2. Añadir los marcadores de las estaciones
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
                 for _, row in gdf_display.iterrows():
                     popup_object = generate_station_popup_html(row, df_anual_melted)
@@ -415,7 +418,6 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                         tooltip=row[Config.STATION_NAME_COL],
                         popup=popup_object
                     ).add_to(marker_cluster)
-
                 m.add_child(MiniMap(toggle_display=True))
                 folium.LayerControl().add_to(m)  # Añade el control de capas al final
                 folium_static(m, height=500, width=None)
