@@ -249,11 +249,7 @@ def main():
         }
         
         with tabs[0]:
-            display_dashboard_tab(
-                df_anual_melted=df_anual_melted, 
-                gdf_filtered=gdf_filtered, 
-                **display_args
-            )
+            display_dashboard_tab(**display_args)
         with tabs[1]: display_spatial_distribution_tab(**display_args)
         with tabs[2]: display_graphs_tab(**display_args)
         with tabs[3]: display_advanced_maps_tab(**display_args)
