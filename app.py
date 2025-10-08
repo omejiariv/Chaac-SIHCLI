@@ -150,6 +150,16 @@ def main():
             st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
             return
 
+       # --- Carga de capas GeoJSON adicionales ---
+        if 'geojson_loaded' not in st.session_state:
+            st.session_state['geojson_loaded'] = True
+            try:
+                st.session_state.gdf_municipios_ant = gpd.read_file("data/MunicipiosAntioquia.geojson")
+                st.session_state.gdf_predios = gpd.read_file("data/PrediosEjecutados.geojson")
+                st.session_state.gdf_subcuencas = gpd.read_file("data/SubcuencasAinfluencia.geojson")
+            except Exception as e:
+                st.error(f"Error al cargar los archivos GeoJSON locales: {e}") 
+
         st.sidebar.success("Datos cargados.")
         if st.sidebar.button("Limpiar Caché y Reiniciar"):
             st.cache_data.clear()
