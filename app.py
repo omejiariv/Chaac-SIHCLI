@@ -150,7 +150,7 @@ def main():
             st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
             return
 
-       # --- Carga de capas GeoJSON adicionales ---
+        # --- Carga de capas GeoJSON adicionales ---
         if 'geojson_loaded' not in st.session_state:
             st.session_state['geojson_loaded'] = True
             try:
@@ -158,7 +158,7 @@ def main():
                 st.session_state.gdf_predios = gpd.read_file("data/PrediosEjecutados.geojson")
                 st.session_state.gdf_subcuencas = gpd.read_file("data/SubcuencasAinfluencia.geojson")
             except Exception as e:
-                st.error(f"Error al cargar los archivos GeoJSON locales: {e}") 
+                st.error(f"Error al cargar los archivos GeoJSON locales: {e}")
 
         st.sidebar.success("Datos cargados.")
         if st.sidebar.button("Limpiar Caché y Reiniciar"):
@@ -208,8 +208,9 @@ def main():
             st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
             st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
+        # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
         tab_names = [
-            "Mi Dashboard", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
+            "Bienvenida", "Mi Dashboard", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
             "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
             "Correlación", "Análisis ENSO", "Tendencias y Pronósticos", 
             "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"
@@ -222,11 +223,14 @@ def main():
             with tabs[0]:
                 display_welcome_tab()
                 st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
-            for tab in tabs[1:]:
-                with tab:
-                    st.info("Seleccione al menos una estación para ver el contenido.")
+            # Muestra un mensaje de espera en las demás pestañas
+            for i, tab in enumerate(tabs):
+                if i > 0: # Salta la primera pestaña que ya tiene contenido
+                    with tab:
+                        st.info("Seleccione al menos una estación para ver el contenido.")
             return
 
+        # --- PROCESAMIENTO DE DATOS POST-FILTROS ---
         df_monthly_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & 
             (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & 
@@ -258,25 +262,55 @@ def main():
             "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
         }
         
+        # --- RENDERIZADO DEL CONTENIDO DE CADA PESTAÑA (ORDEN CORREGIDO) ---
         with tabs[0]:
-            display_dashboard_tab(**display_args)
-        with tabs[1]: display_spatial_distribution_tab(**display_args)
-        with tabs[2]: display_graphs_tab(**display_args)
-        with tabs[3]: display_advanced_maps_tab(**display_args)
-        with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-        with tabs[5]: display_drought_analysis_tab(**display_args)
-        with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
-        with tabs[7]: display_correlation_tab(**display_args)
-        with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-        with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-        with tabs[10]: display_forecast_tab(**display_args)
-        with tabs[11]: display_downloads_tab(
-            df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
-            stations_for_analysis=stations_for_analysis, analysis_mode=st.session_state.analysis_mode
-        )
-        with tabs[12]: display_station_table_tab(**display_args)
+            display_welcome_tab()
         
-        with tabs[13]:
+        with tabs[1]:
+            # El Dashboard necesita los datos completos para poder filtrar según las preferencias guardadas
+            annual_agg_full = st.session_state.df_long.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
+                precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), 
+                meses_validos=(Config.MONTH_COL, 'nunique')
+            ).reset_index()
+            annual_agg_full.loc[annual_agg_full['meses_validos'] < 10, 'precipitation_sum'] = np.nan
+            df_anual_full = annual_agg_full.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
+            
+            display_dashboard_tab(
+                df_full_monthly=st.session_state.df_long,
+                df_anual_full=df_anual_full,
+                gdf_stations_full=st.session_state.gdf_stations,
+                **display_args
+            )
+
+        with tabs[2]: 
+            display_spatial_distribution_tab(**display_args)
+        with tabs[3]: 
+            display_graphs_tab(**display_args)
+        with tabs[4]: 
+            display_advanced_maps_tab(**display_args)
+        with tabs[5]: 
+            display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
+        with tabs[6]: 
+            display_drought_analysis_tab(**display_args)
+        with tabs[7]: 
+            display_stats_tab(df_long=st.session_state.df_long, **display_args)
+        with tabs[8]: 
+            display_correlation_tab(**display_args)
+        with tabs[9]: 
+            display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+        with tabs[10]: 
+            display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+        with tabs[11]: 
+            display_forecast_tab(**display_args)
+        with tabs[12]: 
+            display_downloads_tab(
+                df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
+                stations_for_analysis=stations_for_analysis, analysis_mode=st.session_state.analysis_mode
+            )
+        with tabs[13]: 
+            display_station_table_tab(**display_args)
+        
+        with tabs[14]:
             st.header("Generación de Reporte PDF")
             report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
             
@@ -332,5 +366,6 @@ def main():
     elif st.session_state["authentication_status"] is None:
         st.warning('Por favor, ingrese su usuario y contraseña para continuar')
 
+# ESTA LÍNEA DEBE ESTAR AL FINAL Y SIN NINGUNA INDENTACIÓN
 if __name__ == "__main__":
     main()
