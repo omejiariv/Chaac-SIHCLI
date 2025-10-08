@@ -19,7 +19,7 @@ from modules.visualizer import (
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
-    display_forecast_tab
+    display_forecast_tab, display_dashboard_tab
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
@@ -199,7 +199,7 @@ def main():
             st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
         tab_names = [
-            "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
+            "Mi Dashboard", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
             "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
             "Correlación", "Análisis ENSO", "Tendencias y Pronósticos", 
             "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"
@@ -248,7 +248,7 @@ def main():
             "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
         }
         
-        with tabs[0]: display_welcome_tab()
+        with tabs[0]: display_dashboard_tab(df_full_monthly=st.session_state.df_long, gdf_stations=st.session_state.gdf_stations, **display_args)
         with tabs[1]: display_spatial_distribution_tab(**display_args)
         with tabs[2]: display_graphs_tab(**display_args)
         with tabs[3]: display_advanced_maps_tab(**display_args)
