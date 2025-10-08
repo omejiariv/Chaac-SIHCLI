@@ -359,17 +359,20 @@ def display_welcome_tab():
         """)
 
 def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                     df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
-                                     selected_altitudes, **kwargs):
+                                     df_monthly_filtered, analysis_mode, selected_regions,
+                                     selected_municipios, selected_altitudes, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.get('meses_numeros', [])),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
 
-    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
-                           selected_stations_count=len(stations_for_analysis),
-                           year_range=st.session_state.year_range,
-                           selected_months_count=len(st.session_state.meses_numeros),
-                           analysis_mode=analysis_mode, selected_regions=selected_regions,
-                           selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
-    
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
@@ -381,40 +384,42 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         controls_col, map_col = st.columns([1, 3])
         with controls_col:
             st.subheader("Controles del Mapa")
+
             if st.button("📌 Guardar Mapa en Dashboard", key="pin_spatial_map"):
                 params = {"stations": stations_for_analysis}
                 db_manager.save_preference(
-                    username=st.session_state["username"], 
-                    widget_type="spatial_map", 
+                    username=st.session_state["username"],
+                    widget_type="spatial_map",
                     params=params
                 )
-                st.toast("¡Mapa de distribución guardado!", icon="✅")
+                st.toast("¡Mapa de distribución guardado en tu Dashboard!", icon="🗺️")
 
-            # Llamada a los controles con un prefijo único para evitar conflictos
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
-            
-            if not gdf_filtered.empty:
-                st.metric("Estaciones en Vista", len(gdf_filtered))
+            st.metric("Estaciones en Vista", len(gdf_display))
 
         with map_col:
-            if not gdf_filtered.empty:
+            if not gdf_display.empty:
                 m = create_folium_map(
-                    location=[6.2, -75.5], 
+                    location=[6.2, -75.5],
                     zoom=7,
                     base_map_config=selected_base_map_config,
                     overlays_config=selected_overlays_config,
-                    fit_bounds_data=gdf_filtered
+                    fit_bounds_data=gdf_display
                 )
-                
-                # Añade las estaciones al mapa
+
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
-                for _, row in gdf_filtered.iterrows():
+                for _, row in gdf_display.iterrows():
+                    popup_object = generate_station_popup_html(row, df_anual_melted)
                     folium.Marker(
-                        location=[row.geometry.y, row.geometry.x],
-                        tooltip=row[Config.STATION_NAME_COL]
+                        location=[row['geometry'].y, row['geometry'].x],
+                        tooltip=row[Config.STATION_NAME_COL],
+                        popup=popup_object
                     ).add_to(marker_cluster)
-                
-                folium_static(m, height=500)
+
+                m.add_child(MiniMap(toggle_display=True))
+                folium.LayerControl().add_to(m)  # Añade el control de capas al final
+                folium_static(m, height=500, width=None)
+                add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
 
@@ -433,25 +438,23 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                     data_composition['% Completado'] = (data_composition['Completado'] / data_composition['total']) * 100
 
                     sort_order_comp = st.radio("Ordenar por:", ["% Datos Originales (Mayor a Menor)", "% Datos Originales (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_comp")
-                    if "Mayor a Menor" in sort_order_comp: data_composition = data_composition.sort_values("% Original", ascending=False)
-                    elif "Menor a Mayor" in sort_order_comp: data_composition = data_composition.sort_values("% Original", ascending=True)
-                    else: data_composition = data_composition.sort_index(ascending=True)
+                    if "Mayor a Menor" in sort_order_comp:
+                        data_composition = data_composition.sort_values("% Original", ascending=False)
+                    elif "Menor a Mayor" in sort_order_comp:
+                        data_composition = data_composition.sort_values("% Original", ascending=True)
+                    else:
+                        data_composition = data_composition.sort_index(ascending=True)
 
-                    df_plot = data_composition.reset_index().melt(
-                        id_vars=Config.STATION_NAME_COL, 
-                        value_vars=['% Original', '% Completado'], 
-                        var_name='Tipo de Dato', 
-                        value_name='Porcentaje'
-                    )
+                    df_plot = data_composition.reset_index().melt(id_vars=Config.STATION_NAME_COL, value_vars=['% Original', '% Completado'], var_name='Tipo de Dato', value_name='Porcentaje')
                     
                     fig_comp = px.bar(
-                        df_plot, 
-                        x=Config.STATION_NAME_COL, 
-                        y='Porcentaje', 
-                        color='Tipo de Dato', 
+                        df_plot,
+                        x=Config.STATION_NAME_COL,
+                        y='Porcentaje',
+                        color='Tipo de Dato',
                         title='Composición de Datos por Estación',
                         labels={Config.STATION_NAME_COL: 'Estación', 'Porcentaje': '% del Período'},
-                        text_auto='.1f', 
+                        text_auto='.1f',
                         color_discrete_map={'% Original': '#1f77b4', '% Completado': '#ff7f0e'}
                     )
                     fig_comp.update_layout(height=500, xaxis={'categoryorder': 'trace'}, barmode='stack')
@@ -463,19 +466,19 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 sort_order_disp = st.radio("Ordenar estaciones por:", ["% Datos (Mayor a Menor)", "% Datos (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_disp")
                 df_chart = gdf_display.copy()
                 if Config.PERCENTAGE_COL in df_chart.columns:
-                    if "% Datos (Mayor a Menor)" in sort_order_disp: 
+                    if "% Datos (Mayor a Menor)" in sort_order_disp:
                         df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=False)
-                    elif "% Datos (Menor a Mayor)" in sort_order_disp: 
+                    elif "% Datos (Menor a Mayor)" in sort_order_disp:
                         df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=True)
-                    else: 
+                    else:
                         df_chart = df_chart.sort_values(Config.STATION_NAME_COL, ascending=True)
                     
                     fig_disp = px.bar(
-                        df_chart, 
-                        x=Config.STATION_NAME_COL, 
-                        y=Config.PERCENTAGE_COL, 
+                        df_chart,
+                        x=Config.STATION_NAME_COL,
+                        y=Config.PERCENTAGE_COL,
                         title='Porcentaje de Disponibilidad de Datos Históricos',
-                        labels={Config.STATION_NAME_COL: 'Estación', Config.PERCENTAGE_COL: '% de Datos Disponibles'}, 
+                        labels={Config.STATION_NAME_COL: 'Estación', Config.PERCENTAGE_COL: '% de Datos Disponibles'},
                         color=Config.PERCENTAGE_COL,
                         color_continuous_scale=px.colors.sequential.Viridis
                     )
