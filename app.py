@@ -9,6 +9,7 @@ from datetime import datetime
 import yaml
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
+from modules.db_manager import create_table
 
 # --- Importaciones de Módulos Propios ---
 from modules.config import Config
@@ -56,6 +57,7 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
 
 def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
+    create_table()
     
     # --- LÓGICA DE AUTENTICACIÓN ---
     try:
