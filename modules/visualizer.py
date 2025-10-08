@@ -486,44 +486,48 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         else:
             st.warning("No hay estaciones seleccionadas para mostrar el gráfico.")
 
-def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis,
+                       gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Visualizaciones de Precipitación")
-    
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.get('meses_numeros', [])),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
+                           selected_stations_count=len(stations_for_analysis),
+                           year_range=st.session_state.year_range,
+                           selected_months_count=len(st.session_state.get('meses_numeros', [])),
+                           analysis_mode=analysis_mode, selected_regions=selected_regions,
+                           selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
 
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
     year_range_val = st.session_state.get('year_range', (2000, 2020))
-    year_min, year_max = year_range_val
+    if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and isinstance(year_range_val[0], int):
+        year_min, year_max = year_range_val
+    else:
+        # Fallback por si el rango no está bien definido
+        year_min, year_max = (df_anual_melted[Config.YEAR_COL].min(), df_anual_melted[Config.YEAR_COL].max()) if not df_anual_melted.empty else (2000, 2020)
 
-    # Preparación de datos enriquecidos para tooltips en gráficos
+    # --- Lógica para enriquecer los datos con metadatos ---
     metadata_cols = [Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
     gdf_metadata = gdf_filtered[metadata_cols].drop_duplicates(subset=[Config.STATION_NAME_COL]).copy()
+    
     if Config.ALTITUDE_COL in gdf_metadata.columns:
-        gdf_metadata[Config.ALTITUDE_COL] = pd.to_numeric(gdf_metadata[Config.ALTITUDE_COL], errors='coerce').fillna(0).astype(int)
+        gdf_metadata[Config.ALTITUDE_COL] = pd.to_numeric(gdf_metadata[Config.ALTITUDE_COL], errors='coerce').fillna(-9999).astype(int).astype(str)
     if Config.MUNICIPALITY_COL in gdf_metadata.columns:
         gdf_metadata[Config.MUNICIPALITY_COL] = gdf_metadata[Config.MUNICIPALITY_COL].astype(str).str.strip().replace('nan', 'Sin Dato')
 
-    df_anual_rich = pd.merge(df_anual_melted, gdf_metadata, on=Config.STATION_NAME_COL, how='left')
-    df_monthly_rich = pd.merge(df_monthly_filtered, gdf_metadata, on=Config.STATION_NAME_COL, how='left')
+    cols_to_drop = [col for col in [Config.MUNICIPALITY_COL, Config.ALTITUDE_COL] if col != Config.STATION_NAME_COL]
+    
+    df_anual_pre_merge = df_anual_melted.drop(columns=cols_to_drop, errors='ignore')
+    df_anual_rich = pd.merge(df_anual_pre_merge, gdf_metadata, on=Config.STATION_NAME_COL, how='left')
 
-    tab_titles = [
-        "Análisis Anual", "Análisis Mensual", "Comparación Rápida", "Boxplot Anual", 
-        "Distribución", "Acumulada", "Relación Altitud", "Serie Regional", "Descargar Datos"
-    ]
-    sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional, sub_tab_descarga = st.tabs(tab_titles)
-
+    df_monthly_pre_merge = df_monthly_filtered.drop(columns=cols_to_drop, errors='ignore')
+    df_monthly_rich = pd.merge(df_monthly_pre_merge, gdf_metadata, on=Config.STATION_NAME_COL, how='left')
+    
+    # --- Creación de Pestañas ---
+    tab_keys = ["Análisis Anual", "Análisis Mensual", "Comparación Rápida", "Boxplot Anual", "Distribución", "Acumulada", "Relación Altitud", "Serie Regional", "Descargar Datos"]
+    sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional, sub_tab_descarga = st.tabs(tab_keys)
+                           
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
 
@@ -660,15 +664,38 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         if len(stations_for_analysis) < 2:
             st.info("Seleccione al menos dos estaciones para comparar.")
         else:
-            df_monthly_avg_rich = df_monthly_rich.groupby([Config.STATION_NAME_COL, Config.MONTH_COL]).agg(
+            st.markdown("##### Precipitación Mensual Promedio")
+
+            # 1. Agrupa y calcula solo los valores numéricos
+            df_monthly_avg = df_monthly_rich.groupby([Config.STATION_NAME_COL, Config.MONTH_COL]).agg(
                 precip_promedio=(Config.PRECIPITATION_COL, 'mean'),
-                municipio=(Config.MUNICIPALITY_COL, 'first'),
-                altitud=(Config.ALTITUDE_COL, 'first')
+                precip_max=(Config.PRECIPITATION_COL, 'max'),
+                precip_min=(Config.PRECIPITATION_COL, 'min')
             ).reset_index()
-            fig_avg_monthly = px.line(df_monthly_avg_rich, x=Config.MONTH_COL, y='precip_promedio', color=Config.STATION_NAME_COL,
-                                      labels={'precip_promedio': 'Precipitación Promedio (mm)', Config.MONTH_COL: 'Mes'}, 
-                                      title='Promedio de Precipitación Mensual por Estación',
-                                      hover_data={'municipio': True, 'altitud': True})
+
+            # 2. Obtiene los metadatos únicos de las estaciones
+            station_meta = df_monthly_rich[[
+                Config.STATION_NAME_COL, 
+                Config.MUNICIPALITY_COL, 
+                Config.ALTITUDE_COL
+            ]].drop_duplicates(subset=[Config.STATION_NAME_COL])
+
+            # 3. Une los datos agregados con los metadatos
+            df_monthly_avg_rich = pd.merge(df_monthly_avg, station_meta, on=Config.STATION_NAME_COL, how='left')
+
+            fig_avg_monthly = px.line(df_monthly_avg_rich, x=Config.MONTH_COL,
+                y='precip_promedio', color=Config.STATION_NAME_COL,
+                labels={Config.MONTH_COL: 'Mes', 'precip_promedio': 'Precipitación Promedio (mm)'},
+                title='Promedio de Precipitación Mensual por Estación',
+                hover_data={
+                    Config.MUNICIPALITY_COL: True, 
+                    Config.ALTITUDE_COL: True, 
+                    'precip_max': ':.0f',
+                    'precip_min': ':.0f'
+                })
+            
+            meses_dict = {'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12}
+            fig_avg_monthly.update_layout(height=500, xaxis=dict(tickmode='array', tickvals=list(meses_dict.values()), ticktext=list(meses_dict.keys())))
             st.plotly_chart(fig_avg_monthly, use_container_width=True)
 
     with sub_tab_boxplot:
