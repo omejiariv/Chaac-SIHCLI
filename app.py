@@ -248,7 +248,12 @@ def main():
             "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
         }
         
-        with tabs[0]: display_dashboard_tab(df_full_monthly=st.session_state.df_long, gdf_stations=st.session_state.gdf_stations, **display_args)
+        with tabs[0]:
+            display_dashboard_tab(
+                df_anual_melted=df_anual_melted, 
+                gdf_filtered=gdf_filtered, 
+                **display_args
+            )
         with tabs[1]: display_spatial_distribution_tab(**display_args)
         with tabs[2]: display_graphs_tab(**display_args)
         with tabs[3]: display_advanced_maps_tab(**display_args)
