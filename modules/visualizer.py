@@ -2576,3 +2576,68 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                     "temp_min (°C)": "{:.1f}",
                     "precip_sum (mm)": "{:.1f}"
                 }))
+
+def display_dashboard_tab(df_full_monthly, gdf_stations, **kwargs):
+    """
+    Muestra el dashboard personalizado para el usuario que ha iniciado sesión.
+    Lee las preferencias de la base de datos y renderiza los widgets guardados.
+    """
+    st.header(f"Dashboard Personalizado de {st.session_state.get('name', 'Usuario')}")
+
+    username = st.session_state.get("username")
+    if not username:
+        st.error("No se pudo identificar al usuario. Por favor, inicie sesión de nuevo.")
+        return
+
+    preferences = db_manager.get_preferences(username)
+
+    if not preferences:
+        st.info("Aún no has guardado ningún gráfico en tu dashboard. Busca el ícono 📌 en los análisis para añadirlos.")
+        return
+
+    st.success(f"Mostrando {len(preferences)} elementos guardados en tu dashboard.")
+    st.markdown("---")
+
+    # Iterar sobre cada preferencia guardada y mostrar el gráfico correspondiente
+    for pref in preferences:
+        widget_type = pref.get('type')
+        params = pref.get('params', {})
+
+        # Usamos un bloque if/elif para decidir qué gráfico dibujar
+        if widget_type == 'annual_series_chart':
+            st.subheader("Serie de Precipitación Anual Guardada")
+            
+            # Recrear los datos necesarios usando los parámetros guardados
+            stations = params.get('stations', [])
+            year_range = params.get('year_range', [1970, 2023])
+
+            df_filtered = df_full_monthly[
+                (df_full_monthly[Config.STATION_NAME_COL].isin(stations)) &
+                (df_full_monthly[Config.DATE_COL].dt.year >= year_range[0]) &
+                (df_full_monthly[Config.DATE_COL].dt.year <= year_range[1])
+            ].copy()
+
+            if not df_filtered.empty:
+                annual_agg = df_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
+                    precipitation_sum=('precipitation', 'sum'),
+                    meses_validos=('month', 'nunique')
+                ).reset_index()
+                annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
+                df_anual_plot = annual_agg.rename(columns={'precipitation_sum': 'precipitation'})
+
+                chart = alt.Chart(df_anual_plot.dropna(subset=['precipitation'])).mark_line(point=True).encode(
+                    x=alt.X(f'{Config.YEAR_COL}:O', title='Año'),
+                    y=alt.Y('precipitation:Q', title='Precipitación (mm)'),
+                    color=f'{Config.STATION_NAME_COL}:N'
+                ).properties(
+                    title=f"Estaciones: {', '.join(stations)}"
+                ).interactive()
+                st.altair_chart(chart, use_container_width=True)
+            else:
+                st.warning("No se encontraron datos para los parámetros guardados de este gráfico.")
+            
+            st.divider()
+        
+        # Puedes añadir más bloques 'elif' aquí para otros tipos de gráficos
+        # elif widget_type == 'otro_tipo_de_grafico':
+        #     ...
