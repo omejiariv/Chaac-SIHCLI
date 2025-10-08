@@ -533,21 +533,21 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
         with anual_graf_tab:
+            # ... (código del gráfico de serie anual con su botón 📌) ...
+            pass
+        with anual_analisis_tab:
             if not df_anual_rich.empty:
-                st.subheader("Precipitación Anual (mm)")
-
+                st.subheader("Precipitación Media Multianual")
+                
                 # ▼▼▼ INICIO DEL CÓDIGO AÑADIDO ▼▼▼
-                if st.button("📌 Guardar en Dashboard", key="pin_anual_series"):
-                    params = {
-                        "stations": stations_for_analysis,
-                        "year_range": list(year_range_val) # Guardamos los filtros actuales
-                    }
+                if st.button("📌 Guardar en Dashboard", key="pin_anual_avg_bar"):
+                    params = {"stations": stations_for_analysis}
                     db_manager.save_preference(
-                        username=st.session_state["username"], 
-                        widget_type="annual_series_chart", 
+                        username=st.session_state["username"],
+                        widget_type="annual_avg_bar_chart", # Nuevo tipo de widget
                         params=params
                     )
-                    st.toast("¡Gráfico de serie anual guardado en tu Dashboard!", icon="✅")
+                    st.toast("¡Gráfico de promedio anual guardado!", icon="✅")
                 # ▲▲▲ FIN DEL CÓDIGO AÑADIDO ▲▲▲                
                 
                 st.info("Solo se muestran los años con 10 o más meses de datos válidos.")
@@ -2639,29 +2639,24 @@ def display_dashboard_tab(df_anual_melted, gdf_filtered, **kwargs):
             st.divider()
 
         # --- Lógica para renderizar el Mapa de Distribución ---
-        elif widget_type == 'spatial_map':
-            st.subheader("Mapa de Distribución Guardado")
-            
+        elif widget_type == 'annual_avg_bar_chart':
+            st.subheader("Precipitación Media Multianual Guardada")
             stations = params.get('stations', [])
-            gdf_plot = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL].isin(stations)]
-
-            if not gdf_plot.empty:
-                map_config, overlay_config = display_map_controls(st, f"map_{hash(str(params))}")
-                m = create_folium_map(
-                    location=[4.57, -74.29], zoom=5,
-                    base_map_config=map_config,
-                    overlays_config=overlay_config,
-                    fit_bounds_data=gdf_plot
-                )
-                for _, row in gdf_plot.iterrows():
-                    folium.Marker(
-                        location=[row.geometry.y, row.geometry.x],
-                        tooltip=row[Config.STATION_NAME_COL]
-                    ).add_to(m)
-                folium_static(m, height=400)
-            else:
-                st.warning("No se encontraron datos para los parámetros de este mapa.")
             
+            df_plot = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL].isin(stations)]
+
+            if not df_plot.empty:
+                df_summary = df_plot.groupby(Config.STATION_NAME_COL, as_index=False)['precipitation'].mean().round(0)
+                df_summary = df_summary.sort_values('precipitation', ascending=False)
+                
+                fig = px.bar(df_summary, x=Config.STATION_NAME_COL, y='precipitation',
+                             title=f"Promedio para: {', '.join(stations)}",
+                             labels={Config.STATION_NAME_COL: 'Estación', 'precipitation': 'Precipitación Media Anual (mm)'},
+                             color='precipitation')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No se encontraron datos para los parámetros de este gráfico de barras.")
+
             st.divider()
         
         # Puedes añadir más bloques 'elif' aquí para otros tipos de gráficos
