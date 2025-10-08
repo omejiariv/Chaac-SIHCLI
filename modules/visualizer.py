@@ -532,23 +532,22 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
 
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
+
+        # --- CÓDIGO DE LA PRIMERA SUB-PESTAÑA: "Gráfico de Serie Anual" ---
         with anual_graf_tab:
-            # ... (código del gráfico de serie anual con su botón 📌) ...
-            pass
-        with anual_analisis_tab:
             if not df_anual_rich.empty:
-                st.subheader("Precipitación Media Multianual")
-                
-                # ▼▼▼ INICIO DEL CÓDIGO AÑADIDO ▼▼▼
-                if st.button("📌 Guardar en Dashboard", key="pin_anual_avg_bar"):
-                    params = {"stations": stations_for_analysis}
+                st.subheader("Precipitación Anual (mm)")
+                if st.button("📌 Guardar en Dashboard", key="pin_anual_series"):
+                    params = {
+                        "stations": stations_for_analysis,
+                        "year_range": list(st.session_state.get('year_range', (2000, 2020)))
+                    }
                     db_manager.save_preference(
-                        username=st.session_state["username"],
-                        widget_type="annual_avg_bar_chart", # Nuevo tipo de widget
+                        username=st.session_state["username"], 
+                        widget_type="annual_series_chart", 
                         params=params
                     )
-                    st.toast("¡Gráfico de promedio anual guardado!", icon="✅")
-                # ▲▲▲ FIN DEL CÓDIGO AÑADIDO ▲▲▲                
+                    st.toast("¡Gráfico de serie anual guardado!", icon="✅")
                 
                 st.info("Solo se muestran los años con 10 o más meses de datos válidos.")
                 chart_anual = alt.Chart(df_anual_rich.dropna(subset=[Config.PRECIPITATION_COL])).mark_line(point=True).encode(
@@ -562,14 +561,24 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                         alt.Tooltip(f'{Config.MUNICIPALITY_COL}:N', title='Municipio'),
                         alt.Tooltip(f'{Config.ALTITUDE_COL}:N', title='Altitud (m)')
                     ]
-                ).properties(title=f'Precipitación Anual por Estación ({year_min} - {year_max})').interactive()
+                ).properties(title=f"Precipitación Anual por Estación ({year_min} - {year_max})").interactive()
                 st.altair_chart(chart_anual, use_container_width=True)
             else:
                 st.warning("No hay datos anuales para mostrar la serie.")
 
+        # --- CÓDIGO DE LA SEGUNDA SUB-PESTAÑA: "Análisis Multianual" ---
         with anual_analisis_tab:
             if not df_anual_rich.empty:
                 st.subheader("Precipitación Media Multianual")
+                if st.button("📌 Guardar en Dashboard", key="pin_anual_avg_bar"):
+                    params = {"stations": stations_for_analysis}
+                    db_manager.save_preference(
+                        username=st.session_state["username"],
+                        widget_type="annual_avg_bar_chart",
+                        params=params
+                    )
+                    st.toast("¡Gráfico de promedio anual guardado!", icon="✅")
+                
                 st.caption(f"Período de análisis: {year_min} - {year_max}")
                 chart_type_annual = st.radio(
                     "Seleccionar tipo de gráfico:", 
@@ -577,48 +586,29 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                     key="avg_chart_type_annual", 
                     horizontal=True
                 )
+
+                # ESTA ES LA LÓGICA QUE FALTABA
                 if chart_type_annual == "Gráfico de Barras (Promedio)":
                     df_summary = df_anual_rich.groupby(Config.STATION_NAME_COL, as_index=False)[Config.PRECIPITATION_COL].mean().round(0)
-                    sort_order = st.radio(
-                        "Ordenar estaciones por:", 
-                        ["Promedio (Mayor a Menor)", "Promedio (Menor a Mayor)", "Alfabético"], 
-                        horizontal=True, 
-                        key="sort_annual_avg"
-                    )
-                    if "Mayor a Menor" in sort_order: 
-                        df_summary = df_summary.sort_values(Config.PRECIPITATION_COL, ascending=False)
-                    elif "Menor a Mayor" in sort_order: 
-                        df_summary = df_summary.sort_values(Config.PRECIPITATION_COL, ascending=True)
-                    else: 
-                        df_summary = df_summary.sort_values(Config.STATION_NAME_COL, ascending=True)
+                    sort_order = st.radio("Ordenar estaciones por:", ["Promedio (Mayor a Menor)", "Promedio (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_annual_avg")
                     
-                    fig_avg = px.bar(
-                        df_summary, 
-                        x=Config.STATION_NAME_COL, 
-                        y=Config.PRECIPITATION_COL, 
-                        title=f'Promedio de Precipitación Anual por Estación ({year_min} - {year_max})',
-                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Media Anual (mm)'},
-                        color=Config.PRECIPITATION_COL, 
-                        color_continuous_scale=px.colors.sequential.Blues_r
-                    )
-                    category_order = 'total descending' if "Mayor" in sort_order else ('total ascending' if "Menor" in sort_order else 'trace')
-                    fig_avg.update_layout(height=500, xaxis={'categoryorder': category_order})
+                    if "Mayor a Menor" in sort_order: df_summary = df_summary.sort_values(Config.PRECIPITATION_COL, ascending=False)
+                    elif "Menor a Mayor" in sort_order: df_summary = df_summary.sort_values(Config.PRECIPITATION_COL, ascending=True)
+                    else: df_summary = df_summary.sort_values(Config.STATION_NAME_COL, ascending=True)
+
+                    fig_avg = px.bar(df_summary, x=Config.STATION_NAME_COL, y=Config.PRECIPITATION_COL, 
+                                     title=f'Promedio de Precipitación Anual ({year_min} - {year_max})',
+                                     labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Media Anual (mm)'},
+                                     color=Config.PRECIPITATION_COL)
                     st.plotly_chart(fig_avg, use_container_width=True)
-                else:
-                    df_anual_filtered_for_box = df_anual_rich[df_anual_rich[Config.STATION_NAME_COL].isin(stations_for_analysis)]
-                    fig_box_annual = px.box(
-                        df_anual_filtered_for_box, 
-                        x=Config.STATION_NAME_COL, 
-                        y=Config.PRECIPITATION_COL,
-                        color=Config.STATION_NAME_COL, 
-                        points='all', 
-                        title='Distribución de la Precipitación Anual por Estación',
-                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Anual (mm)'}
-                    )
-                    fig_box_annual.update_layout(height=500)
-                    st.plotly_chart(fig_box_annual, use_container_width=True, key="box_anual_multianual")
+                else: # Gráfico de Cajas
+                    fig_box_annual = px.box(df_anual_rich, x=Config.STATION_NAME_COL, y=Config.PRECIPITATION_COL,
+                                            color=Config.STATION_NAME_COL, points='all', title='Distribución de la Precipitación Anual',
+                                            labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Anual (mm)'})
+                    st.plotly_chart(fig_box_annual, use_container_width=True)
             else:
-                st.warning("No hay datos anuales para mostrar el análisis multianual.")
+                st.warning("No hay datos anuales para el análisis multianual.")
+
     
     with sub_tab_mensual:
         mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs(["Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"])
