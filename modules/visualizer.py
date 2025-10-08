@@ -2598,16 +2598,13 @@ def display_dashboard_tab(df_full_monthly, gdf_stations, **kwargs):
     st.success(f"Mostrando {len(preferences)} elementos guardados en tu dashboard.")
     st.markdown("---")
 
-    # Iterar sobre cada preferencia guardada y mostrar el gráfico correspondiente
     for pref in preferences:
         widget_type = pref.get('type')
         params = pref.get('params', {})
 
-        # Usamos un bloque if/elif para decidir qué gráfico dibujar
         if widget_type == 'annual_series_chart':
             st.subheader("Serie de Precipitación Anual Guardada")
             
-            # Recrear los datos necesarios usando los parámetros guardados
             stations = params.get('stations', [])
             year_range = params.get('year_range', [1970, 2023])
 
@@ -2618,9 +2615,10 @@ def display_dashboard_tab(df_full_monthly, gdf_stations, **kwargs):
             ].copy()
 
             if not df_filtered.empty:
+                # ▼▼▼ INICIO DE LA CORRECCIÓN ▼▼▼
                 annual_agg = df_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
                     precipitation_sum=('precipitation', 'sum'),
-                    meses_validos=('month', 'nunique')
+                    meses_validos=(Config.MONTH_COL, 'nunique') # Se cambió 'month' por Config.MONTH_COL
                 ).reset_index()
                 annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
                 df_anual_plot = annual_agg.rename(columns={'precipitation_sum': 'precipitation'})
