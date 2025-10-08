@@ -75,7 +75,6 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
 
 def display_map_controls(container_object, key_prefix):
     """Muestra los controles para seleccionar mapa base y capas adicionales."""
-    # Opciones de mapas base
     base_map_options = {
         "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
@@ -85,15 +84,23 @@ def display_map_controls(container_object, key_prefix):
         },
     }
     
-    # Opciones de capas adicionales (overlays)
     overlay_map_options = {
+        "Municipios de Antioquia": {
+            "name": "Municipios de Antioquia", "type": "geojson", 
+            "data_key": "gdf_municipios_ant", "attr": "Municipios"
+        },
+        "Predios Ejecutados": {
+            "name": "Predios Ejecutados", "type": "geojson", 
+            "data_key": "gdf_predios", "attr": "Predios"
+        },
+        "Subcuencas de Influencia": {
+            "name": "Subcuencas de Influencia", "type": "geojson", 
+            "data_key": "gdf_subcuencas", "attr": "Subcuencas"
+        },
         "Mapa de Colombia (WMS IDEAM)": {
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
-            "layers": "ideam:col_admin",
-            "fmt": 'image/png',
-            "transparent": True,
-            "attr": "IDEAM",
-            "overlay": True
+            "layers": "ideam:col_admin", "fmt": 'image/png',
+            "transparent": True, "attr": "IDEAM", "type": "wms"
         }
     }
 
@@ -246,6 +253,7 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
         attr=base_map_config.get('attr', 'OpenStreetMap')
     )
 
+    # Ajusta el zoom y la vista del mapa para que todos los datos sean visibles
     if fit_bounds_data is not None and not fit_bounds_data.empty:
         if len(fit_bounds_data) > 1:
             bounds = fit_bounds_data.total_bounds
@@ -256,24 +264,16 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
             m.location = [point.y, point.x]
             m.zoom_start = 12
 
+    # Añade las capas adicionales seleccionadas por el usuario
     if overlays_config:
         for layer_config in overlays_config:
-            url = layer_config.get("url")
-            if not url:
-                continue
+            layer_type = layer_config.get("type")
+            layer_name = layer_config.get("name", "Overlay")
 
-            # Reemplaza el marcador de tiempo si existe
-            if "{Time}" in url:
-                yesterday = datetime.now() - timedelta(days=1)
-                time_str = yesterday.strftime('%Y-%m-%d')
-                url = url.replace('{Time}', time_str)
-
-            layer_name = layer_config.get("attr", "Overlay")
-
-            # Distingue entre WMS y TileLayer estándar
-            if "layers" in layer_config:  # Es una capa WMS
+            # --- Lógica para capas WMS (como la de IDEAM) ---
+            if layer_type == "wms":
                 WmsTileLayer(
-                    url=url,
+                    url=layer_config["url"],
                     layers=layer_config["layers"],
                     fmt=layer_config.get("fmt", 'image/png'),
                     transparent=layer_config.get("transparent", True),
@@ -281,15 +281,19 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                     control=True,
                     name=layer_name
                 ).add_to(m)
-            else:  # Es una capa de teselas estándar (XYZ)
-                folium.TileLayer(
-                    tiles=url,
-                    attr=layer_name,
-                    name=layer_name,
-                    overlay=True,
-                    control=True,
-                    show=False
-                ).add_to(m)
+            
+            # --- Lógica para capas GeoJSON (como Municipios, Predios, etc.) ---
+            elif layer_type == "geojson":
+                data_key = layer_config.get("data_key")
+                if data_key in st.session_state and not st.session_state[data_key].empty:
+                    folium.GeoJson(
+                        st.session_state[data_key],
+                        name=layer_name
+                    ).add_to(m)
+
+    # Añade el control de capas al final para que todas las capas aparezcan en el menú
+    folium.LayerControl().add_to(m)
+    
     return m
     
 # --- MAIN TAB DISPLAY FUNCTIONS
