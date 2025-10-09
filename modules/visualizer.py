@@ -7,7 +7,7 @@ import altair as alt
 import folium
 from folium.plugins import MarkerCluster, MiniMap
 from folium.raster_layers import WmsTileLayer
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -243,8 +243,9 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     """
     return folium.Popup(html, max_width=300)
 
-def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
-    """Crea un mapa base de Folium y le añade las capas overlay, SIN añadir el control de capas."""
+def create_folium_map(location, zoom, base_map_config, overlays_config,
+                      fit_bounds_data=None):
+    """Crea un mapa base de Folium y le añade capas de overlay de forma inteligente."""
     m = folium.Map(
         location=location,
         zoom_start=zoom,
@@ -287,10 +288,6 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                         st.session_state[data_key],
                         name=layer_name
                     ).add_to(m)
-
-    # Añade el control de capas al final para que todas las capas aparezcan en el menú
-    folium.LayerControl().add_to(m)
-    
     return m
     
 # --- MAIN TAB DISPLAY FUNCTIONS
@@ -418,7 +415,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                     ).add_to(marker_cluster)
                 m.add_child(MiniMap(toggle_display=True))
                 folium.LayerControl().add_to(m)  # Añade el control de capas al final
-                folium_static(m, height=500, width=None)
+                st_folium(m, height=500, use_container_width=True)
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
@@ -875,7 +872,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 if np.all(np.isfinite(bounds)):
                                     m_temporal.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
                             folium.LayerControl().add_to(m_temporal)
-                            folium_static(m_temporal, height=700, width=None)
+                            st_folium(m_temporal, height=700, use_container_width=True)
 
     with race_tab:
         st.subheader("Ranking Anual de Precipitación por Estación")
