@@ -1822,7 +1822,8 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
                 else:
                     st.warning("No hay suficientes datos superpuestos entre la estación y el índice para calcular la correlación.")
 
-def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_analysis,
+                     analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Precipitación y el Fenómeno ENSO")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -1840,9 +1841,9 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
     if df_enso is None or df_enso.empty:
         st.warning("No se encontraron datos del fenómeno ENSO en el archivo de precipitación cargado.")
         return
-        
+
     enso_series_tab, enso_anim_tab = st.tabs(["Series de Tiempo ENSO", "Mapa Interactivo ENSO"])
-    
+
     with enso_series_tab:
         enso_vars_available = {
             Config.ENSO_ONI_COL: 'Anomalía ONI',
