@@ -155,7 +155,7 @@ def main():
         if 'geojson_loaded' not in st.session_state:
             st.session_state['geojson_loaded'] = True
             try:
-                st.session_state.gdf_municipios_ant = gpd.read_file("data/MunicipiosAntioquia.geojson")
+                st.session_state['gdf_municipios_ant'] = gpd.read_file("data/MunicipiosAntioquia.geojson")
                 st.session_state.gdf_predios = gpd.read_file("data/PrediosEjecutados.geojson")
                 st.session_state.gdf_subcuencas = gpd.read_file("data/SubcuencasAinfluencia.geojson")
             except Exception as e:
