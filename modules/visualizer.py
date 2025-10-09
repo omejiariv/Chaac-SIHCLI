@@ -778,35 +778,40 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         if not df_monthly_rich.empty:
             st.download_button("Descargar Datos Mensuales (CSV)", convert_df_to_csv(df_monthly_rich), "datos_mensuales.csv", "text/csv")
 
-def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
+                              df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
+                              selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
-    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations), selected_stations_count=len(stations_for_analysis), year_range=st.session_state.year_range, selected_months_count=len(st.session_state.meses_numeros), analysis_mode=analysis_mode, selected_regions=selected_regions, selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
+                           selected_stations_count=len(stations_for_analysis),
+                           year_range=st.session_state.year_range,
+                           selected_months_count=len(st.session_state.meses_numeros),
+                           analysis_mode=analysis_mode, selected_regions=selected_regions,
+                           selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
+
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
     tab_names = ["Animación GIF", "Superficies de Interpolación", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
     gif_tab, kriging_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
-    
+
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
-        col_controls, col_gif = st.columns([1, 3])
-        with col_controls:
-            if st.button("Reiniciar Animación", key="reset_gif_button"):
-                st.rerun()
-        with col_gif:
-            gif_path = Config.GIF_PATH
-            if os.path.exists(gif_path):
-                try:
-                    with open(gif_path, "rb") as f:
-                        gif_bytes = f.read()
-                    gif_b64 = base64.b64encode(gif_bytes).decode("utf-8")
-                    html_string = f'<img src="data:image/gif;base64,{gif_b64}" width="600" alt="Animación PPAM">'
-                    st.markdown(html_string, unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
-            else:
-                st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
+        
+        # El botón "Reiniciar Animación" que causaba el error ha sido eliminado.
+        gif_path = Config.GIF_PATH
+        if os.path.exists(gif_path):
+            try:
+                with open(gif_path, "rb") as f:
+                    gif_bytes = f.read()
+                gif_b64 = base64.b64encode(gif_bytes).decode("utf-8")
+                html_string = f'<img src="data:image/gif;base64,{gif_b64}" width="600" alt="Animación PPAM">'
+                st.markdown(html_string, unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
+        else:
+            st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
                 
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
