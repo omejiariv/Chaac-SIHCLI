@@ -414,7 +414,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                         popup=popup_object
                     ).add_to(marker_cluster)
                 m.add_child(MiniMap(toggle_display=True))
-                folium.LayerControl().add_to(m)  # Añade el control de capas al final
+                folium.LayerControl().add_to(m)
                 st_folium(m, height=500, use_container_width=True)
                 add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
