@@ -389,26 +389,23 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
             if not gdf_filtered.empty:
                 st.metric("Estaciones en Vista", len(gdf_filtered))
 
-        with map_col:
-            if not gdf_filtered.empty:
-                m = create_folium_map(
-                    location=[6.2, -75.5],
-                    zoom=7,
-                    base_map_config=selected_base_map_config,
-                    overlays_config=selected_overlays_config,
-                    fit_bounds_data=gdf_filtered
-                )
-                marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
-                for _, row in gdf_filtered.iterrows():
-                    folium.Marker(
-                        location=[row.geometry.y, row.geometry.x],
-                        tooltip=row[Config.STATION_NAME_COL]
-                    ).add_to(marker_cluster)
-                
-                # CORRECCIÓN FINAL APLICADA AQUÍ
-                st_folium(m, height=500, use_container_width=True)
-            else:
-                st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
+    with map_col:
+        if not gdf_filtered.empty:
+            m = create_folium_map(
+                location=[6.2, -75.5], zoom=7,
+                base_map_config=selected_base_map_config,
+                overlays_config=selected_overlays_config,
+                fit_bounds_data=gdf_filtered
+            )
+            marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
+            for _, row in gdf_filtered.iterrows():
+                folium.Marker(
+                    location=[row.geometry.y, row.geometry.x],
+                    tooltip=row[Config.STATION_NAME_COL]
+                ).add_to(marker_cluster)
+            st_folium(m, height=500, use_container_width=True)
+        else:
+            st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
 
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
