@@ -1927,8 +1927,7 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                     bounds = gdf_filtered.total_bounds
                     if np.all(np.isfinite(bounds)):
                         m_enso.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-                folium.LayerControl().add_to(m_enso)
-                folium_static(m_enso, height=700, width=None)
+                st_folium(m_enso, height=700, use_container_width=True)
             else:
                 st.info("Seleccione una fecha para visualizar el mapa.")
 
