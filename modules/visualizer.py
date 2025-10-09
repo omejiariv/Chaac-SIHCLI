@@ -927,28 +927,27 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 color_range = st.slider("Rango de Escala de Color (mm)", min_precip, max_precip, (min_precip, max_precip), key="color_compare")
                 colormap = cm.LinearColormap(colors=plt.cm.viridis.colors, vmin=color_range[0], vmax=color_range[1])
 
-            def create_compare_map(data, year, col, gdf_stations_info, df_anual_full):
-                col.markdown(f"**Precipitación en {year}**")
-                m = create_folium_map([6.24, -75.58], 6, selected_base_map_config, selected_overlays_config)
-                if not data.empty:
-                    data_with_geom = pd.merge(data, gdf_stations_info, on=Config.STATION_NAME_COL)
-                    gpd_data = gpd.GeoDataFrame(data_with_geom, geometry='geometry', crs=gdf_stations_info.crs)
-                    for index, row in gpd_data.iterrows():
-                        if pd.notna(row[Config.PRECIPITATION_COL]):
-                            ## AQUÍ ESTÁ LA SEGUNDA CORRECCIÓN ##
-                            popup_object = generate_annual_map_popup_html(row, df_anual_full)
-                            folium.CircleMarker(
-                                location=[row['geometry'].y, row['geometry'].x], radius=5,
-                                color=colormap(row[Config.PRECIPITATION_COL]),
-                                fill=True, fill_color=colormap(row[Config.PRECIPITATION_COL]),
-                                fill_opacity=0.8,
-                                tooltip=row[Config.STATION_NAME_COL], popup=popup_object
-                            ).add_to(m)
-                    if not gpd_data.empty:
-                        m.fit_bounds(gpd_data.total_bounds.tolist())
-            
-                with col:
-                    st_folium(m, height=450, use_container_width=True)
+    def create_compare_map(data, year, col, gdf_stations_info, df_anual_full):
+        col.markdown(f"**Precipitación en {year}**")
+        m = create_folium_map([6.24, -75.58], 6, selected_base_map_config,
+                              selected_overlays_config)
+        if not data.empty:
+            data_with_geom = pd.merge(data, gdf_stations_info, on=Config.STATION_NAME_COL)
+            gpd_data = gpd.GeoDataFrame(data_with_geom, geometry='geometry', crs=gdf_stations_info.crs)
+            for index, row in gpd_data.iterrows():
+                if pd.notna(row[Config.PRECIPITATION_COL]):
+                    popup_object = generate_annual_map_popup_html(row, df_anual_full)
+                    folium.CircleMarker(
+                        location=[row['geometry'].y, row['geometry'].x], radius=5,
+                        color=colormap(row[Config.PRECIPITATION_COL]), fill=True, 
+                        fill_color=colormap(row[Config.PRECIPITATION_COL]), fill_opacity=0.8,
+                        tooltip=row[Config.STATION_NAME_COL], popup=popup_object
+                    ).add_to(m)
+            if not gpd_data.empty:
+                m.fit_bounds(gpd_data.total_bounds.tolist())
+        with col:
+ 
+            st_folium(m, height=450, use_container_width=True)
 
             gdf_geometries = gdf_filtered[[Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, 'geometry']].drop_duplicates(subset=[Config.STATION_NAME_COL])
             data_year1 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year1]
