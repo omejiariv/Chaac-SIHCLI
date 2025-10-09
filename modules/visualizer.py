@@ -956,9 +956,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             ).add_to(m)
                     if not gpd_data.empty:
                         m.fit_bounds(gpd_data.total_bounds.tolist())
-                folium.LayerControl().add_to(m)
+            
                 with col:
-                    folium_static(m, height=450, width=None)
+                    st_folium(m, height=450, use_container_width=True)
 
             gdf_geometries = gdf_filtered[[Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, 'geometry']].drop_duplicates(subset=[Config.STATION_NAME_COL])
             data_year1 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year1]
