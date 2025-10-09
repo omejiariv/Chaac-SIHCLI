@@ -376,43 +376,37 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         controls_col, map_col = st.columns([1, 3])
         with controls_col:
             st.subheader("Controles del Mapa")
-
-            if st.button("📌 Guardar Mapa en Dashboard", key="pin_spatial_map"):
+            if st.button("Guardar Mapa en Dashboard", key="pin_spatial_map"):
                 params = {"stations": stations_for_analysis}
-                # Asumiendo que db_manager está importado y configurado
-                # db_manager.save_preference(
-                #     username=st.session_state["username"],
-                #     widget_type="spatial_map",
-                #     params=params
-                # )
-                st.toast("¡Mapa de distribución guardado en tu Dashboard!", icon="🗺️")
-
+                db_manager.save_preference(
+                    username=st.session_state["username"],
+                    widget_type="spatial_map",
+                    params=params
+                )
+                st.toast("¡Mapa de distribución guardado!", icon="🗺️")
+            
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
-            st.metric("Estaciones en Vista", len(gdf_display))
+            if not gdf_filtered.empty:
+                st.metric("Estaciones en Vista", len(gdf_filtered))
 
         with map_col:
-            if not gdf_display.empty:
-                # 1. Crear el mapa base y añadir las capas GeoJSON/WMS
+            if not gdf_filtered.empty:
                 m = create_folium_map(
                     location=[6.2, -75.5],
                     zoom=7,
                     base_map_config=selected_base_map_config,
                     overlays_config=selected_overlays_config,
-                    fit_bounds_data=gdf_display
+                    fit_bounds_data=gdf_filtered
                 )
-
-                # 2. Añadir los marcadores de las estaciones
                 marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
-                for _, row in gdf_display.iterrows():
-                    popup_object = generate_station_popup_html(row, df_anual_melted)
+                for _, row in gdf_filtered.iterrows():
                     folium.Marker(
-                        location=[row['geometry'].y, row['geometry'].x],
-                        tooltip=row[Config.STATION_NAME_COL],
-                        popup=popup_object
+                        location=[row.geometry.y, row.geometry.x],
+                        tooltip=row[Config.STATION_NAME_COL]
                     ).add_to(marker_cluster)
-                m.add_child(MiniMap(toggle_display=True))
+                
+                # CORRECCIÓN FINAL APLICADA AQUÍ
                 st_folium(m, height=500, use_container_width=True)
-                add_folium_download_button(m, "mapa_distribucion_espacial.html")
             else:
                 st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
 
