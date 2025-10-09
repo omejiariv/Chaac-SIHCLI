@@ -857,12 +857,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             for _, row in df_map_data.iterrows():
                                 ## AQUÍ ESTÁ LA CORRECCIÓN ##
                                 popup_object = generate_annual_map_popup_html(row, df_anual_melted_non_na)
-                                folium.CircleMarker(
-                                    location=[row['geometry'].y, row['geometry'].x], radius=5,
-                                    color=colormap(row[Config.PRECIPITATION_COL]), fill=True,
-                                    fill_color=colormap(row[Config.PRECIPITATION_COL]), fill_opacity=0.8,
-                                    tooltip=row[Config.STATION_NAME_COL], popup=popup_object
-                                ).add_to(m_temporal)
+                            folium.CircleMarker(
+                                location=[row['geometry'].y, row['geometry'].x], radius=5,
+                                color=colormap(row[Config.PRECIPITATION_COL]), fill=True,
+                                fill_color=colormap(row[Config.PRECIPITATION_COL]), fill_opacity=0.8,
+                                tooltip=row[Config.STATION_NAME_COL], popup=popup_object
+                            ).add_to(m_temporal)
 
                             temp_gdf = gpd.GeoDataFrame(df_map_data, geometry='geometry', crs=gdf_filtered.crs)
                             if not temp_gdf.empty:
@@ -948,7 +948,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             folium.CircleMarker(
                                 location=[row['geometry'].y, row['geometry'].x], radius=5,
                                 color=colormap(row[Config.PRECIPITATION_COL]),
-                                fill=True, fill_color=colormap(row[Config.PRECIPITATION_COL]), fill_opacity=0.8,
+                                fill=True, fill_color=colormap(row[Config.PRECIPITATION_COL]),
+                                fill_opacity=0.8,
                                 tooltip=row[Config.STATION_NAME_COL], popup=popup_object
                             ).add_to(m)
                     if not gpd_data.empty:
@@ -1160,7 +1161,9 @@ def display_event_analysis(index_values, index_type):
         else:
             st.info("No hay datos de períodos húmedos para mostrar.")
 
-def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_anual_melted, gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
+                                 df_anual_melted, gdf_filtered, analysis_mode, selected_regions, selected_municipios,
+                                 selected_altitudes, **kwargs):
     st.header("Análisis de Extremos Hidrológicos")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -1177,8 +1180,6 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_
         st.warning("Seleccione al menos una estación.")
         return
 
-    # --- INICIO DE LA MODIFICACIÓN ---
-
     # 1. Mover los controles y la lógica de cálculo fuera y encima de las pestañas
     st.subheader("Configuración del Análisis por Percentiles")
     station_to_analyze_perc = st.selectbox(
@@ -1189,7 +1190,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_
     col1, col2 = st.columns(2)
     p_lower = col1.slider("Percentil Inferior (Sequía):", 1, 40, 10, key="p_lower_perc")
     p_upper = col2.slider("Percentil Superior (Húmedo):", 60, 99, 90, key="p_upper_perc")
-    
+
     df_extremes, df_thresholds = pd.DataFrame(), pd.DataFrame()
     if station_to_analyze_perc:
         df_long = st.session_state.get('df_long')
@@ -1240,6 +1241,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_
                     labels={Config.PRECIPITATION_COL: "Precipitación (mm)", Config.DATE_COL: "Fecha"},
                     hover_data={'event_type': True, 'p_lower': ':.0f', 'p_upper': ':.0f'}
                 )
+                
                 mean_precip = st.session_state.df_long[st.session_state.df_long[Config.STATION_NAME_COL] == station_to_analyze_perc][Config.PRECIPITATION_COL].mean()
                 fig_series.add_hline(y=mean_precip, line_dash="dash", line_color="green", annotation_text="Media Histórica")
                 fig_series.update_layout(height=500)
@@ -1255,17 +1257,17 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis, df_
             st.subheader("Umbrales de Percentil Mensual (Climatología Histórica)")
             meses_map_inv = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
             df_thresholds['Month_Name'] = df_thresholds[Config.MONTH_COL].map(meses_map_inv)
+            
             fig_thresh = go.Figure()
             fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_upper'], mode='lines+markers', name=f'Percentil Superior (P{p_upper}%)', line=dict(color='blue')))
             fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_lower'], mode='lines+markers', name=f'Percentil Inferior (P{p_lower}%)', line=dict(color='red')))
             fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['mean_monthly'], mode='lines', name='Media Mensual', line=dict(color='green', dash='dot')))
+            
             fig_thresh.update_layout(title='Umbrales de Precipitación por Mes (Basado en Climatología)', xaxis_title="Mes", yaxis_title="Precipitación (mm)", height=400)
             st.plotly_chart(fig_thresh, use_container_width=True)
         else:
             st.info("Seleccione una estación para ver los umbrales.")
-    
-    # --- FIN DE LA MODIFICACIÓN ---
-
+            
     with indices_sub_tab:
         st.subheader("Análisis con Índices Estandarizados")
         col1_idx, col2_idx = st.columns([1, 3])
@@ -1620,7 +1622,8 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered, stations_fo
         else:
             st.info("No hay datos para mostrar la síntesis general.")
             
-def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis_mode,
+                            selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Correlación")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -1635,13 +1638,13 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-
+        
     st.markdown("Esta sección cuantifica la relación lineal entre la precipitación y diferentes variables utilizando el coeficiente de correlación de Pearson.")
-    
+
     # AÑADIMOS UNA NUEVA PESTAÑA A LA LISTA
     tab_names = ["Correlación con ENSO (ONI)", "Matriz entre Estaciones", "Comparación 1 a 1", "Correlación con Otros Índices"]
     enso_corr_tab, matrix_corr_tab, station_corr_tab, indices_climaticos_tab = st.tabs(tab_names)
-    
+
     with enso_corr_tab:
         if Config.ENSO_ONI_COL not in df_monthly_filtered.columns or df_monthly_filtered[Config.ENSO_ONI_COL].isnull().all():
             st.warning(f"No se puede realizar el análisis de correlación con ENSO. La columna '{Config.ENSO_ONI_COL}' no fue encontrada o no tiene datos en el período seleccionado.")
@@ -1778,14 +1781,14 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
             available_indices.append("SOI")
         if Config.IOD_COL in df_monthly_filtered.columns and not df_monthly_filtered[Config.IOD_COL].isnull().all():
             available_indices.append("IOD")
-            
+
         if not available_indices:
             st.warning("No se encontraron columnas para los índices climáticos (SOI o IOD) en el archivo principal o no hay datos en el período seleccionado.")
         else:
             col1_corr, col2_corr = st.columns(2)
             selected_index = col1_corr.selectbox("Seleccione un índice climático:", available_indices)
             selected_station_corr = col2_corr.selectbox("Seleccione una estación:", options=sorted(stations_for_analysis), key="station_for_index_corr")
-            
+
             if selected_index and selected_station_corr:
                 index_col_map = {"SOI": Config.SOI_COL, "IOD": Config.IOD_COL}
                 index_col_name = index_col_map.get(selected_index)
@@ -1797,20 +1800,19 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
                 else:
                     st.error(f"La columna para el índice '{selected_index}' no se encontró en los datos de la estación.")
                     return
-                
+
                 if not df_merged_indices.empty and len(df_merged_indices) > 2:
                     corr, p_value = stats.pearsonr(df_merged_indices[index_col_name], df_merged_indices[Config.PRECIPITATION_COL])
+                    
                     st.markdown(f"#### Resultados de la correlación ({selected_index} vs. Precipitación de {selected_station_corr})")
                     st.metric("Coeficiente de Correlación (r)", f"{corr:.3f}")
-                    
                     if p_value < 0.05:
                         st.success("La correlación es estadísticamente significativa.")
                     else:
                         st.warning("La correlación no es estadísticamente significativa.")
-                        
+
                     fig_scatter_indices = px.scatter(
-                        df_merged_indices, x=index_col_name, y=Config.PRECIPITATION_COL,
-                        trendline='ols',
+                        df_merged_indices, x=index_col_name, y=Config.PRECIPITATION_COL, trendline='ols',
                         title=f'Dispersión: {selected_index} vs. Precipitación de {selected_station_corr}',
                         labels={index_col_name: f'Valor del índice {selected_index}', Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)'}
                     )
