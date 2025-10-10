@@ -827,7 +827,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 bounds = temp_gdf.total_bounds
                                 if np.all(np.isfinite(bounds)):
                                     m_temporal.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-                            folium.LayerControl().add_to(m_temporal)
                             st_folium(m_temporal, height=700, use_container_width=True)
 
     with race_tab:
