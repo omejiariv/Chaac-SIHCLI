@@ -14,7 +14,7 @@ from modules.db_manager import create_table
 
 # --- Importaciones de Módulos Propios ---
 from modules.config import Config
-from modules.data_processor import load_and_process_all_data, complete_series, extract_elevation_from_dem, download_and_load_remote_dem
+from modules.data_processor import load_and_process_all_data, complete_series
 from modules.visualizer import (
     display_welcome_tab, display_spatial_distribution_tab, display_graphs_tab,
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
@@ -79,8 +79,7 @@ def main():
     name, authentication_status, username = authenticator.login('main')
 
     # --- FLUJO DE LA APLICACIÓN BASADO EN EL LOGIN ---
-    if st.session_state["authentication_status"]:
-        # --- Si el login es exitoso, se ejecuta la app completa ---
+    if st.session_state.get("authentication_status"):
         st.sidebar.write(f'Bienvenido *{st.session_state["name"]}*')
         authenticator.logout('Logout', 'sidebar')
 
@@ -119,7 +118,6 @@ def main():
                             'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
                         })
                         st.success("¡Datos cargados y listos!")
-                        st.rerun()
                     else:
                         st.error("Hubo un error al procesar los archivos.")
 
@@ -167,7 +165,6 @@ def main():
             st.cache_resource.clear()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            st.rerun()
 
         with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
             min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0))
