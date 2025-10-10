@@ -768,6 +768,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     selected_regions = kwargs.get('selected_regions')
     selected_municipios = kwargs.get('selected_municipios')
     selected_altitudes = kwargs.get('selected_altitudes')
+    # --- FIN DE LA CORRECCIÓN ---
 
     st.header("Mapas Avanzados")
     display_filter_summary(
@@ -801,6 +802,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 st.markdown(html_string, unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
+        # --- CORRECCIÓN DE INDENTACIÓN ---
+        # Este 'else' ahora está alineado con el 'if' de arriba
         else:
             st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
 
