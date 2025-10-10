@@ -20,7 +20,7 @@ from modules.visualizer import (
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
-    display_forecast_tab, display_dashboard_tab
+    display_forecast_tab
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
@@ -211,7 +211,7 @@ def main():
 
         # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
         tab_names = [
-            "Bienvenida", "Mi Dashboard", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
+            "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
             "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
             "Correlación", "Análisis ENSO", "Tendencias y Pronósticos", 
             "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"
@@ -266,52 +266,35 @@ def main():
         # --- RENDERIZADO DEL CONTENIDO DE CADA PESTAÑA (ORDEN CORREGIDO) ---
         with tabs[0]:
             display_welcome_tab()
-        
-        with tabs[1]:
-            # El Dashboard necesita los datos completos para poder filtrar según las preferencias guardadas
-            annual_agg_full = st.session_state.df_long.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
-                precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), 
-                meses_validos=(Config.MONTH_COL, 'nunique')
-            ).reset_index()
-            annual_agg_full.loc[annual_agg_full['meses_validos'] < 10, 'precipitation_sum'] = np.nan
-            df_anual_full = annual_agg_full.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
-            
-            display_dashboard_tab(
-                df_full_monthly=st.session_state.df_long,
-                df_anual_full=df_anual_full,
-                gdf_stations_full=st.session_state.gdf_stations,
-                **display_args
-            )
-
-        with tabs[2]: 
+        with tabs[1]: 
             display_spatial_distribution_tab(**display_args)
-        with tabs[3]: 
+        with tabs[2]: 
             display_graphs_tab(**display_args)
-        with tabs[4]: 
+        with tabs[3]: 
             display_advanced_maps_tab(**display_args)
-        with tabs[5]: 
+        with tabs[4]: 
             display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-        with tabs[6]: 
+        with tabs[5]: 
             display_drought_analysis_tab(**display_args)
-        with tabs[7]: 
+        with tabs[6]: 
             display_stats_tab(df_long=st.session_state.df_long, **display_args)
-        with tabs[8]: 
+        with tabs[7]: 
             display_correlation_tab(**display_args)
-        with tabs[9]: 
+        with tabs[8]: 
             display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-        with tabs[10]: 
+        with tabs[9]: 
             display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-        with tabs[11]: 
+        with tabs[10]: 
             display_forecast_tab(**display_args)
-        with tabs[12]: 
+        with tabs[11]: 
             display_downloads_tab(
                 df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
                 stations_for_analysis=stations_for_analysis, analysis_mode=st.session_state.analysis_mode
             )
-        with tabs[13]: 
+        with tabs[12]: 
             display_station_table_tab(**display_args)
         
-        with tabs[14]:
+        with tabs[13]:
             st.header("Generación de Reporte PDF")
             report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
             
@@ -367,6 +350,5 @@ def main():
     elif st.session_state["authentication_status"] is None:
         st.warning('Por favor, ingrese su usuario y contraseña para continuar')
 
-# ESTA LÍNEA DEBE ESTAR AL FINAL Y SIN NINGUNA INDENTACIÓN
 if __name__ == "__main__":
     main()
