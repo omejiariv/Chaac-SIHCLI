@@ -394,7 +394,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                     location=[row.geometry.y, row.geometry.x],
                     tooltip=row[Config.STATION_NAME_COL]
                 ).add_to(marker_cluster)
-            st_folium(m, height=500, use_container_width=True)
+            st_folium(m, height=500, use_container_width=True, key="spatial_map")
         else:
             st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
 
@@ -827,7 +827,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 bounds = temp_gdf.total_bounds
                                 if np.all(np.isfinite(bounds)):
                                     m_temporal.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-                            st_folium(m_temporal, height=700, use_container_width=True)
+                            st_folium(m_temporal, height=700, use_container_width=True, key="temporal_map")
 
     with race_tab:
         st.subheader("Ranking Anual de Precipitación por Estación")
@@ -1886,7 +1886,7 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                     bounds = gdf_filtered.total_bounds
                     if np.all(np.isfinite(bounds)):
                         m_enso.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-                st_folium(m_enso, height=700, use_container_width=True)
+                st_folium(m_enso, height=700, use_container_width=True, key="enso_map")
             else:
                 st.info("Seleccione una fecha para visualizar el mapa.")
 
