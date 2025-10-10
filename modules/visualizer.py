@@ -757,8 +757,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    # Adaptamos la lista de pestañas a tu versión actual
-    tab_names = ["Animación GIF", "Visualización Temporal", "Comparación de Mapas"]
+    tab_names = [
+        "Animación GIF", "Superficies de Interpolación", "Validación Cruzada (LOOCV)", 
+        "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"
+    ]
     gif_tab, temporal_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
