@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-import pandas as gpd
+import geopandas as gpd
 import numpy as np
 import warnings
 import os
