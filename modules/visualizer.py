@@ -762,11 +762,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"
     ]
 
-    # 2. Asegúrate de que se "desempaqueten" las 7 variables correspondientes
     gif_tab, kriging_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
-    gif_tab, temporal_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
+        st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
         gif_path = Config.GIF_PATH
         if os.path.exists(gif_path):
