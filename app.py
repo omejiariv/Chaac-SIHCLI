@@ -92,10 +92,18 @@ def main():
                 st.cache_data.clear()
                 st.cache_resource.clear()
                 current_user = st.session_state.get("username")
+                auth_info = {
+                    "authentication_status": st.session_state.get("authentication_status"),
+                    "name": st.session_state.get("name"),
+                    "username": st.session_state.get("username")
+                }
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
+                
+                for key, value in auth_info.items():
+                    st.session_state[key] = value
+
                 Config.initialize_session_state()
-                st.session_state["username"] = current_user
                 
                 with st.spinner("Procesando archivos y cargando datos..."):
                     gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(file_mapa, file_precip, file_shape)
