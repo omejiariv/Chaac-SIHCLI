@@ -30,13 +30,8 @@ def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
                 grid_z[j, i] = np.nan
     return grid_z.T
 
-# -----------------------------------------------------------------------------
-# NUEVA FUNCIÓN INTERNA PARA REUTILIZAR LA LÓGICA DE VALIDACIÓN CRUZADA
-# -----------------------------------------------------------------------------
 def _perform_loocv(method, lons, lats, vals, elevs=None):
-    """
-    Función auxiliar interna que realiza la validación cruzada (LOOCV).
-    """
+    """Función auxiliar interna que realiza la validación cruzada (LOOCV)."""
     if len(vals) <= 1:
         return {'RMSE': np.nan, 'MAE': np.nan}
 
@@ -80,43 +75,10 @@ def _perform_loocv(method, lons, lats, vals, elevs=None):
             
     if true_values and predicted_values:
         rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
-        mae = mean_absolute_error(true_values, predicted_values)
+        mae = mean_absolute_error(true_values, predicted_values))
         return {'RMSE': rmse, 'MAE': mae}
     else:
         return {'RMSE': np.nan, 'MAE': np.nan}
-
-# -----------------------------------------------------------------------------
-# NUEVA FUNCIÓN PÚBLICA PARA LA PESTAÑA DE VALIDACIÓN
-# -----------------------------------------------------------------------------
-@st.cache_data
-def perform_loocv_for_year(year, method, gdf_metadata, df_anual_non_na):
-    """
-    Realiza una Validación Cruzada Dejando Uno Afuera (LOOCV) para un año y método dados.
-    Devuelve las métricas de error (RMSE y MAE).
-    """
-    df_year = pd.merge(
-        df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year],
-        gdf_metadata,
-        on=Config.STATION_NAME_COL
-    )
-    
-    clean_cols = [Config.LONGITUDE_COL, Config.LATITUDE_COL, Config.PRECIPITATION_COL]
-    if method == "Kriging con Deriva Externa (KED)" and Config.ELEVATION_COL in df_year.columns:
-        clean_cols.append(Config.ELEVATION_COL)
-
-    df_clean = df_year.dropna(subset=clean_cols).copy()
-    df_clean = df_clean[np.isfinite(df_clean[clean_cols]).all(axis=1)]
-    df_clean = df_clean.drop_duplicates(subset=[Config.LONGITUDE_COL, Config.LATITUDE_COL])
-
-    if len(df_clean) < 4:
-        return {'RMSE': np.nan, 'MAE': np.nan}
-
-    lons = df_clean[Config.LONGITUDE_COL].values
-    lats = df_clean[Config.LATITUDE_COL].values
-    vals = df_clean[Config.PRECIPITATION_COL].values
-    elevs = df_clean[Config.ELEVATION_COL].values if Config.ELEVATION_COL in df_clean else None
-    
-    return _perform_loocv(method, lons, lats, vals, elevs)
 
 @st.cache_data
 def perform_loocv_for_all_methods(_year, _gdf_metadata, _df_anual_non_na):
@@ -127,24 +89,38 @@ def perform_loocv_for_all_methods(_year, _gdf_metadata, _df_anual_non_na):
     
     results = []
     for method in methods:
-        metrics = perform_loocv_for_year(_year, method, _gdf_metadata, _df_anual_non_na)
-        if metrics:
-            results.append({
-                "Método": method,
-                "Año": _year,
-                "RMSE": metrics.get('RMSE'),
-                "MAE": metrics.get('MAE')
-            })
+        # Reutilizamos la lógica de preparación de datos
+        df_year = pd.merge(
+            _df_anual_non_na[_df_anual_non_na[Config.YEAR_COL] == _year],
+            _gdf_metadata,
+            on=Config.STATION_NAME_COL
+        )
+        clean_cols = [Config.LONGITUDE_COL, Config.LATITUDE_COL, Config.PRECIPITATION_COL]
+        if method == "Kriging con Deriva Externa (KED)" and Config.ELEVATION_COL in df_year.columns:
+            clean_cols.append(Config.ELEVATION_COL)
+
+        df_clean = df_year.dropna(subset=clean_cols).copy()
+        df_clean = df_clean[np.isfinite(df_clean[clean_cols]).all(axis=1)]
+        df_clean = df_clean.drop_duplicates(subset=[Config.LONGITUDE_COL, Config.LATITUDE_COL])
+        
+        if len(df_clean) < 4:
+            metrics = {'RMSE': np.nan, 'MAE': np.nan}
+        else:
+            lons = df_clean[Config.LONGITUDE_COL].values
+            lats = df_clean[Config.LATITUDE_COL].values
+            vals = df_clean[Config.PRECIPITATION_COL].values
+            elevs = df_clean[Config.ELEVATION_COL].values if Config.ELEVATION_COL in df_clean else None
+            metrics = _perform_loocv(method, lons, lats, vals, elevs)
+        
+        results.append({
+            "Método": method, "Año": _year,
+            "RMSE": metrics.get('RMSE'), "MAE": metrics.get('MAE')
+        })
     return pd.DataFrame(results)
-# -----------------------------------------------------------------------------
-# FUNCIÓN ORIGINAL, AHORA ACTUALIZADA PARA USAR LA FUNCIÓN AUXILIAR
-# -----------------------------------------------------------------------------
+
 @st.cache_data
 def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_metadata, df_anual_non_na):
     """Crea una superficie de interpolación y calcula el error RMSE."""
-    fig_var = None
-    error_msg = None
-
     df_year = pd.merge(
         df_anual_non_na[df_anual_non_na[Config.YEAR_COL] == year],
         gdf_metadata,
@@ -169,24 +145,23 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
     vals = df_clean[Config.PRECIPITATION_COL].values
     elevs = df_clean[Config.ELEVATION_COL].values if Config.ELEVATION_COL in df_clean else None
 
-    # Llama a la función auxiliar para obtener métricas
     metrics = _perform_loocv(method, lons, lats, vals, elevs)
     rmse = metrics.get('RMSE')
 
     grid_lon = np.linspace(gdf_bounds[0] - 0.1, gdf_bounds[2] + 0.1, 100)
     grid_lat = np.linspace(gdf_bounds[1] - 0.1, gdf_bounds[3] + 0.1, 100)
-    z_grid, fig_variogram, error_message = None, None, None
+    z_grid, fig_variogram = None, None
 
     try:
-        if method in ["Kriging Ordinario", "Kriging con Deriva Externa (KED)"]:
+        if "Kriging" in method:
             model_map = {'gaussian': gs.Gaussian(dim=2), 'exponential': gs.Exponential(dim=2), 'spherical': gs.Spherical(dim=2), 'linear': gs.Linear(dim=2)}
             model = model_map.get(variogram_model, gs.Spherical(dim=2))
             bin_center, gamma = gs.vario_estimate((lons, lats), vals)
             model.fit_variogram(bin_center, gamma, nugget=True)
             
             fig_variogram, ax = plt.subplots()
-            ax.plot(bin_center, gamma, 'o', label='Experimental')
-            model.plot(ax=ax, label='Modelo Ajustado')
+            model.plot(ax=ax)
+            ax.scatter(bin_center, gamma, label='Experimental')
             ax.set_xlabel('Distancia'); ax.set_ylabel('Semivarianza')
             ax.set_title(f'Variograma para {year}'); ax.legend()
 
@@ -194,13 +169,12 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
                 krig = gs.krige.Ordinary(model, (lons, lats), vals)
                 z_grid, _ = krig.structured([grid_lon, grid_lat])
             else: # KED
-                # Necesitamos crear una grilla de elevación para la predicción
                 rbf_elev = Rbf(lons, lats, elevs, function='thin_plate')
                 grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
                 drift_grid = rbf_elev(grid_x, grid_y)
                 krig = gs.krige.ExtDrift(model, (lons, lats), vals, drift_src=elevs)
                 z_grid, _ = krig.structured([grid_lon, grid_lat], drift_tgt=drift_grid.T)
-
+        
         elif method == "IDW":
             z_grid = interpolate_idw(lons, lats, vals, grid_lon, grid_lat)
             
@@ -210,9 +184,9 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
             z_grid = rbf(grid_x, grid_y)
             
     except Exception as e:
-        error_message = f"Error al calcular {method}: {e}"
-        fig = go.Figure().update_layout(title=error_message, xaxis_visible=False, yaxis_visible=False)
-        return fig, None, error_message
+        error_msg = f"Error al calcular {method}: {e}"
+        fig = go.Figure().update_layout(title=error_msg, xaxis_visible=False, yaxis_visible=False)
+        return fig, None, error_msg
 
     if z_grid is not None:
         fig = go.Figure(data=go.Contour(
@@ -221,31 +195,22 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
             colorbar_title='Precipitación (mm)',
             contours=dict(showlabels=True, labelfont=dict(size=10, color='white'), labelformat=".0f")
         ))
-        
         fig.add_trace(go.Scatter(
             x=lons, y=lats, mode='markers', marker=dict(color='red', size=5, line=dict(width=1, color='black')),
-            name='Estaciones',
-            hoverinfo='text',
-            text=[f"<b>{row[Config.STATION_NAME_COL]}</b><br>" +
-                  f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>" +
-                  f"Altitud: {row[Config.ALTITUDE_COL]} m<br>" +
-                  f"Precipitación: {row[Config.PRECIPITATION_COL]:.0f} mm"
-                  for _, row in df_clean.iterrows()]
+            name='Estaciones', hoverinfo='text',
+            text=[f"<b>{row[Config.STATION_NAME_COL]}</b><br>Ppt: {row[Config.PRECIPITATION_COL]:.0f} mm" for _, row in df_clean.iterrows()]
         ))
-        
         if rmse is not None:
             fig.add_annotation(
-                x=0.01, y=0.99, xref="paper", yref="paper",
-                text=f"<b>RMSE: {rmse:.1f} mm</b>", align='left',
-                showarrow=False, font=dict(size=12, color="black"),
+                x=0.01, y=0.99, xref="paper", yref="paper", text=f"<b>RMSE (LOOCV): {rmse:.1f} mm</b>",
+                align='left', showarrow=False, font=dict(size=12, color="black"),
                 bgcolor="rgba(255, 255, 255, 0.7)", bordercolor="black", borderwidth=1
             )
-            
         fig.update_layout(
             title=f"Precipitación en {year} ({method})",
             xaxis_title="Longitud", yaxis_title="Latitud", height=600,
             legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0)")
         )
         return fig, fig_variogram, None
-
-    return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
+    
+    return go.Figure().update_layout(title="Error"), None, "Error desconocido"
