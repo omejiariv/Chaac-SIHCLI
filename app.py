@@ -175,6 +175,8 @@ def main():
                         else:
                             st.error("No se pudieron descargar los archivos desde GitHub.")
 
+        # --- INICIO DE LA LÓGICA CONDICIONAL ---
+        # Solo si los datos están cargados, mostramos los filtros y el contenido principal.
         if st.session_state.get('data_loaded', False):
             if 'geojson_loaded' not in st.session_state:
                 try:
@@ -354,6 +356,7 @@ def main():
         else:
             display_welcome_tab()
             st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
+    
     elif st.session_state.get("authentication_status") is False:
         st.error('Usuario/contraseña incorrecto')
     elif st.session_state.get("authentication_status") is None:
@@ -361,4 +364,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
