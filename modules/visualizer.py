@@ -20,7 +20,6 @@ from scipy import stats
 from prophet.plot import plot_plotly
 import io
 from datetime import datetime, timedelta
-from modules import db_manager
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import (
@@ -376,14 +375,6 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
         controls_col, map_col = st.columns([1, 3])
         with controls_col:
             st.subheader("Controles del Mapa")
-            if st.button("Guardar Mapa en Dashboard", key="pin_spatial_map"):
-                params = {"stations": stations_for_analysis}
-                db_manager.save_preference(
-                    username=st.session_state["username"],
-                    widget_type="spatial_map",
-                    params=params
-                )
-                st.toast("¡Mapa de distribución guardado!", icon="🗺️")
             
             selected_base_map_config, selected_overlays_config = display_map_controls(st, "dist_esp")
             if not gdf_filtered.empty:
@@ -521,13 +512,6 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         with anual_graf_tab:
             if not df_anual_rich.empty:
                 st.subheader("Precipitación Anual (mm)")
-                if st.button("📌 Guardar en Dashboard", key="pin_anual_series"):
-                    params = {
-                        "stations": stations_for_analysis,
-                        "year_range": list(year_range_val)
-                    }
-                    db_manager.save_preference(username=st.session_state["username"], widget_type="annual_series_chart", params=params)
-                    st.toast("¡Gráfico de serie anual guardado!", icon="✅")
                 
                 st.info("Solo se muestran los años con 10 o más meses de datos válidos.")
                 chart_anual = alt.Chart(df_anual_rich.dropna(subset=[Config.PRECIPITATION_COL])).mark_line(point=True).encode(
@@ -549,10 +533,6 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         with anual_analisis_tab:
             if not df_anual_rich.empty:
                 st.subheader("Precipitación Media Multianual")
-                if st.button("📌 Guardar en Dashboard", key="pin_anual_avg_bar"):
-                    params = {"stations": stations_for_analysis}
-                    db_manager.save_preference(username=st.session_state["username"], widget_type="annual_avg_bar_chart", params=params)
-                    st.toast("¡Gráfico de promedio anual guardado!", icon="✅")
                 
                 st.caption(f"Período de análisis: {year_min} - {year_max}")
                 chart_type_annual = st.radio("Seleccionar tipo de gráfico:", ("Gráfico de Barras (Promedio)", "Gráfico de Cajas (Distribución)"), key="avg_chart_type_annual", horizontal=True)
@@ -2398,78 +2378,3 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                     "temp_min (°C)": "{:.1f}",
                     "precip_sum (mm)": "{:.1f}"
                 }))
-
-def display_dashboard_tab(df_anual_melted, gdf_filtered, **kwargs):
-    """
-    Muestra el dashboard personalizado para el usuario que ha iniciado sesión.
-    """
-    st.header(f"Dashboard Personalizado de {st.session_state.get('name', 'Usuario')}")
-
-    username = st.session_state.get("username")
-    if not username:
-        st.error("No se pudo identificar al usuario.")
-        return
-
-    preferences = db_manager.get_preferences(username)
-
-    if not preferences:
-        st.info("Aún no has guardado nada en tu dashboard. Busca el ícono 📌 para añadir gráficos.")
-        return
-
-    st.success(f"Mostrando {len(preferences)} elementos guardados.")
-    st.markdown("---")
-
-    for pref in preferences:
-        widget_type = pref.get('type')
-        params = pref.get('params', {})
-
-        # --- Lógica para renderizar el Gráfico de Serie Anual ---
-        if widget_type == 'annual_series_chart':
-            st.subheader("Serie de Precipitación Anual Guardada")
-            
-            stations = params.get('stations', [])
-            year_range = params.get('year_range', [1970, 2023])
-
-            # Filtramos el DataFrame anual ya procesado
-            df_plot = df_anual_melted[
-                (df_anual_melted[Config.STATION_NAME_COL].isin(stations)) &
-                (df_anual_melted[Config.YEAR_COL] >= year_range[0]) &
-                (df_anual_melted[Config.YEAR_COL] <= year_range[1])
-            ]
-
-            if not df_plot.empty:
-                chart = alt.Chart(df_plot.dropna(subset=['precipitation'])).mark_line(point=True).encode(
-                    x=alt.X(f'{Config.YEAR_COL}:O', title='Año'),
-                    y=alt.Y('precipitation:Q', title='Precipitación (mm)'),
-                    color=f'{Config.STATION_NAME_COL}:N'
-                ).properties(title=f"Estaciones: {', '.join(stations)}").interactive()
-                st.altair_chart(chart, use_container_width=True)
-            else:
-                st.warning("No se encontraron datos para los parámetros de este gráfico.")
-            
-            st.divider()
-
-        # --- Lógica para renderizar el Mapa de Distribución ---
-        elif widget_type == 'annual_avg_bar_chart':
-            st.subheader("Precipitación Media Multianual Guardada")
-            stations = params.get('stations', [])
-            
-            df_plot = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL].isin(stations)]
-
-            if not df_plot.empty:
-                df_summary = df_plot.groupby(Config.STATION_NAME_COL, as_index=False)['precipitation'].mean().round(0)
-                df_summary = df_summary.sort_values('precipitation', ascending=False)
-                
-                fig = px.bar(df_summary, x=Config.STATION_NAME_COL, y='precipitation',
-                             title=f"Promedio para: {', '.join(stations)}",
-                             labels={Config.STATION_NAME_COL: 'Estación', 'precipitation': 'Precipitación Media Anual (mm)'},
-                             color='precipitation')
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("No se encontraron datos para los parámetros de este gráfico de barras.")
-
-            st.divider()
-        
-        # Puedes añadir más bloques 'elif' aquí para otros tipos de gráficos
-        # elif widget_type == 'otro_tipo_de_grafico':
-        #     ...
