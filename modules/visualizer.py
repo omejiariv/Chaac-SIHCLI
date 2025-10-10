@@ -1,4 +1,5 @@
 # modules/visualizer.py
+
 import streamlit as st
 import pandas as pd
 import base64
@@ -242,9 +243,7 @@ def generate_annual_map_popup_html(row, df_anual_melted_full_period):
     """
     return folium.Popup(html, max_width=300)
 
-def create_folium_map(location, zoom, base_map_config, overlays_config,
-                      fit_bounds_data=None):
-    """Crea un mapa base de Folium y le añade capas de overlay de forma inteligente."""
+def create_folium_map(location, zoom, base_map_config, overlays_config, fit_bounds_data=None):
     m = folium.Map(
         location=location,
         zoom_start=zoom,
@@ -352,9 +351,7 @@ def display_welcome_tab():
         - **Prophet**: Modelo de Facebook, automático y robusto, ideal para series con fuertes efectos estacionales y datos faltantes.
         """)
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                                     df_monthly_filtered, analysis_mode, selected_regions,
-                                     selected_municipios, selected_altitudes, **kwargs):
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, **kwargs):
     st.header("Distribución espacial de las Estaciones de Lluvia")
     display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
                            selected_stations_count=len(stations_for_analysis),
@@ -742,9 +739,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         if not df_monthly_rich.empty:
             st.download_button("Descargar Datos Mensuales (CSV)", convert_df_to_csv(df_monthly_rich), "datos_mensuales.csv", "text/csv")
 
-def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                              df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
-                              selected_altitudes, **kwargs):
+def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted, **kwargs):
     st.header("Mapas Avanzados")
     display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
                            selected_stations_count=len(stations_for_analysis),
