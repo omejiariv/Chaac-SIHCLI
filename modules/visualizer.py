@@ -757,8 +757,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = ["Animación GIF", "Superficies de Interpolación", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
-    gif_tab, kriging_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
+    # Adaptamos la lista de pestañas a tu versión actual
+    tab_names = ["Animación GIF", "Visualización Temporal", "Comparación de Mapas"]
+    gif_tab, temporal_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
@@ -774,13 +775,14 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
         else:
             st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
-                
+
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
         if not df_anual_melted_non_na.empty:
             all_years_int = sorted(df_anual_melted_non_na[Config.YEAR_COL].unique())
             controls_col, map_col = st.columns([1, 3])
+            
             with controls_col:
                 st.markdown("##### Opciones de Visualización")
                 selected_base_map_config, selected_overlays_config = display_map_controls(st, "temporal")
@@ -873,7 +875,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
         all_years = sorted(df_anual_valid[Config.YEAR_COL].unique())
 
-        # Se define la función de ayuda PRIMERO
         def create_compare_map(data, year, col, gdf_stations_info, df_anual_full, base_map_cfg, overlay_cfg, cmap):
             col.markdown(f"**Precipitación en {year}**")
             m = create_folium_map([6.24, -75.58], 6, base_map_cfg, overlay_cfg)
@@ -896,7 +897,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             with col:
                 st_folium(m, height=450, use_container_width=True, key=f"compare_map_{year}")
 
-        # Ahora se maneja la lógica de la interfaz
         if len(all_years) > 1:
             control_col, map_col1, map_col2 = st.columns([1, 2, 2])
             
@@ -918,7 +918,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             data_year1 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year1]
             data_year2 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year2]
             
-            # Finalmente, se llama a la función para cada mapa
             create_compare_map(data_year1, year1, map_col1, gdf_geometries, df_anual_valid, selected_base_map_config, selected_overlays_config, colormap)
             create_compare_map(data_year2, year2, map_col2, gdf_geometries, df_anual_valid, selected_base_map_config, selected_overlays_config, colormap)
         else:
