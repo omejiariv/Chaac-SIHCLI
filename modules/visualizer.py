@@ -418,12 +418,13 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                     data_composition = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.ORIGIN_COL]).size().unstack(fill_value=0)
                     if 'Original' not in data_composition: data_composition['Original'] = 0
                     if 'Completado' not in data_composition: data_composition['Completado'] = 0
-
+                    
                     data_composition['total'] = data_composition['Original'] + data_composition['Completado']
                     data_composition['% Original'] = (data_composition['Original'] / data_composition['total']) * 100
                     data_composition['% Completado'] = (data_composition['Completado'] / data_composition['total']) * 100
-
+                    
                     sort_order_comp = st.radio("Ordenar por:", ["% Datos Originales (Mayor a Menor)", "% Datos Originales (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_comp")
+
                     if "Mayor a Menor" in sort_order_comp:
                         data_composition = data_composition.sort_values("% Original", ascending=False)
                     elif "Menor a Mayor" in sort_order_comp:
@@ -431,8 +432,13 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                     else:
                         data_composition = data_composition.sort_index(ascending=True)
 
-                    df_plot = data_composition.reset_index().melt(id_vars=Config.STATION_NAME_COL, value_vars=['% Original', '% Completado'], var_name='Tipo de Dato', value_name='Porcentaje')
-                    
+                    df_plot = data_composition.reset_index().melt(
+                        id_vars=Config.STATION_NAME_COL,
+                        value_vars=['% Original', '% Completado'],
+                        var_name='Tipo de Dato',
+                        value_name='Porcentaje'
+                    )
+
                     fig_comp = px.bar(
                         df_plot,
                         x=Config.STATION_NAME_COL,
@@ -443,7 +449,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                         text_auto='.1f',
                         color_discrete_map={'% Original': '#1f77b4', '% Completado': '#ff7f0e'}
                     )
-                    fig_comp.update_layout(height=500, xaxis={'categoryorder': 'trace'}, barmode='stack')
+                    fig_comp.update_layout(height=500, xaxis={'categoryorder':'trace'}, barmode='stack')
                     st.plotly_chart(fig_comp, use_container_width=True)
                 else:
                     st.warning("No hay datos mensuales procesados para mostrar la composición.")
@@ -451,6 +457,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                 st.info("Mostrando el porcentaje de disponibilidad de datos según el archivo de estaciones.")
                 sort_order_disp = st.radio("Ordenar estaciones por:", ["% Datos (Mayor a Menor)", "% Datos (Menor a Mayor)", "Alfabético"], horizontal=True, key="sort_disp")
                 df_chart = gdf_display.copy()
+
                 if Config.PERCENTAGE_COL in df_chart.columns:
                     if "% Datos (Mayor a Menor)" in sort_order_disp:
                         df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=False)
@@ -458,7 +465,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                         df_chart = df_chart.sort_values(Config.PERCENTAGE_COL, ascending=True)
                     else:
                         df_chart = df_chart.sort_values(Config.STATION_NAME_COL, ascending=True)
-                    
+
                     fig_disp = px.bar(
                         df_chart,
                         x=Config.STATION_NAME_COL,
@@ -468,13 +475,13 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
                         color=Config.PERCENTAGE_COL,
                         color_continuous_scale=px.colors.sequential.Viridis
                     )
-                    fig_disp.update_layout(height=500, xaxis={'categoryorder': 'trace'})
+                    fig_disp.update_layout(height=500, xaxis={'categoryorder':'trace'})
                     st.plotly_chart(fig_disp, use_container_width=True)
                 else:
                     st.warning("La columna con el porcentaje de datos no se encuentra en el archivo de estaciones.")
         else:
             st.warning("No hay estaciones seleccionadas para mostrar el gráfico.")
-
+            
 def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis,
                        gdf_filtered, analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Visualizaciones de Precipitación")
