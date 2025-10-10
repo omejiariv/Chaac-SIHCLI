@@ -10,7 +10,6 @@ from datetime import datetime
 import yaml
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
-from modules.db_manager import create_table
 
 # --- Importaciones de Módulos Propios ---
 from modules.config import Config
@@ -58,14 +57,13 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
 
 def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    create_table()
     
     # --- LÓGICA DE AUTENTICACIÓN ---
     try:
         with open('config.yaml') as file:
             config = yaml.load(file, Loader=SafeLoader)
     except FileNotFoundError:
-        st.error("Error: El archivo 'config.yaml' no se encontró. Por favor, créelo para configurar los usuarios.")
+        st.error("Error: El archivo 'config.yaml' no se encontró.")
         return
 
     authenticator = stauth.Authenticate(
@@ -78,14 +76,13 @@ def main():
 
     name, authentication_status, username = authenticator.login('main')
 
-    # --- FLUJO DE LA APLICACIÓN BASADO EN EL LOGIN ---
     if st.session_state.get("authentication_status"):
         st.sidebar.write(f'Bienvenido *{st.session_state["name"]}*')
         authenticator.logout('Logout', 'sidebar')
 
-        progress_placeholder = st.empty()
-        st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-        Config.initialize_session_state()
+        if 'data_loaded' not in st.session_state:
+            Config.initialize_session_state()
+            st.session_state['data_loaded'] = False
 
         title_col1, title_col2 = st.columns([0.05, 0.95])
         with title_col1:
@@ -106,9 +103,11 @@ def main():
                 st.cache_resource.clear()
                 current_user = st.session_state.get("username")
                 for key in list(st.session_state.keys()):
-                    del st.session_state[key]
+                    if key not in ['authentication_status', 'name', 'username']:
+                        del st.session_state[key]
+                
                 Config.initialize_session_state()
-                st.session_state["username"] = current_user # Restaurar el usuario
+                st.session_state["username"] = current_user
                 
                 with st.spinner("Procesando archivos y cargando datos..."):
                     gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(file_mapa, file_precip, file_shape)
@@ -139,33 +138,38 @@ def main():
                             'precip': load_csv_from_url(Config.URL_PRECIPITACION_CSV),
                             'shape': load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
                         }
-                    if all(github_files.values()):
-                        process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
-                    else:
-                        st.error("No se pudieron descargar los archivos desde GitHub.")
+                        if all(github_files.values()):
+                            process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
+                        else:
+                            st.error("No se pudieron descargar los archivos desde GitHub.")
         
         if not st.session_state.get('data_loaded', False):
             display_welcome_tab()
             st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
             return
 
-        # --- Carga de capas GeoJSON adicionales ---
         if 'geojson_loaded' not in st.session_state:
-            st.session_state['geojson_loaded'] = True
             try:
                 st.session_state['gdf_municipios_ant'] = gpd.read_file("data/MunicipiosAntioquia.geojson")
-                st.session_state.gdf_predios = gpd.read_file("data/PrediosEjecutados.geojson")
-                st.session_state.gdf_subcuencas = gpd.read_file("data/SubcuencasAinfluencia.geojson")
+                st.session_state['gdf_predios'] = gpd.read_file("data/PrediosEjecutados.geojson")
+                st.session_state['gdf_subcuencas'] = gpd.read_file("data/SubcuencasAinfluencia.geojson")
+                st.session_state['geojson_loaded'] = True
             except Exception as e:
                 st.error(f"Error al cargar los archivos GeoJSON locales: {e}")
 
-        st.sidebar.success("Datos cargados.")
         if st.sidebar.button("Limpiar Caché y Reiniciar"):
             st.cache_data.clear()
             st.cache_resource.clear()
+            auth_info = {
+                "authentication_status": st.session_state.get("authentication_status"),
+                "name": st.session_state.get("name"),
+                "username": st.session_state.get("username")
+            }
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-
+            for key, value in auth_info.items():
+                st.session_state[key] = value
+        
         with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
             min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0))
             altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
@@ -206,7 +210,6 @@ def main():
             st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
             st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-        # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
         tab_names = [
             "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
             "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
@@ -221,14 +224,12 @@ def main():
             with tabs[0]:
                 display_welcome_tab()
                 st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
-            # Muestra un mensaje de espera en las demás pestañas
             for i, tab in enumerate(tabs):
-                if i > 0: # Salta la primera pestaña que ya tiene contenido
+                if i > 0:
                     with tab:
                         st.info("Seleccione al menos una estación para ver el contenido.")
             return
 
-        # --- PROCESAMIENTO DE DATOS POST-FILTROS ---
         df_monthly_filtered = st.session_state.df_long[
             (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & 
             (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & 
@@ -237,9 +238,9 @@ def main():
         ].copy()
 
         if st.session_state.analysis_mode == "Completar series (interpolación)":
-            bar = progress_placeholder.progress(0, text="Iniciando interpolación...")
+            bar = st.progress(0, text="Iniciando interpolación...")
             df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
-            progress_placeholder.empty()
+            bar.empty()
 
         if st.session_state.get('exclude_na', False): 
             df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
@@ -260,7 +261,6 @@ def main():
             "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
         }
         
-        # --- RENDERIZADO DEL CONTENIDO DE CADA PESTAÑA (ORDEN CORREGIDO) ---
         with tabs[0]:
             display_welcome_tab()
         with tabs[1]: 
@@ -342,9 +342,9 @@ def main():
                             st.error(f"Error al generar el reporte: {e}")
                             st.exception(e)
 
-    elif st.session_state["authentication_status"] is False:
+    elif st.session_state.get("authentication_status") is False:
         st.error('Usuario/contraseña incorrecto')
-    elif st.session_state["authentication_status"] is None:
+    elif st.session_state.get("authentication_status") is None:
         st.warning('Por favor, ingrese su usuario y contraseña para continuar')
 
 if __name__ == "__main__":
