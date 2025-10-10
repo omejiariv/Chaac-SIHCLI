@@ -873,22 +873,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
         all_years = sorted(df_anual_valid[Config.YEAR_COL].unique())
 
-        if len(all_years) > 1:
-            control_col, map_col1, map_col2 = st.columns([1, 2, 2])
-            
-            with control_col:
-                st.markdown("##### Controles de Mapa")
-                selected_base_map_config, selected_overlays_config = display_map_controls(st, "compare")
-                min_year, max_year = int(all_years[0]), int(all_years[-1])
-                st.markdown("**Mapa 1**")
-                year1 = st.selectbox("Seleccione el primer año", options=all_years, index=len(all_years)-1, key="compare_year1")
-                st.markdown("**Mapa 2**")
-                year2 = st.selectbox("Seleccione el segundo año", options=all_years, index=len(all_years)-2 if len(all_years) > 1 else 0, key="compare_year2")
-                min_precip, max_precip = int(df_anual_valid[Config.PRECIPITATION_COL].min()), int(df_anual_valid[Config.PRECIPITATION_COL].max())
-                if min_precip >= max_precip: max_precip = min_precip + 1
-                color_range = st.slider("Rango de Escala de Color (mm)", min_precip, max_precip, (min_precip, max_precip), key="color_compare")
-                colormap = cm.LinearColormap(colors=plt.cm.viridis.colors, vmin=color_range[0], vmax=color_range[1])
-
+        # Se define la función de ayuda PRIMERO
         def create_compare_map(data, year, col, gdf_stations_info, df_anual_full, base_map_cfg, overlay_cfg, cmap):
             col.markdown(f"**Precipitación en {year}**")
             m = create_folium_map([6.24, -75.58], 6, base_map_cfg, overlay_cfg)
@@ -908,11 +893,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 if not gpd_data.empty:
                     m.fit_bounds(gpd_data.total_bounds.tolist())
             
-            # Renderizamos el mapa dentro de su columna
             with col:
                 st_folium(m, height=450, use_container_width=True, key=f"compare_map_{year}")
 
-        # 2. Ahora, manejamos la lógica de la interfaz
+        # Ahora se maneja la lógica de la interfaz
         if len(all_years) > 1:
             control_col, map_col1, map_col2 = st.columns([1, 2, 2])
             
@@ -934,12 +918,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             data_year1 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year1]
             data_year2 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year2]
             
-            # 3. Finalmente, llamamos a la función para cada mapa
+            # Finalmente, se llama a la función para cada mapa
             create_compare_map(data_year1, year1, map_col1, gdf_geometries, df_anual_valid, selected_base_map_config, selected_overlays_config, colormap)
             create_compare_map(data_year2, year2, map_col2, gdf_geometries, df_anual_valid, selected_base_map_config, selected_overlays_config, colormap)
         else:
             st.warning("Se necesitan datos de al menos dos años diferentes para generar la Comparación de Mapas.")
-            
+                      
     with kriging_tab:
         st.subheader("Comparación de Superficies de Interpolación Anual")
         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
