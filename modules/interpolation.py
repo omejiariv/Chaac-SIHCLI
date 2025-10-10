@@ -75,7 +75,7 @@ def _perform_loocv(method, lons, lats, vals, elevs=None):
             
     if true_values and predicted_values:
         rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
-        mae = mean_absolute_error(true_values, predicted_values))
+        mae = mean_absolute_error(true_values, predicted_values) # <-- CORRECCIÓN AQUÍ
         return {'RMSE': rmse, 'MAE': mae}
     else:
         return {'RMSE': np.nan, 'MAE': np.nan}
@@ -89,7 +89,6 @@ def perform_loocv_for_all_methods(_year, _gdf_metadata, _df_anual_non_na):
     
     results = []
     for method in methods:
-        # Reutilizamos la lógica de preparación de datos
         df_year = pd.merge(
             _df_anual_non_na[_df_anual_non_na[Config.YEAR_COL] == _year],
             _gdf_metadata,
