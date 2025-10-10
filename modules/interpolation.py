@@ -75,7 +75,7 @@ def _perform_loocv(method, lons, lats, vals, elevs=None):
             
     if true_values and predicted_values:
         rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
-        mae = mean_absolute_error(true_values, predicted_values) # <-- CORRECCIÓN AQUÍ
+        mae = mean_absolute_error(true_values, predicted_values)
         return {'RMSE': rmse, 'MAE': mae}
     else:
         return {'RMSE': np.nan, 'MAE': np.nan}
