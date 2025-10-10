@@ -29,7 +29,7 @@ from modules.github_loader import load_csv_from_url, load_zip_from_url
 #--- Desactivar Advertencias ---
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=pd.core.common.SettingWithCopyWarning)
+# La línea que causaba el error ha sido eliminada.
 
 # --- NUEVAS FUNCIONES CON CACHÉ PARA ESTABILIDAD Y RENDIMIENTO ---
 
@@ -361,3 +361,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
