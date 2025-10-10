@@ -8,7 +8,7 @@ pmdarima==2.0.4
 streamlit==1.35.0
 streamlit-folium==0.18.0
 geopandas==0.14.4
-rasterio==1.3.10
+rasterio
 folium==0.17.0
 pyproj==3.6.1
 shapely==2.0.4
@@ -29,4 +29,3 @@ Pillow==10.3.0
 openmeteo-requests
 requests-cache
 retry-requests
-streamlit-authenticator
