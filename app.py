@@ -34,9 +34,9 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 # --- NUEVAS FUNCIONES CON CACHÉ PARA ESTABILIDAD Y RENDIMIENTO ---
 
 @st.cache_data
-def get_filtered_data(gdf_stations, min_perc, altitudes, regions, municipios, celdas):
+def get_filtered_data(_gdf_stations, min_perc, altitudes, regions, municipios, celdas):
     """Aplica filtros al DataFrame de estaciones de forma optimizada."""
-    stations_filtered = gdf_stations.copy()
+    stations_filtered = _gdf_stations.copy()
     if Config.PERCENTAGE_COL in stations_filtered.columns:
         stations_filtered[Config.PERCENTAGE_COL] = pd.to_numeric(stations_filtered[Config.PERCENTAGE_COL].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
     if min_perc > 0:
@@ -361,4 +361,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
