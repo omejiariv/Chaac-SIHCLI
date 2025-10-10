@@ -351,20 +351,32 @@ def display_welcome_tab():
         - **Prophet**: Modelo de Facebook, automático y robusto, ideal para series con fuertes efectos estacionales y datos faltantes.
         """)
 
-def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, **kwargs):
+def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
+                                     df_monthly_filtered, **kwargs):
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Extraemos las variables necesarias del diccionario kwargs
+    analysis_mode = kwargs.get('analysis_mode')
+    selected_regions = kwargs.get('selected_regions')
+    selected_municipios = kwargs.get('selected_municipios')
+    selected_altitudes = kwargs.get('selected_altitudes')
+    # --- FIN DE LA CORRECCIÓN ---
+
     st.header("Distribución espacial de las Estaciones de Lluvia")
-    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
-                           selected_stations_count=len(stations_for_analysis),
-                           year_range=st.session_state.year_range,
-                           selected_months_count=len(st.session_state.meses_numeros),
-                           analysis_mode=analysis_mode, selected_regions=selected_regions,
-                           selected_municipios=selected_municipios,
-                           selected_altitudes=selected_altitudes)
+    display_filter_summary(
+        total_stations_count=len(st.session_state.gdf_stations),
+        selected_stations_count=len(stations_for_analysis),
+        year_range=st.session_state.year_range,
+        selected_months_count=len(st.session_state.meses_numeros),
+        analysis_mode=analysis_mode,
+        selected_regions=selected_regions,
+        selected_municipios=selected_municipios,
+        selected_altitudes=selected_altitudes
+    )
 
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
-    
+
     gdf_display = gdf_filtered.copy()
     sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
 
@@ -377,23 +389,25 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, **kwar
             if not gdf_filtered.empty:
                 st.metric("Estaciones en Vista", len(gdf_filtered))
 
-    with map_col:
-        if not gdf_filtered.empty:
-            m = create_folium_map(
-                location=[6.2, -75.5], zoom=7,
-                base_map_config=selected_base_map_config,
-                overlays_config=selected_overlays_config,
-                fit_bounds_data=gdf_filtered
-            )
-            marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
-            for _, row in gdf_filtered.iterrows():
-                folium.Marker(
-                    location=[row.geometry.y, row.geometry.x],
-                    tooltip=row[Config.STATION_NAME_COL]
-                ).add_to(marker_cluster)
-            st_folium(m, height=500, use_container_width=True, key="spatial_map")
-        else:
-            st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
+        with map_col:
+            if not gdf_filtered.empty:
+                m = create_folium_map(
+                    location=[6.2, -75.5],
+                    zoom=7,
+                    base_map_config=selected_base_map_config,
+                    overlays_config=selected_overlays_config,
+                    fit_bounds_data=gdf_filtered
+                )
+                marker_cluster = MarkerCluster(name='Estaciones').add_to(m)
+                for _, row in gdf_filtered.iterrows():
+                    folium.Marker(
+                        location=[row.geometry.y, row.geometry.x],
+                        tooltip=row[Config.STATION_NAME_COL]
+                    ).add_to(marker_cluster)
+                
+                st_folium(m, height=500, use_container_width=True, key="spatial_map")
+            else:
+                st.warning("No hay estaciones seleccionadas para mostrar en el mapa.")
 
     with sub_tab_grafico:
         st.subheader("Disponibilidad y Composición de Datos por Estación")
