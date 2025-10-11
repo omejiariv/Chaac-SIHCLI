@@ -106,3 +106,6 @@ class Config:
 
         if 'selected_report_sections_multiselect' not in st.session_state:
             st.session_state.selected_report_sections_multiselect = []
+
+        if 'gdf_subcuencas' not in st.session_state:
+            st.session_state.gdf_subcuencas = None
