@@ -2552,47 +2552,50 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
         forecast_df = get_weather_forecast(lat, lon)
 
         if forecast_df is not None and not forecast_df.empty:
+            # 1. Correct the dates
             start_date = pd.to_datetime(forecast_df['date'].iloc[0])
             correct_dates = pd.date_range(start=start_date, periods=len(forecast_df))
             forecast_df['date'] = correct_dates
 
-            df_temp = forecast_df.melt(
+            # 2. Reshape all data into a single 'long-form' DataFrame for plotting
+            plot_df = forecast_df.melt(
                 id_vars=['date'],
-                value_vars=['temp_max (°C)', 'temp_min (°C)'],
-                var_name='Tipo de Temperatura',
-                value_name='Temperatura (°C)'
+                value_vars=['precip_sum (mm)', 'temp_max (°C)', 'temp_min (°C)'],
+                var_name='Variable',
+                value_name='Valor'
             )
 
-            base = alt.Chart(forecast_df).encode(
+            # 3. Create the base chart
+            base = alt.Chart(plot_df).encode(
                 x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d'))
             )
 
-            # CORRECTED BAR CHART: Removed the conflicting legend title
-            bar_chart = base.mark_bar(color='#1f77b4', opacity=0.7).encode(
-                y=alt.Y('precip_sum (mm):Q', title='Precipitación (mm)'),
-                tooltip=[
-                    alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
-                    alt.Tooltip('precip_sum (mm):Q', title='Precipitación', format='.1f')
-                ]
-            )
-
-            # CORRECTED LINE CHART: It now has its own legend
-            line_chart = alt.Chart(df_temp).mark_line(point=True).encode(
-                x=alt.X('date:T', title='Fecha'),
-                y=alt.Y('Temperatura (°C):Q', title='Temperatura (°C)'),
-                color=alt.Color('Tipo de Temperatura:N',
+            # 4. Create the precipitation bars layer by filtering the data
+            bar_chart = base.mark_bar(opacity=0.7).encode(
+                y=alt.Y('Valor:Q', title='Precipitación (mm)'),
+                color=alt.Color('Variable:N',
+                                legend=alt.Legend(title="Variables"),
                                 scale=alt.Scale(
-                                    domain=['temp_max (°C)', 'temp_min (°C)'],
-                                    range=['red', 'orange']
-                                ),
-                                legend=alt.Legend(title="Temperatura")
-                               ),
-                tooltip=[
-                    alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
-                    alt.Tooltip('Temperatura (°C):Q', title='Temperatura', format='.1f')
-                ]
+                                    domain=['precip_sum (mm)', 'temp_max (°C)', 'temp_min (°C)'],
+                                    range=['#1f77b4', 'red', 'orange']  # Blue, Red, Orange
+                                )),
+                tooltip=[alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
+                         alt.Tooltip('Valor:Q', title='Precipitación', format='.1f')]
+            ).transform_filter(
+                alt.datum.Variable == 'precip_sum (mm)'
             )
 
+            # 5. Create the temperature lines layer by filtering the data
+            line_chart = base.mark_line(point=True).encode(
+                y=alt.Y('Valor:Q', title='Temperatura (°C)'),
+                color=alt.Color('Variable:N'), # The legend is already defined in the bar chart
+                tooltip=[alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
+                         alt.Tooltip('Valor:Q', title='Temperatura', format='.1f')]
+            ).transform_filter(
+                alt.datum.Variable != 'precip_sum (mm)'
+            )
+
+            # 6. Layer the two charts together
             final_chart = alt.layer(bar_chart, line_chart).resolve_scale(
                 y='independent'
             ).properties(
@@ -2601,6 +2604,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
 
             st.altair_chart(final_chart, use_container_width=True)
 
+            # Display the original, unmodified forecast data in the table
             with st.expander("Ver datos del pronóstico en tabla"):
                 st.dataframe(forecast_df.style.format({
                     "date": lambda t: t.strftime('%Y-%m-%d'),
