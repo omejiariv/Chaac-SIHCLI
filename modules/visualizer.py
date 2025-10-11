@@ -2556,16 +2556,15 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
         forecast_df = get_weather_forecast(lat, lon)
 
         if forecast_df is not None and not forecast_df.empty:
-            # --- INICIO DE LA NUEVA LÓGICA (TU IDEA) ---
-            # 1. Tomamos la primera fecha como punto de partida.
             start_date = pd.to_datetime(forecast_df['date'].iloc[0])
-            # 2. Creamos un rango de 7 fechas a partir de esa fecha.
             correct_dates = pd.date_range(start=start_date, periods=len(forecast_df))
-            # 3. Reemplazamos la columna de fecha incorrecta con las fechas correctas.
             forecast_df['date'] = correct_dates
-            # --- FIN DE LA NUEVA LÓGICA ---
+            
+            # --- INICIO DE LA CORRECCIÓN DE LEYENDA ---
+            # 1. Añadimos una columna de etiqueta para la precipitación
+            forecast_df['legend_label'] = 'Precipitación (mm)'
+            # --- FIN DE LA CORRECCIÓN DE LEYENDA ---
 
-            # Preparamos los datos para el gráfico Altair
             df_temp = forecast_df.melt(
                 id_vars=['date'],
                 value_vars=['temp_max (°C)', 'temp_min (°C)'],
@@ -2577,8 +2576,12 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                 x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d'))
             )
 
-            bar_chart = base.mark_bar(color='blue', opacity=0.7).encode(
+            bar_chart = base.mark_bar(opacity=0.7).encode(
                 y=alt.Y('precip_sum (mm):Q', title='Precipitación (mm)'),
+                # 2. Usamos la nueva columna para el color, forzando que sea azul
+                color=alt.Color('legend_label:N', 
+                                legend=alt.Legend(title='Variables'), 
+                                scale=alt.Scale(range=['#1f77b4'])), # Tono de azul estándar
                 tooltip=[
                     alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
                     alt.Tooltip('precip_sum (mm):Q', title='Precipitación', format='.1f')
@@ -2588,12 +2591,13 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
             line_chart = alt.Chart(df_temp).mark_line(point=True).encode(
                 x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d')),
                 y=alt.Y('Temperatura (°C):Q', title='Temperatura (°C)'),
+                # 3. Unificamos el título de la leyenda para que se combinen
                 color=alt.Color('Tipo de Temperatura:N',
                                 scale=alt.Scale(
                                     domain=['temp_max (°C)', 'temp_min (°C)'],
                                     range=['red', 'orange']
                                 ),
-                                legend=alt.Legend(title="Temperatura")
+                                legend=alt.Legend(title="Variables")
                                ),
                 tooltip=[
                     alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
@@ -2609,9 +2613,9 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
 
             st.altair_chart(final_chart, use_container_width=True)
 
-            # La tabla de datos ahora mostrará las fechas corregidas
             with st.expander("Ver datos del pronóstico en tabla"):
-                st.dataframe(forecast_df.style.format({
+                # Excluimos la columna auxiliar de la tabla
+                st.dataframe(forecast_df.drop(columns=['legend_label']).style.format({
                     "date": lambda t: t.strftime('%Y-%m-%d'),
                     "temp_max (°C)": "{:.1f}",
                     "temp_min (°C)": "{:.1f}",
