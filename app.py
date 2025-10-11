@@ -119,7 +119,6 @@ def main():
     # --- Guía Interactiva ---
     if 'first_visit' not in st.session_state:
         st.session_state.first_visit = True
-
     if not st.session_state.get('data_loaded', False) and st.session_state.first_visit:
         st.toast("¡Bienvenido a Chaac SIHCLI! 👋")
         time.sleep(1.5)
@@ -132,18 +131,15 @@ def main():
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
-            try:
-                st.image(Config.LOGO_PATH, width=60)
-            except Exception:
-                pass
+            st.image(Config.LOGO_PATH, width=60)
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
     # --- Panel de Control (Sidebar) ---
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
+
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
-        
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
             uploaded_file_precip = st.file_uploader("2. Archivo de precipitación (CSV)", type="csv")
@@ -182,6 +178,7 @@ def main():
         st.rerun()
 
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
+        # ... (código de filtros sin cambios) ...
         min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0))
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
         selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges)
@@ -196,7 +193,9 @@ def main():
         selected_celdas = st.multiselect('Filtrar por Celda_XY', options=celdas_list, key='celdas_multiselect')
         gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
 
+
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
+        # ... (código de selección de estaciones y período sin cambios) ...
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
         def select_all_stations():
             if st.session_state.get('select_all_checkbox_main', False):
@@ -222,7 +221,7 @@ def main():
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
         "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
-        "Pronóstico del Tiempo", "Descargas", "Análisis por Cuenca", 
+        "Pronóstico del Tiempo", "Descargas", "Análisis por Cuenca",
         "Tabla de Estaciones", "Generar Reporte"
     ]
     tabs = st.tabs(tab_names)
@@ -232,7 +231,7 @@ def main():
     if not stations_for_analysis:
         with tabs[0]:
             display_welcome_tab()
-            st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
+        st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
         for tab in tabs[1:]:
             with tab:
                 st.info("Seleccione al menos una estación para ver el contenido.")
@@ -287,67 +286,57 @@ def main():
         stations_for_analysis=stations_for_analysis,
         analysis_mode=st.session_state.analysis_mode
     )
-    
-# --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA (VERSIÓN MEJORADA) ---
-with tabs[12]: # O el índice que corresponda
-    st.header("Análisis Agregado por Cuenca Hidrográfica")
 
-    if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
-        BASIN_NAME_COLUMN = 'SUBC_LBL' # El nombre correcto que ya encontramos
+    # --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA ---
+    with tabs[12]:
+        st.header("Análisis Agregado por Cuenca Hidrográfica")
+        if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
+            BASIN_NAME_COLUMN = 'SUBC_LBL'
+            if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
+                relevant_basins_gdf = gpd.sjoin(st.session_state.gdf_subcuencas, gdf_filtered, how="inner", predicate="intersects")
+                if not relevant_basins_gdf.empty:
+                    basin_names = sorted(relevant_basins_gdf[BASIN_NAME_COLUMN].dropna().unique())
+                else:
+                    basin_names = []
 
-        if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
-            
-            # --- INICIO DE LA NUEVA LÓGICA DINÁMICA ---
-            # Unimos espacialmente las cuencas con las estaciones ya filtradas
-            relevant_basins_gdf = gpd.sjoin(st.session_state.gdf_subcuencas, gdf_filtered, how="inner", predicate="intersects")
-            
-            # Obtenemos los nombres únicos de las cuencas que contienen estaciones
-            if not relevant_basins_gdf.empty:
-                basin_names = sorted(relevant_basins_gdf[BASIN_NAME_COLUMN].dropna().unique())
-            else:
-                basin_names = []
-            # --- FIN DE LA NUEVA LÓGICA DINÁMICA ---
-
-            if not basin_names:
-                st.info("Ninguna cuenca contiene estaciones que coincidan con los filtros actuales.")
-            else:
-                selected_basin = st.selectbox(
-                    "Seleccione una cuenca para analizar:",
-                    options=basin_names,
-                    key="basin_selector"
-                )
-
-                if selected_basin:
-                    stats_df, stations, error_msg = calculate_basin_stats(
-                        gdf_filtered, 
-                        st.session_state.gdf_subcuencas,
-                        df_monthly_filtered,
-                        selected_basin,
-                        BASIN_NAME_COLUMN
+                if not basin_names:
+                    st.info("Ninguna cuenca contiene estaciones que coincidan con los filtros actuales.")
+                else:
+                    selected_basin = st.selectbox(
+                        "Seleccione una cuenca para analizar:",
+                        options=basin_names,
+                        key="basin_selector"
                     )
-                    
-                    if error_msg: st.warning(error_msg)
-                    
-                    if stations:
-                        st.subheader(f"Resultados para la cuenca: {selected_basin}")
-                        st.metric("Número de Estaciones en la Cuenca", len(stations))
-                        with st.expander("Ver estaciones incluidas"): st.write(", ".join(stations))
-                        
-                        if not stats_df.empty:
-                            st.markdown("---")
-                            st.write("**Estadísticas de Precipitación Mensual (Agregada)**")
-                            st.dataframe(stats_df, use_container_width=True)
+                    if selected_basin:
+                        stats_df, stations, error_msg = calculate_basin_stats(
+                            gdf_filtered,
+                            st.session_state.gdf_subcuencas,
+                            df_monthly_filtered,
+                            selected_basin,
+                            BASIN_NAME_COLUMN
+                        )
+                        if error_msg: st.warning(error_msg)
+                        if stations:
+                            st.subheader(f"Resultados para la cuenca: {selected_basin}")
+                            st.metric("Número de Estaciones en la Cuenca", len(stations))
+                            with st.expander("Ver estaciones incluidas"): st.write(", ".join(stations))
+                            if not stats_df.empty:
+                                st.markdown("---")
+                                st.write("**Estadísticas de Precipitación Mensual (Agregada)**")
+                                st.dataframe(stats_df, use_container_width=True)
+                            else:
+                                st.info("Aunque se encontraron estaciones, no hay datos de precipitación para el período seleccionado.")
                         else:
-                            st.info("Aunque se encontraron estaciones, no hay datos de precipitación para el período seleccionado.")
-                    else:
-                        st.warning("No se encontraron estaciones dentro de la cuenca seleccionada.")
+                            st.warning("No se encontraron estaciones dentro de la cuenca seleccionada.")
+            else:
+                st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
         else:
-            st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
-    else:
-        st.warning("Los datos de las subcuencas no están cargados.")
+            st.warning("Los datos de las subcuencas no están cargados.")
 
     with tabs[13]: display_station_table_tab(**display_args)
+
     with tabs[14]:
+        # ... (código de la pestaña "Generar Reporte" sin cambios) ...
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         report_sections_options = [
@@ -403,6 +392,6 @@ with tabs[12]: # O el índice que corresponda
                     except Exception as e:
                         st.error(f"Error al generar el reporte: {e}")
                         st.exception(e)
-
+                        
 if __name__ == "__main__":
     main()
