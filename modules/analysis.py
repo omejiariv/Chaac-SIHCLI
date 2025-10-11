@@ -3,6 +3,7 @@
 import streamlit as st
 import geopandas as gpd
 import pandas as pd
+import requests
 import numpy as np
 from scipy.stats import gamma, norm
 from modules.config import Config
@@ -194,3 +195,78 @@ def calculate_basin_stats(_gdf_stations, _gdf_basins, _df_monthly, basin_name, b
     stats['Valor'] = stats['Valor'].round(2)
     
     return stats, station_names_in_basin, None
+
+@st.cache_data
+def get_mean_altitude_for_basin(_basin_geometry):
+    """
+    Calcula la altitud media de una cuenca consultando la API de Open-Elevation.
+    """
+    try:
+        # Simplificamos la geometría para reducir el tamaño de la consulta
+        simplified_geom = _basin_geometry.simplify(tolerance=0.01)
+        
+        # Obtenemos los puntos del contorno exterior del polígono
+        exterior_coords = list(simplified_geom.exterior.coords)
+        
+        # Creamos la estructura de datos para la API
+        locations = [{"latitude": lat, "longitude": lon} for lon, lat in exterior_coords]
+        
+        # Hacemos la llamada a la API de Open-Elevation
+        response = requests.post("https://api.open-elevation.com/api/v1/lookup", json={"locations": locations})
+        response.raise_for_status()
+        
+        results = response.json()['results']
+        elevations = [res['elevation'] for res in results]
+        
+        # Calculamos la media de las elevaciones obtenidas
+        mean_altitude = np.mean(elevations)
+        
+        return mean_altitude, None
+    except Exception as e:
+        error_message = f"No se pudo obtener la altitud de la cuenca: {e}"
+        st.warning(error_message)
+        return None, error_message
+
+def calculate_hydrological_balance(mean_precip_mm, basin_geometry):
+    """
+    Calcula el balance hídrico (P - ET = Q) para una cuenca.
+    """
+    results = {
+        "P_media_anual_mm": mean_precip_mm,
+        "Altitud_media_m": None,
+        "ET_media_anual_mm": None,
+        "Q_mm": None, # Escorrentía en lámina de mm
+        "Q_m3_año": None, # Caudal en volumen anual
+        "Area_km2": None,
+        "error": None
+    }
+
+    # 1. Calcular Altitud Media
+    mean_altitude, error = get_mean_altitude_for_basin(basin_geometry)
+    if error:
+        results["error"] = error
+        return results
+    results["Altitud_media_m"] = mean_altitude
+
+    # 2. Calcular Evapotranspiración (ET) con tu ecuación
+    # ETo (mm/día) = 4.37 * exp(-0.0002 * Altitud)
+    # Lo convertimos a mm/año
+    eto_dia = 4.37 * np.exp(-0.0002 * mean_altitude)
+    eto_anual_mm = eto_dia * 365.25
+    results["ET_media_anual_mm"] = eto_anual_mm
+
+    # 3. Calcular la Escorrentía (Q)
+    q_mm = mean_precip_mm - eto_anual_mm
+    results["Q_mm"] = q_mm
+
+    # 4. Calcular el Caudal en Volumen
+    # Proyectamos a un CRS métrico para obtener el área en m^2
+    basin_metric = basin_geometry.to_crs("EPSG:3116")
+    area_m2 = basin_metric.area
+    results["Area_km2"] = area_m2 / 1_000_000
+
+    q_m = q_mm / 1000 # Convertimos la lámina de agua a metros
+    q_volumen_m3_anual = q_m * area_m2
+    results["Q_m3_año"] = q_volumen_m3_anual
+    
+    return results
