@@ -43,9 +43,9 @@ from modules.forecasting import (
     create_acf_chart, 
     create_pacf_chart,
     auto_arima_search
+    get_weather_forecast
 )
 from modules.data_processor import complete_series
-from modules.forecast_api import get_weather_forecast
 
 # --- FUNCIONES DE UTILIDAD DE VISUALIZACIÓN
 def display_filter_summary(total_stations_count, selected_stations_count, year_range,
