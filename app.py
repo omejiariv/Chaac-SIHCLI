@@ -126,20 +126,15 @@ def process_and_store_data(file_mapa, file_precip, file_shape):
             load_and_process_all_data(file_mapa, file_precip, file_shape)
 
         if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
-            # Actualiza directamente el session_state
             st.session_state.update({
                 'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
                 'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
             })
             st.success("¡Datos cargados y listos!")
-            # st.rerun() # <-- El rerun es a menudo implícito y puede no ser necesario aquí.
-                       # Streamlit repetirá el script después de esta interacción.
-                       # Si aún necesitas forzarlo, mantenlo, pero la causa raíz del
-                       # error suele ser la limpieza manual del session_state.
+            st.rerun()
         else:
             st.error("Hubo un error al procesar los archivos.")
-            # Asegúrate de que data_loaded se establezca en False en caso de error
-            st.session_state['data_loaded'] = False
+            st.session_state['data_loaded'] = False # Asegurar estado consistente en caso de error
             
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
