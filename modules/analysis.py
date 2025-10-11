@@ -1,6 +1,7 @@
 # modules/analysis.py
 
 import streamlit as st
+import geopandas as gpd
 import pandas as pd
 import numpy as np
 from scipy.stats import gamma, norm
@@ -165,3 +166,31 @@ def analyze_events(index_series, threshold, event_type='drought'):
 
     events_df = pd.DataFrame(events)
     return events_df.sort_values(by='Fecha Inicio').reset_index(drop=True)
+
+@st.cache_data
+def calculate_basin_stats(_gdf_stations, _gdf_basins, _df_monthly, basin_name, basin_col_name):
+    """
+    Calcula estadísticas de precipitación para todas las estaciones dentro de una cuenca específica.
+    """
+    if _gdf_basins is None or basin_col_name not in _gdf_basins.columns:
+        return pd.DataFrame(), [], "El GeoDataFrame de cuencas o la columna de nombres no es válida."
+
+    target_basin = _gdf_basins[_gdf_basins[basin_col_name] == basin_name]
+    if target_basin.empty:
+        return pd.DataFrame(), [], f"No se encontró la cuenca llamada '{basin_name}'."
+
+    stations_in_basin = gpd.sjoin(_gdf_stations, target_basin, how="inner", predicate="within")
+    station_names_in_basin = stations_in_basin[Config.STATION_NAME_COL].unique().tolist()
+
+    if not station_names_in_basin:
+        return pd.DataFrame(), [], None
+
+    df_basin_precip = _df_monthly[_df_monthly[Config.STATION_NAME_COL].isin(station_names_in_basin)]
+    if df_basin_precip.empty:
+        return pd.DataFrame(), station_names_in_basin, "No hay datos de precipitación para las estaciones en esta cuenca."
+    
+    stats = df_basin_precip[Config.PRECIPITATION_COL].describe().reset_index()
+    stats.columns = ['Métrica', 'Valor']
+    stats['Valor'] = stats['Valor'].round(2)
+    
+    return stats, station_names_in_basin, None
