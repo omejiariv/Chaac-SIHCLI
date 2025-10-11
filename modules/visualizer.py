@@ -1019,6 +1019,127 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     st.error(f"Ocurrió un error al intentar mostrar el GIF: {e}")
             else:
                 st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
+
+    with kriging_tab:
+        st.subheader("Superficies de Interpolación de Precipitación Anual")
+        analysis_mode_interp = st.radio(
+            "Seleccione el modo de interpolación:",
+            ("Regional (Toda la selección)", "Por Cuenca Específica"),
+            key="interp_mode_radio",
+            horizontal=True
+        )
+        st.markdown("---")
+
+        if analysis_mode_interp == "Por Cuenca Específica":
+            if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
+                BASIN_NAME_COLUMN = 'SUBC_LBL'
+                if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
+                    col_control, col_display = st.columns([1, 2])
+                    with col_control:
+                        st.markdown("#### Controles de Cuenca")
+                        basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+                        selected_basin = st.selectbox(
+                            "Seleccione una cuenca:", options=basin_names, key="interp_basin_selector"
+                        )
+                        buffer_km = st.slider(
+                            "Buffer de influencia (km):", 0, 50, 10, 5, help="Incluye estaciones en este radio para mejorar la interpolación."
+                        )
+                        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+                        years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
+                        if years:
+                            selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years)-1)
+                            method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
+                            run_balance = st.toggle("Calcular Balance Hídrico", value=True)
+                            if st.button(f"Generar Mapa para la Cuenca '{selected_basin}'"):
+                                with st.spinner("Realizando interpolación por cuenca..."):
+                                    fig_basin, mean_precip, error_msg = create_kriging_by_basin(
+                                        year=selected_year, method=method, variogram_model='spherical',
+                                        gdf_stations=st.session_state.gdf_stations, df_anual=df_anual_non_na,
+                                        gdf_basins=st.session_state.gdf_subcuencas, basin_name=selected_basin,
+                                        basin_col=BASIN_NAME_COLUMN, buffer_km=buffer_km
+                                    )
+                                with col_display:
+                                    if error_msg: st.error(error_msg)
+                                    if fig_basin: st.plotly_chart(fig_basin, use_container_width=True)
+                                
+                                if mean_precip is not None and run_balance:
+                                    st.markdown("---")
+                                    st.subheader("Balance Hídrico Estimado para la Cuenca")
+                                    with st.spinner("Calculando altitud y balance..."):
+                                        target_basin_geom = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN] == selected_basin].iloc[0].geometry
+                                        balance_results = calculate_hydrological_balance(mean_precip, target_basin_geom)
+                                    if balance_results.get("error"):
+                                        st.error(balance_results["error"])
+                                    else:
+                                        c1, c2, c3, c4 = st.columns(4)
+                                        c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
+                                        c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
+                                        c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
+                                        c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
+                                        st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                        else:
+                            st.warning("No hay datos anuales disponibles con los filtros actuales.")
+                else:
+                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
+            else:
+                st.warning("Los datos de cuencas no están disponibles para este modo.")
+        else: # MODO REGIONAL (TU CÓDIGO ORIGINAL)
+            df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+            if not stations_for_analysis or df_anual_non_na.empty:
+                st.warning("No hay suficientes datos anuales para realizar la interpolación.")
+            else:
+                min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
+                control_col, map_col1, map_col2 = st.columns([1, 2, 2])
+                with control_col:
+                    st.markdown("#### Controles de los Mapas")
+                    interpolation_methods = ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]
+                    st.markdown("**Mapa 1**")
+                    year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
+                    method1 = st.selectbox("Método de interpolación", options=interpolation_methods, key="interp_method1")
+                    variogram_model1 = None
+                    if "Kriging" in method1:
+                        variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
+                        variogram_model1 = st.selectbox("Modelo de Variograma para Mapa 1", variogram_options, key="var_model_1")
+                    st.markdown("---")
+                    st.markdown("**Mapa 2**")
+                    year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
+                    method2 = st.selectbox("Método de interpolación", options=interpolation_methods, index=1, key="interp_method2")
+                    variogram_model2 = None
+                    if "Kriging" in method2:
+                        variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
+                        variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2", variogram_options, key="var_model_2")
+                
+                gdf_bounds = gdf_filtered.total_bounds.tolist()
+                gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
+                fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
+                fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
+                with map_col1:
+                    if fig1: st.plotly_chart(fig1, use_container_width=True)
+                    else: st.info(error1)
+                with map_col2:
+                    if fig2: st.plotly_chart(fig2, use_container_width=True)
+                    else: st.info(error2)
+                st.markdown("---")
+                st.markdown("##### Variogramas de los Mapas")
+                col3, col4 = st.columns(2)
+                with col3:
+                    if fig_var1:
+                        buf = io.BytesIO()
+                        fig_var1.savefig(buf, format="png")
+                        st.image(buf)
+                        st.download_button(label="Descargar Variograma 1 (PNG)", data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png", mime="image/png")
+                        plt.close(fig_var1)
+                    else:
+                        st.info("El variograma no está disponible para este método.")
+                with col4:
+                    if fig_var2:
+                        buf = io.BytesIO()
+                        fig_var2.savefig(buf, format="png")
+                        st.image(buf)
+                        st.download_button(label="Descargar Variograma 2 (PNG)", data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png", mime="image/png")
+                        plt.close(fig_var2)
+                    else:
+                        st.info("El variograma no está disponible para este método.")
                 
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
@@ -1176,148 +1297,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             create_compare_map(data_year2, year2, map_col2, gdf_geometries, df_anual_valid)
         else:
             st.warning("Se necesitan datos de al menos dos años diferentes para generar la Comparación de Mapas.")
-
-with kriging_tab:
-    st.subheader("Superficies de Interpolación de Precipitación Anual")
-
-    analysis_mode_interp = st.radio(
-        "Seleccione el modo de interpolación:",
-        ("Regional (Toda la selección)", "Por Cuenca Específica"),
-        key="interp_mode_radio",
-        horizontal=True
-    )
-    st.markdown("---")
-
-    # --- MODO 1: KRIGING POR CUENCA (NUEVA FUNCIONALIDAD) ---
-    if analysis_mode_interp == "Por Cuenca Específica":
-        if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
-            BASIN_NAME_COLUMN = 'SUBC_LBL'
-            if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
-                
-                col_control, col_display = st.columns([1, 2])
-                
-                with col_control:
-                    st.markdown("#### Controles de Cuenca")
-                    basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
-                    selected_basin = st.selectbox(
-                        "Seleccione una cuenca:",
-                        options=basin_names,
-                        key="interp_basin_selector"
-                    )
-                    buffer_km = st.slider(
-                        "Buffer de influencia (km):", 0, 50, 10, 5,
-                        help="Incluye estaciones en este radio alrededor de la cuenca para mejorar la interpolación."
-                    )
-                    df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-                    years = sorted(df_anual_non_na[Config.YEAR_COL].unique())
-                    selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years)-1)
-                    
-                    method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
-                    run_balance = st.toggle("Calcular Balance Hídrico", value=True)
-
-                if st.button(f"Generar Mapa para la Cuenca '{selected_basin}'"):
-                    with st.spinner("Realizando interpolación por cuenca..."):
-                        fig_basin, mean_precip, error_msg = create_kriging_by_basin(
-                            year=selected_year, method=method, variogram_model='spherical',
-                            gdf_stations=st.session_state.gdf_stations, df_anual=df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL]),
-                            gdf_basins=st.session_state.gdf_subcuencas, basin_name=selected_basin,
-                            basin_col=BASIN_NAME_COLUMN, buffer_km=buffer_km
-                        )
-
-                    with col_display:
-                        if error_msg: st.error(error_msg)
-                        if fig_basin: st.plotly_chart(fig_basin, use_container_width=True)
-
-                    if mean_precip is not None and run_balance:
-                        st.markdown("---")
-                        st.subheader("Balance Hídrico Estimado para la Cuenca")
-                        with st.spinner("Calculando altitud y balance..."):
-                            target_basin_geom = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN] == selected_basin].iloc[0].geometry
-                            balance_results = calculate_hydrological_balance(mean_precip, target_basin_geom)
-                        
-                        if balance_results.get("error"):
-                            st.error(balance_results["error"])
-                        else:
-                            c1, c2, c3, c4 = st.columns(4)
-                            c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
-                            c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
-                            c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
-                            c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
-                            st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-            else:
-                st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
-        else:
-            st.warning("Los datos de cuencas no están disponibles para este modo.")
-
-    # --- MODO 2: KRIGING REGIONAL (TU CÓDIGO ORIGINAL PRESERVADO) ---
-    else: 
-        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-        if not stations_for_analysis:
-            st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
-        elif df_anual_non_na.empty or len(df_anual_non_na[Config.YEAR_COL].unique()) == 0:
-            st.warning("No hay suficientes datos anuales para realizar la interpolación.")
-        else:
-            min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
-            control_col, map_col1, map_col2 = st.columns([1, 2, 2])
-            
-            with control_col:
-                st.markdown("#### Controles de los Mapas")
-                interpolation_methods = ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]
-                if Config.ELEVATION_COL in gdf_filtered.columns:
-                    interpolation_methods.insert(1, "Kriging con Deriva Externa (KED)")
-                
-                st.markdown("**Mapa 1**")
-                year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
-                method1 = st.selectbox("Método de interpolación", options=interpolation_methods, key="interp_method1")
-                variogram_model1 = None
-                if "Kriging" in method1:
-                    variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
-                    variogram_model1 = st.selectbox("Modelo de Variograma para Mapa 1", variogram_options, key="var_model_1")
-
-                st.markdown("---")
-                st.markdown("**Mapa 2**")
-                year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
-                method2 = st.selectbox("Método de interpolación", options=interpolation_methods, index=1, key="interp_method2")
-                variogram_model2 = None
-                if "Kriging" in method2:
-                    variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
-                    variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2", variogram_options, key="var_model_2")
-
-            gdf_bounds = gdf_filtered.total_bounds.tolist()
-            gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
-            
-            fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
-            fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
-            
-            with map_col1:
-                if fig1: st.plotly_chart(fig1, use_container_width=True)
-                else: st.info(error1)
-            
-            with map_col2:
-                if fig2: st.plotly_chart(fig2, use_container_width=True)
-                else: st.info(error2)
-
-            st.markdown("---")
-            st.markdown("##### Variogramas de los Mapas")
-            col3, col4 = st.columns(2)
-            with col3:
-                if fig_var1:
-                    buf = io.BytesIO()
-                    fig_var1.savefig(buf, format="png")
-                    st.image(buf)
-                    st.download_button(label="Descargar Variograma 1 (PNG)", data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png", mime="image/png")
-                    plt.close(fig_var1)
-                else:
-                    st.info("El variograma no está disponible para este método.")
-            with col4:
-                if fig_var2:
-                    buf = io.BytesIO()
-                    fig_var2.savefig(buf, format="png")
-                    st.image(buf)
-                    st.download_button(label="Descargar Variograma 2 (PNG)", data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png", mime="image/png")
-                    plt.close(fig_var2)
-                else:
-                    st.info("El variograma no está disponible para este método.")
 
     with validation_tab:
         st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
