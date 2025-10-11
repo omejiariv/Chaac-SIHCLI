@@ -2556,9 +2556,10 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
         forecast_df = get_weather_forecast(lat, lon)
 
         if forecast_df is not None:
-            # 👇 ESTA ES LA ÚNICA LÍNEA QUE NECESITAS AÑADIR.
-            # DEBE IR AQUÍ, CON ESTA SANGRÍA.
-            forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.date
+            # 👇 MODIFICA ESTA LÍNEA 👇
+            # De: forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.date
+            # A:
+            forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.strftime('%Y-%m-%d')
 
             # Gráfico de Pronóstico
             fig = go.Figure()
