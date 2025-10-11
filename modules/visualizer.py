@@ -2593,6 +2593,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
 
             fig.update_layout(
                 title=f'Pronóstico para {station_to_forecast}',
+                xaxis=dict(type='category'),  # <--- ADD THIS LINE
                 yaxis=dict(title='Temperatura (°C)'),
                 yaxis2=dict(
                     title='Precipitación (mm)',
