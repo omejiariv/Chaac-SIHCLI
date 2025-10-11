@@ -56,6 +56,23 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
     return stations_filtered
 
 def main():
+    # <<<--- 1. Pega la función AQUÍ ---<<<
+    def process_and_store_data(file_mapa, file_precip, file_shape):
+        with st.spinner("Procesando archivos y cargando datos..."):
+            gdf_stations, gdf_municipios, df_long, df_enso = \
+                load_and_process_all_data(file_mapa, file_precip, file_shape)
+
+            if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
+                st.session_state.update({
+                    'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
+                    'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
+                })
+                st.success("¡Datos cargados y listos!")
+                st.rerun()
+            else:
+                st.error("Hubo un error al procesar los archivos.")
+                st.session_state['data_loaded'] = False
+
     def display_map_controls(container_object, key_prefix):
         """Muestra los controles para seleccionar mapa base y capas adicionales."""
         base_map_options = {
@@ -93,7 +110,8 @@ def main():
         selected_base_map_config = base_map_options[selected_base_map_name]
         selected_overlays_config = [overlay_map_options[name] for name in selected_overlays_names]
 
-        return selected_base_map_config, selected_overlays_config    
+        return selected_base_map_config, selected_overlays_config
+
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
