@@ -143,18 +143,22 @@ def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded
     gdf_municipios = load_shapefile(uploaded_zip_shapefile)
     gdf_subcuencas = load_geojson_from_github(Config.URL_SUBCUENCAS_GEOJSON)
     
+    # CORRECCIÓN 1: Devolver 5 valores en caso de error
     if any(df is None for df in [df_stations_raw, df_precip_raw, gdf_municipios, gdf_subcuencas]):
         st.error("Fallo en la carga de uno o más archivos base. El proceso no puede continuar.")
         return None, None, None, None, None
+
     lon_col = next((col for col in df_stations_raw.columns if 'longitud' in col.lower() or 'lon' in col.lower()), None)
     lat_col = next((col for col in df_stations_raw.columns if 'latitud' in col.lower() or 'lat' in col.lower()), None)
+
+    # CORRECCIÓN 2: Devolver 5 valores en caso de error
     if not all([lon_col, lat_col]):
         st.error("No se encontraron columnas de longitud y/o latitud en el archivo de estaciones.")
-        return None, None, None, None
+        return None, None, None, None, None
 
     df_stations_raw[lon_col] = standardize_numeric_column(df_stations_raw[lon_col])
     df_stations_raw[lat_col] = standardize_numeric_column(df_stations_raw[lat_col])
-    
+
     for col in [Config.MUNICIPALITY_COL, Config.REGION_COL]:
         if col in df_stations_raw.columns:
             df_stations_raw[col] = df_stations_raw[col].astype(str).str.strip().replace('nan', 'Sin Dato')
