@@ -8,6 +8,7 @@ import warnings
 import os
 from datetime import datetime
 import requests_cache
+import time
 
 #--- Importaciones de Módulos Propios ---
 from modules.config import Config
@@ -57,7 +58,7 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
     return stations_filtered
 
 def main():
-    # <<<--- 1. Pega la función AQUÍ ---<<<
+    
     def process_and_store_data(file_mapa, file_precip, file_shape):
         with st.spinner("Procesando archivos y cargando datos..."):
             gdf_stations, gdf_municipios, df_long, df_enso = \
@@ -115,8 +116,26 @@ def main():
 
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-    Config.initialize_session_state()
-    progress_placeholder = st.empty()
+    Config.initialize_session_state() # <-- LÍNEA 119
+
+    # =======================================================
+    # V----- PEGA EL CÓDIGO DE LA GUÍA AQUÍ V-----
+    # =======================================================
+    if 'first_visit' not in st.session_state:
+        st.session_state.first_visit = True
+
+    if not st.session_state.get('data_loaded', False) and st.session_state.first_visit:
+        st.toast("¡Bienvenido a Chaac SIHCLI! 👋")
+        time.sleep(1.5)
+        st.toast("Para empezar, carga tus datos desde GitHub...")
+        time.sleep(2)
+        st.toast("...o sube tus archivos manualmente en el panel de la izquierda. 👈")
+        st.session_state.first_visit = False
+    # =======================================================
+    # A----- FIN DEL CÓDIGO DE LA GUÍA A-----
+    # =======================================================
+
+    progress_placeholder = st.empty() # <-- LÍNEA 120
 
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
