@@ -1034,40 +1034,55 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
                 BASIN_NAME_COLUMN = 'SUBC_LBL'
                 if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
+                    
                     col_control, col_display = st.columns([1, 2])
+                    
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
                         basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
-                        selected_basin = st.selectbox(
-                            "Seleccione una cuenca:", options=basin_names, key="interp_basin_selector"
+                        
+                        # --- CAMBIO A MULTISELECT ---
+                        selected_basins = st.multiselect(
+                            "Seleccione una o más subcuencas:",
+                            options=basin_names,
+                            key="interp_basin_multiselect"
                         )
-                        buffer_km = st.slider(
-                            "Buffer de influencia (km):", 0, 50, 10, 5, help="Incluye estaciones en este radio para mejorar la interpolación."
-                        )
+                        
+                        buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5)
                         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
                         years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
+                        
                         if years:
                             selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years)-1)
                             method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
                             run_balance = st.toggle("Calcular Balance Hídrico", value=True)
-                            if st.button(f"Generar Mapa para la Cuenca '{selected_basin}'"):
+
+                            # El botón solo se activa si se ha seleccionado al menos una cuenca
+                            if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
+                                # --- LÓGICA PARA UNIR CUENCAS ---
+                                target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
+                                merged_basin_geom = target_basins_gdf.unary_union
+                                # Creamos un nuevo GeoDataFrame con la cuenca unificada
+                                unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
+                                
                                 with st.spinner("Realizando interpolación por cuenca..."):
                                     fig_basin, mean_precip, error_msg = create_kriging_by_basin(
                                         year=selected_year, method=method, variogram_model='spherical',
                                         gdf_stations=st.session_state.gdf_stations, df_anual=df_anual_non_na,
-                                        gdf_basins=st.session_state.gdf_subcuencas, basin_name=selected_basin,
-                                        basin_col=BASIN_NAME_COLUMN, buffer_km=buffer_km
+                                        gdf_basins=unified_basin_gdf, # Usamos la cuenca unificada
+                                        basin_name=0, basin_col=None, # Pasamos la geometría directamente
+                                        buffer_km=buffer_km
                                     )
                                 with col_display:
+                                    st.subheader(f"Resultados para: {', '.join(selected_basins)}")
                                     if error_msg: st.error(error_msg)
                                     if fig_basin: st.plotly_chart(fig_basin, use_container_width=True)
                                 
                                 if mean_precip is not None and run_balance:
                                     st.markdown("---")
-                                    st.subheader("Balance Hídrico Estimado para la Cuenca")
+                                    st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
                                     with st.spinner("Calculando altitud y balance..."):
-                                        target_basin_geom = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN] == selected_basin].iloc[0].geometry
-                                        balance_results = calculate_hydrological_balance(mean_precip, target_basin_geom)
+                                        balance_results = calculate_hydrological_balance(mean_precip, unified_basin_gdf) # Pasamos el GDF unificado
                                     if balance_results.get("error"):
                                         st.error(balance_results["error"])
                                     else:
@@ -1083,6 +1098,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
             else:
                 st.warning("Los datos de cuencas no están disponibles para este modo.")
+                
         else: # MODO REGIONAL (TU CÓDIGO ORIGINAL)
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             if not stations_for_analysis or df_anual_non_na.empty:
