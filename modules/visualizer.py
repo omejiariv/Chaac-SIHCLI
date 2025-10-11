@@ -2556,9 +2556,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
         forecast_df = get_weather_forecast(lat, lon)
 
         if forecast_df is not None:
-            # 👇 MODIFICA ESTA LÍNEA 👇
-            # De: forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.date
-            # A:
+            # Fix 1: Convert date to a simple string to prevent misinterpretation.
             forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.strftime('%Y-%m-%d')
 
             # Gráfico de Pronóstico
@@ -2570,7 +2568,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                 y=forecast_df['precip_sum (mm)'],
                 name='Precipitación (mm)',
                 marker_color='blue',
-                yaxis='y2' # Asignar al eje Y secundario
+                yaxis='y2'
             ))
 
             # Líneas para temperatura
@@ -2587,13 +2585,14 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                 mode='lines+markers',
                 name='Temp. Mínima',
                 line=dict(color='orange'),
-                fill='tonexty', # Rellenar el área entre min y max
+                fill='tonexty',
                 fillcolor='rgba(255, 165, 0, 0.2)'
             ))
 
             fig.update_layout(
                 title=f'Pronóstico para {station_to_forecast}',
-                xaxis=dict(type='category'),  # <--- ADD THIS LINE
+                # Fix 2: Force the x-axis to be treated as discrete categories.
+                xaxis=dict(type='category'),
                 yaxis=dict(title='Temperatura (°C)'),
                 yaxis2=dict(
                     title='Precipitación (mm)',
