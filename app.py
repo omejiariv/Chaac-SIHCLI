@@ -333,68 +333,118 @@ def main():
         else:
             st.warning("Los datos de las subcuencas no están cargados.")
 
-    # --- PESTAÑA NUEVA: COMPARACIÓN DE PERIODOS ---
+    # --- PESTAÑA: COMPARACIÓN DE PERIODOS (VERSIÓN MEJORADA) ---
     with tabs[13]: # Ajusta el índice si es necesario
         st.header("Comparación de Periodos de Tiempo")
-        st.info("Seleccione dos periodos para comparar sus estadísticas de precipitación, utilizando el promedio de todas las estaciones seleccionadas.")
 
-        years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
-        min_year, max_year = int(years_with_data[0]), int(years_with_data[-1])
+        # --- NIVEL DE ANÁLISIS ---
+        analysis_level = st.radio(
+            "Seleccione el nivel de análisis para la comparación:",
+            ("Promedio Regional (Todas las estaciones seleccionadas)", "Por Cuenca Específica"),
+            key="compare_level_radio"
+        )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("#### Periodo 1")
-            periodo1 = st.slider(
-                "Seleccione el rango de años para el Periodo 1",
-                min_year, max_year,
-                (min_year, min_year + 10), # Default a los primeros 10 años
-                key="periodo1_slider"
-            )
+        df_to_compare = pd.DataFrame()
+
+        # --- LÓGICA DE FILTRADO ---
+        if analysis_level == "Por Cuenca Específica":
+            st.markdown("---")
+            if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
+                BASIN_NAME_COLUMN = 'SUBC_LBL'
+                if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
+                    relevant_basins_gdf = gpd.sjoin(st.session_state.gdf_subcuencas, gdf_filtered, how="inner", predicate="intersects")
+                    if not relevant_basins_gdf.empty:
+                        basin_names = sorted(relevant_basins_gdf[BASIN_NAME_COLUMN].dropna().unique())
+                    else:
+                        basin_names = []
+
+                    if not basin_names:
+                        st.warning("Ninguna cuenca contiene estaciones que coincidan con los filtros actuales.", icon="⚠️")
+                    else:
+                        selected_basin = st.selectbox(
+                            "Seleccione la cuenca a comparar:",
+                            options=basin_names,
+                            key="compare_basin_selector"
+                        )
+                        # Filtramos las estaciones que están dentro de la cuenca seleccionada
+                        target_basin_geom = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN] == selected_basin]
+                        stations_in_basin = gpd.sjoin(gdf_filtered, target_basin_geom, how="inner", predicate="within")
+                        station_names_in_basin = stations_in_basin[Config.STATION_NAME_COL].unique().tolist()
+                        
+                        # Usamos solo los datos de las estaciones de esa cuenca
+                        df_to_compare = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL].isin(station_names_in_basin)]
+                        st.info(f"Análisis para **{len(station_names_in_basin)}** estaciones encontradas en la cuenca **{selected_basin}**.", icon="🏞️")
+
+                else:
+                    st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
+            else:
+                st.warning("Los datos de las subcuencas no están cargados.", icon="⚠️")
         
-        with col2:
-            st.markdown("#### Periodo 2")
-            periodo2 = st.slider(
-                "Seleccione el rango de años para el Periodo 2",
-                min_year, max_year,
-                (max_year - 10, max_year), # Default a los últimos 10 años
-                key="periodo2_slider"
-            )
-
-        # Filtrar datos para cada periodo
-        df_periodo1 = df_monthly_filtered[
-            (df_monthly_filtered[Config.DATE_COL].dt.year >= periodo1[0]) &
-            (df_monthly_filtered[Config.DATE_COL].dt.year <= periodo1[1])
-        ]
-        df_periodo2 = df_monthly_filtered[
-            (df_monthly_filtered[Config.DATE_COL].dt.year >= periodo2[0]) &
-            (df_monthly_filtered[Config.DATE_COL].dt.year <= periodo2[1])
-        ]
-
+        else: # Promedio Regional
+            df_to_compare = df_monthly_filtered
+        
         st.markdown("---")
-        st.subheader("Resultados Comparativos")
-
-        if df_periodo1.empty or df_periodo2.empty:
-            st.warning("Uno o ambos periodos seleccionados no contienen datos para las estaciones filtradas. Por favor, ajuste los rangos.")
+        
+        # --- LÓGICA DE COMPARACIÓN (SIN CAMBIOS) ---
+        if df_to_compare.empty:
+            st.warning("Seleccione una cuenca con estaciones para poder realizar la comparación.", icon="👇")
         else:
-            stats1_mean = df_periodo1[Config.PRECIPITATION_COL].mean()
-            stats2_mean = df_periodo2[Config.PRECIPITATION_COL].mean()
-            delta = ((stats2_mean - stats1_mean) / stats1_mean) * 100 if stats1_mean != 0 else 0
+            years_with_data = sorted(df_to_compare[Config.YEAR_COL].dropna().unique())
+            min_year, max_year = int(years_with_data[0]), int(years_with_data[-1])
 
-            st.metric(
-                label=f"Precipitación Media Mensual ({periodo1[0]}-{periodo1[1]} vs. {periodo2[0]}-{periodo2[1]})",
-                value=f"{stats2_mean:.1f} mm",
-                delta=f"{delta:.2f}% (respecto a {stats1_mean:.1f} mm del Periodo 1)"
-            )
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### Periodo 1")
+                periodo1 = st.slider(
+                    "Seleccione el rango de años para el Periodo 1",
+                    min_year, max_year,
+                    (min_year, min_year + 10 if min_year + 10 < max_year else max_year),
+                    key="periodo1_slider_comp"
+                )
             
-            st.markdown("##### Desglose Estadístico Completo")
-            col1_stats, col2_stats = st.columns(2)
-            with col1_stats:
-                st.write(f"**Periodo 1 ({periodo1[0]}-{periodo1[1]})**")
-                st.dataframe(df_periodo1[Config.PRECIPITATION_COL].describe().round(2))
-            
-            with col2_stats:
-                st.write(f"**Periodo 2 ({periodo2[0]}-{periodo2[1]})**")
-                st.dataframe(df_periodo2[Config.PRECIPITATION_COL].describe().round(2))
+            with col2:
+                st.markdown("#### Periodo 2")
+                periodo2 = st.slider(
+                    "Seleccione el rango de años para el Periodo 2",
+                    min_year, max_year,
+                    (max_year - 10 if max_year - 10 > min_year else min_year, max_year),
+                    key="periodo2_slider_comp"
+                )
+
+            df_periodo1 = df_to_compare[
+                (df_to_compare[Config.DATE_COL].dt.year >= periodo1[0]) &
+                (df_to_compare[Config.DATE_COL].dt.year <= periodo1[1])
+            ]
+            df_periodo2 = df_to_compare[
+                (df_to_compare[Config.DATE_COL].dt.year >= periodo2[0]) &
+                (df_to_compare[Config.DATE_COL].dt.year <= periodo2[1])
+            ]
+
+            st.markdown("---")
+            st.subheader("Resultados Comparativos")
+
+            if df_periodo1.empty or df_periodo2.empty:
+                st.warning("Uno o ambos periodos seleccionados no contienen datos. Por favor, ajuste los rangos.", icon=" ADJUST RANGES")
+            else:
+                stats1_mean = df_periodo1[Config.PRECIPITATION_COL].mean()
+                stats2_mean = df_periodo2[Config.PRECIPITATION_COL].mean()
+                delta = ((stats2_mean - stats1_mean) / stats1_mean) * 100 if stats1_mean != 0 else 0
+
+                st.metric(
+                    label=f"Precipitación Media Mensual ({periodo1[0]}-{periodo1[1]} vs. {periodo2[0]}-{periodo2[1]})",
+                    value=f"{stats2_mean:.1f} mm",
+                    delta=f"{delta:.2f}% (respecto a {stats1_mean:.1f} mm del Periodo 1)"
+                )
+                
+                st.markdown("##### Desglose Estadístico Completo")
+                col1_stats, col2_stats = st.columns(2)
+                with col1_stats:
+                    st.write(f"**Periodo 1 ({periodo1[0]}-{periodo1[1]})**")
+                    st.dataframe(df_periodo1[Config.PRECIPITATION_COL].describe().round(2))
+                
+                with col2_stats:
+                    st.write(f"**Periodo 2 ({periodo2[0]}-{periodo2[1]})**")
+                    st.dataframe(df_periodo2[Config.PRECIPITATION_COL].describe().round(2))
     
     with tabs[14]: display_station_table_tab(**display_args)
 
