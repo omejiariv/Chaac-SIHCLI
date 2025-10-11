@@ -2556,9 +2556,16 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
         forecast_df = get_weather_forecast(lat, lon)
 
         if forecast_df is not None and not forecast_df.empty:
-            # 1. Preparamos los datos: aseguramos formato de fecha y 'derretimos' la tabla
-            # para que Altair pueda manejar las temperaturas fácilmente.
-            forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.strftime('%Y-%m-%d')
+            # --- INICIO DE LA NUEVA LÓGICA (TU IDEA) ---
+            # 1. Tomamos la primera fecha como punto de partida.
+            start_date = pd.to_datetime(forecast_df['date'].iloc[0])
+            # 2. Creamos un rango de 7 fechas a partir de esa fecha.
+            correct_dates = pd.date_range(start=start_date, periods=len(forecast_df))
+            # 3. Reemplazamos la columna de fecha incorrecta con las fechas correctas.
+            forecast_df['date'] = correct_dates
+            # --- FIN DE LA NUEVA LÓGICA ---
+
+            # Preparamos los datos para el gráfico Altair
             df_temp = forecast_df.melt(
                 id_vars=['date'],
                 value_vars=['temp_max (°C)', 'temp_min (°C)'],
@@ -2566,26 +2573,20 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                 value_name='Temperatura (°C)'
             )
 
-            # 2. Creamos la base del gráfico con las fechas
             base = alt.Chart(forecast_df).encode(
-                x=alt.X('date:N', title='Fecha')
+                x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d'))
             )
 
-            # 3. Creamos el gráfico de barras para la precipitación
             bar_chart = base.mark_bar(color='blue', opacity=0.7).encode(
                 y=alt.Y('precip_sum (mm):Q', title='Precipitación (mm)'),
                 tooltip=[
-                    alt.Tooltip('date:N', title='Fecha'),
+                    alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
                     alt.Tooltip('precip_sum (mm):Q', title='Precipitación', format='.1f')
                 ]
-            ).properties(
-                width=600,
-                height=300
             )
 
-            # 4. Creamos el gráfico de líneas para las temperaturas
             line_chart = alt.Chart(df_temp).mark_line(point=True).encode(
-                x=alt.X('date:N', title='Fecha'),
+                x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d')),
                 y=alt.Y('Temperatura (°C):Q', title='Temperatura (°C)'),
                 color=alt.Color('Tipo de Temperatura:N',
                                 scale=alt.Scale(
@@ -2595,12 +2596,11 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                                 legend=alt.Legend(title="Temperatura")
                                ),
                 tooltip=[
-                    alt.Tooltip('date:N', title='Fecha'),
+                    alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
                     alt.Tooltip('Temperatura (°C):Q', title='Temperatura', format='.1f')
                 ]
             )
 
-            # 5. Combinamos los gráficos en uno solo con dos ejes Y
             final_chart = alt.layer(bar_chart, line_chart).resolve_scale(
                 y='independent'
             ).properties(
@@ -2609,11 +2609,11 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
 
             st.altair_chart(final_chart, use_container_width=True)
 
-            # La tabla de datos sigue funcionando igual
+            # La tabla de datos ahora mostrará las fechas corregidas
             with st.expander("Ver datos del pronóstico en tabla"):
                 st.dataframe(forecast_df.style.format({
+                    "date": lambda t: t.strftime('%Y-%m-%d'),
                     "temp_max (°C)": "{:.1f}",
                     "temp_min (°C)": "{:.1f}",
                     "precip_sum (mm)": "{:.1f}"
                 }))
-
