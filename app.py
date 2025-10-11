@@ -221,6 +221,7 @@ def main():
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
         "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
         "Pronóstico del Tiempo", "Descargas", "Análisis por Cuenca",
+        "Comparación de Periodos",  # <--- AÑADE ESTA NUEVA PESTAÑA
         "Tabla de Estaciones", "Generar Reporte"
     ]
     tabs = st.tabs(tab_names)
@@ -332,9 +333,72 @@ def main():
         else:
             st.warning("Los datos de las subcuencas no están cargados.")
 
-    with tabs[13]: display_station_table_tab(**display_args)
+    # --- PESTAÑA NUEVA: COMPARACIÓN DE PERIODOS ---
+    with tabs[13]: # Ajusta el índice si es necesario
+        st.header("Comparación de Periodos de Tiempo")
+        st.info("Seleccione dos periodos para comparar sus estadísticas de precipitación, utilizando el promedio de todas las estaciones seleccionadas.")
 
-    with tabs[14]:
+        years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
+        min_year, max_year = int(years_with_data[0]), int(years_with_data[-1])
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("#### Periodo 1")
+            periodo1 = st.slider(
+                "Seleccione el rango de años para el Periodo 1",
+                min_year, max_year,
+                (min_year, min_year + 10), # Default a los primeros 10 años
+                key="periodo1_slider"
+            )
+        
+        with col2:
+            st.markdown("#### Periodo 2")
+            periodo2 = st.slider(
+                "Seleccione el rango de años para el Periodo 2",
+                min_year, max_year,
+                (max_year - 10, max_year), # Default a los últimos 10 años
+                key="periodo2_slider"
+            )
+
+        # Filtrar datos para cada periodo
+        df_periodo1 = df_monthly_filtered[
+            (df_monthly_filtered[Config.DATE_COL].dt.year >= periodo1[0]) &
+            (df_monthly_filtered[Config.DATE_COL].dt.year <= periodo1[1])
+        ]
+        df_periodo2 = df_monthly_filtered[
+            (df_monthly_filtered[Config.DATE_COL].dt.year >= periodo2[0]) &
+            (df_monthly_filtered[Config.DATE_COL].dt.year <= periodo2[1])
+        ]
+
+        st.markdown("---")
+        st.subheader("Resultados Comparativos")
+
+        if df_periodo1.empty or df_periodo2.empty:
+            st.warning("Uno o ambos periodos seleccionados no contienen datos para las estaciones filtradas. Por favor, ajuste los rangos.")
+        else:
+            stats1_mean = df_periodo1[Config.PRECIPITATION_COL].mean()
+            stats2_mean = df_periodo2[Config.PRECIPITATION_COL].mean()
+            delta = ((stats2_mean - stats1_mean) / stats1_mean) * 100 if stats1_mean != 0 else 0
+
+            st.metric(
+                label=f"Precipitación Media Mensual ({periodo1[0]}-{periodo1[1]} vs. {periodo2[0]}-{periodo2[1]})",
+                value=f"{stats2_mean:.1f} mm",
+                delta=f"{delta:.2f}% (respecto a {stats1_mean:.1f} mm del Periodo 1)"
+            )
+            
+            st.markdown("##### Desglose Estadístico Completo")
+            col1_stats, col2_stats = st.columns(2)
+            with col1_stats:
+                st.write(f"**Periodo 1 ({periodo1[0]}-{periodo1[1]})**")
+                st.dataframe(df_periodo1[Config.PRECIPITATION_COL].describe().round(2))
+            
+            with col2_stats:
+                st.write(f"**Periodo 2 ({periodo2[0]}-{periodo2[1]})**")
+                st.dataframe(df_periodo2[Config.PRECIPITATION_COL].describe().round(2))
+    
+    with tabs[14]: display_station_table_tab(**display_args)
+
+    with tabs[15]:
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         report_sections_options = [
