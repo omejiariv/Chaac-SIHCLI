@@ -14,6 +14,15 @@ from modules.config import Config
 from modules.utils import standardize_numeric_column
 
 # --- UTILS ---
+
+@st.cache_data
+def load_geojson_from_github(url):
+    try:
+        return gpd.read_file(url)
+    except Exception as e:
+        st.error(f"No se pudo cargar el GeoJSON desde la URL: {e}")
+        return None
+
 @st.cache_data
 def parse_spanish_dates(date_series):
     months_es_to_en = {
@@ -133,8 +142,14 @@ def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded
     df_precip_raw = load_csv_data(uploaded_file_precip)
     gdf_municipios = load_shapefile(uploaded_zip_shapefile)
 
-    if any(df is None for df in [df_stations_raw, df_precip_raw, gdf_municipios]):
-        return None, None, None, None
+    # --- AÑADIR CARGA DE SUBCUENCAS ---
+    url_subcuencas = "https://raw.githubusercontent.com/omejiariv/Chaac-SIHCLI/main/data/SubcuencasAInfluencia.geojson"
+    gdf_subcuencas = load_geojson_from_github(url_subcuencas)
+    
+    # --- FIN DE LA MODIFICACIÓN ---
+
+    if any(df is None for df in [df_stations_raw, df_precip_raw, gdf_municipios, gdf_subcuencas]):
+        return None, None, None, None, None
 
     lon_col = next((col for col in df_stations_raw.columns if 'longitud' in col.lower() or 'lon' in col.lower()), None)
     lat_col = next((col for col in df_stations_raw.columns if 'latitud' in col.lower() or 'lat' in col.lower()), None)
