@@ -113,24 +113,34 @@ def main():
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
 
-        def process_and_store_data(file_mapa, file_precip, file_shape):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            Config.initialize_session_state()
-            with st.spinner("Procesando archivos y cargando datos..."):
-                gdf_stations, gdf_municipios, df_long, df_enso = load_and_process_all_data(file_mapa, file_precip, file_shape)
-                if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
-                    st.session_state.update({
-                        'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
-                        'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
-                    })
-                    st.success("¡Datos cargados y listos!")
-                    st.rerun()
-                else:
-                    st.error("Hubo un error al procesar los archivos.")
+def process_and_store_data(file_mapa, file_precip, file_shape):
+    # Elimina la limpieza manual de cache y session_state de esta función
+    # st.cache_data.clear()  <-- ELIMINAR
+    # st.cache_resource.clear() <-- ELIMINAR
+    # for key in list(st.session_state.keys()): <-- ELIMINAR
+    #     del st.session_state[key] <-- ELIMINAR
+    # Config.initialize_session_state() <-- ELIMINAR
 
+    with st.spinner("Procesando archivos y cargando datos..."):
+        gdf_stations, gdf_municipios, df_long, df_enso = \
+            load_and_process_all_data(file_mapa, file_precip, file_shape)
+
+        if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
+            # Actualiza directamente el session_state
+            st.session_state.update({
+                'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
+                'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
+            })
+            st.success("¡Datos cargados y listos!")
+            # st.rerun() # <-- El rerun es a menudo implícito y puede no ser necesario aquí.
+                       # Streamlit repetirá el script después de esta interacción.
+                       # Si aún necesitas forzarlo, mantenlo, pero la causa raíz del
+                       # error suele ser la limpieza manual del session_state.
+        else:
+            st.error("Hubo un error al procesar los archivos.")
+            # Asegúrate de que data_loaded se establezca en False en caso de error
+            st.session_state['data_loaded'] = False
+            
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
             uploaded_file_precip = st.file_uploader("2. Archivo de precipitación (CSV)", type="csv")
