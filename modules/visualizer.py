@@ -2591,7 +2591,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
 
             fig.update_layout(
                 title=f'Pronóstico para {station_to_forecast}',
-                # Fix 2: Force the x-axis to be treated as discrete categories.
+                # This is the line that fixes the chart
                 xaxis=dict(type='category'),
                 yaxis=dict(title='Temperatura (°C)'),
                 yaxis2=dict(
