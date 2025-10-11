@@ -245,7 +245,7 @@ def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded
         if col in df_enso.columns:
             df_enso[col] = standardize_numeric_column(df_enso[col])
 
-    return gdf_stations, gdf_municipios, df_long, df_enso
+    return gdf_stations, gdf_municipios, df_long, df_enso, gdf_subcuencas
 
 def extract_elevation_from_dem(gdf_stations, dem_data_source):
     if dem_data_source is None:
