@@ -292,7 +292,7 @@ def main():
     with tabs[12]: 
         st.header("Análisis Agregado por Cuenca Hidrográfica")
         if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
-            BASIN_NAME_COLUMN = 'Nbr_SubC' 
+            BASIN_NAME_COLUMN = 'SUBC_LBL' 
             if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
                 basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
                 selected_basin = st.selectbox(
