@@ -100,12 +100,9 @@ class Config:
             st.session_state.prophet_forecast = None
         if 'gif_reload_key' not in st.session_state:
             st.session_state.gif_reload_key = 0
-
         if 'select_all_report_sections_checkbox' not in st.session_state:
             st.session_state.select_all_report_sections_checkbox = False
-
         if 'selected_report_sections_multiselect' not in st.session_state:
             st.session_state.selected_report_sections_multiselect = []
-
         if 'gdf_subcuencas' not in st.session_state:
             st.session_state.gdf_subcuencas = None
