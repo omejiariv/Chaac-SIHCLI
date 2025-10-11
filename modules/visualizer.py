@@ -42,7 +42,7 @@ from modules.forecasting import (
     get_decomposition_results, 
     create_acf_chart, 
     create_pacf_chart,
-    auto_arima_search
+    auto_arima_search,
     get_weather_forecast
 )
 from modules.data_processor import complete_series
