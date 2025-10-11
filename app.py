@@ -288,18 +288,35 @@ def main():
         analysis_mode=st.session_state.analysis_mode
     )
     
-    # --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA ---
-    with tabs[12]: 
-        st.header("Análisis Agregado por Cuenca Hidrográfica")
-        if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
-            BASIN_NAME_COLUMN = 'SUBC_LBL' 
-            if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
-                basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+# --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA (VERSIÓN MEJORADA) ---
+with tabs[12]: # O el índice que corresponda
+    st.header("Análisis Agregado por Cuenca Hidrográfica")
+
+    if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
+        BASIN_NAME_COLUMN = 'SUBC_LBL' # El nombre correcto que ya encontramos
+
+        if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
+            
+            # --- INICIO DE LA NUEVA LÓGICA DINÁMICA ---
+            # Unimos espacialmente las cuencas con las estaciones ya filtradas
+            relevant_basins_gdf = gpd.sjoin(st.session_state.gdf_subcuencas, gdf_filtered, how="inner", predicate="intersects")
+            
+            # Obtenemos los nombres únicos de las cuencas que contienen estaciones
+            if not relevant_basins_gdf.empty:
+                basin_names = sorted(relevant_basins_gdf[BASIN_NAME_COLUMN].dropna().unique())
+            else:
+                basin_names = []
+            # --- FIN DE LA NUEVA LÓGICA DINÁMICA ---
+
+            if not basin_names:
+                st.info("Ninguna cuenca contiene estaciones que coincidan con los filtros actuales.")
+            else:
                 selected_basin = st.selectbox(
                     "Seleccione una cuenca para analizar:",
                     options=basin_names,
                     key="basin_selector"
                 )
+
                 if selected_basin:
                     stats_df, stations, error_msg = calculate_basin_stats(
                         gdf_filtered, 
@@ -308,11 +325,14 @@ def main():
                         selected_basin,
                         BASIN_NAME_COLUMN
                     )
+                    
                     if error_msg: st.warning(error_msg)
+                    
                     if stations:
                         st.subheader(f"Resultados para la cuenca: {selected_basin}")
                         st.metric("Número de Estaciones en la Cuenca", len(stations))
                         with st.expander("Ver estaciones incluidas"): st.write(", ".join(stations))
+                        
                         if not stats_df.empty:
                             st.markdown("---")
                             st.write("**Estadísticas de Precipitación Mensual (Agregada)**")
@@ -321,10 +341,10 @@ def main():
                             st.info("Aunque se encontraron estaciones, no hay datos de precipitación para el período seleccionado.")
                     else:
                         st.warning("No se encontraron estaciones dentro de la cuenca seleccionada.")
-            else:
-                st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
         else:
-            st.warning("Los datos de las subcuencas no están cargados. Asegúrese de que el archivo 'SubcuencasAInfluencia.geojson' esté disponible.")
+            st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
+    else:
+        st.warning("Los datos de las subcuencas no están cargados.")
 
     with tabs[13]: display_station_table_tab(**display_args)
     with tabs[14]:
