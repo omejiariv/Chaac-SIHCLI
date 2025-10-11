@@ -81,7 +81,36 @@ def main():
                 st.session_state['data_loaded'] = False
 
     def display_map_controls(container_object, key_prefix):
-        # ... (código de esta función sin cambios) ...
+        base_map_options = {
+            "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
+            "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
+            "Topografía (Open TopoMap)": {
+                "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                "attr": "Open TopoMap"
+            },
+        }
+        overlay_map_options = {
+            "Mapa de Colombia (WMS IDEAM)": {
+                "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
+                "layers": "ideam:col_admin",
+                "fmt": 'image/png',
+                "transparent": True,
+                "attr": "IDEAM",
+                "overlay": True
+            }
+        }
+        selected_base_map_name = container_object.selectbox(
+            "Seleccionar Mapa Base",
+            list(base_map_options.keys()),
+            key=f"{key_prefix}_base_map"
+        )
+        selected_overlays_names = container_object.multiselect(
+            "Seleccionar Capas Adicionales",
+            list(overlay_map_options.keys()),
+            key=f"{key_prefix}_overlays"
+        )
+        selected_base_map_config = base_map_options[selected_base_map_name]
+        selected_overlays_config = [overlay_map_options[name] for name in selected_overlays_names]
         return selected_base_map_config, selected_overlays_config
 
     # --- Inicio de la Ejecución de la App ---
@@ -111,7 +140,6 @@ def main():
     # --- Panel de Control (Sidebar) ---
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
-        # ... (código de carga de datos sin cambios) ...
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
@@ -151,7 +179,6 @@ def main():
         st.rerun()
 
     with st.sidebar.expander("**1. Filtros Geográficos y de Datos**", expanded=True):
-        # ... (código de filtros sin cambios) ...
         min_data_perc = st.slider("Filtrar por % de datos mínimo:", 0, 100, st.session_state.get('min_data_perc_slider', 0))
         altitude_ranges = ['0-500', '500-1000', '1000-2000', '2000-3000', '>3000']
         selected_altitudes = st.multiselect('Filtrar por Altitud (m)', options=altitude_ranges)
@@ -168,7 +195,6 @@ def main():
 
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
-        # ... (código de selección de estaciones y período sin cambios) ...
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
         def select_all_stations():
             if st.session_state.get('select_all_checkbox_main', False):
@@ -309,7 +335,6 @@ def main():
     with tabs[13]: display_station_table_tab(**display_args)
 
     with tabs[14]:
-        # ... (código de la pestaña "Generar Reporte" sin cambios) ...
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         report_sections_options = [
