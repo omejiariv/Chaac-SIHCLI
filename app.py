@@ -301,8 +301,8 @@ def main():
                 st.session_state.selected_report_sections_multiselect = []
 
         st.checkbox(
-            "Seleccionar/Deseleccionar todas", 
-            key='select_all_report_sections_checkbox', 
+            "Seleccionar/Deseleccionar todas",
+            key='select_all_report_sections_checkbox',
             on_change=select_all_report_sections_on_change
         )
 
