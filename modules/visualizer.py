@@ -2552,10 +2552,14 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
         lon = station_info.geometry.x
 
         st.info(f"Obteniendo pronóstico para **{station_to_forecast}** (Lat: {lat:.4f}, Lon: {lon:.4f})")
-        
+
         forecast_df = get_weather_forecast(lat, lon)
 
         if forecast_df is not None:
+            # 👇 ESTA ES LA ÚNICA LÍNEA QUE NECESITAS AÑADIR.
+            # DEBE IR AQUÍ, CON ESTA SANGRÍA.
+            forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.date
+
             # Gráfico de Pronóstico
             fig = go.Figure()
 
@@ -2585,7 +2589,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                 fill='tonexty', # Rellenar el área entre min y max
                 fillcolor='rgba(255, 165, 0, 0.2)'
             ))
-            
+
             fig.update_layout(
                 title=f'Pronóstico para {station_to_forecast}',
                 yaxis=dict(title='Temperatura (°C)'),
