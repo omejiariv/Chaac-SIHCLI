@@ -7,6 +7,7 @@ import numpy as np
 import warnings
 import os
 from datetime import datetime
+import requests_cache
 
 #--- Importaciones de Módulos Propios ---
 from modules.config import Config
@@ -166,6 +167,7 @@ def main():
     if st.sidebar.button("Limpiar Caché y Reiniciar"):
         st.cache_data.clear()
         st.cache_resource.clear()
+        requests_cache.clear()
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
