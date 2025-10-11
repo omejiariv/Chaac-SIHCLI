@@ -22,6 +22,7 @@ from modules.visualizer import (
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
+from modules.analysis import calculate_basin_stats
 from modules.github_loader import load_csv_from_url, load_zip_from_url
 
 #--- Desactivar Advertencias ---
@@ -58,16 +59,18 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
     return stations_filtered
 
 def main():
-    
+    # --- Definiciones de Funciones Internas ---
     def process_and_store_data(file_mapa, file_precip, file_shape):
         with st.spinner("Procesando archivos y cargando datos..."):
-            gdf_stations, gdf_municipios, df_long, df_enso = \
+            gdf_stations, gdf_municipios, df_long, df_enso, gdf_subcuencas = \
                 load_and_process_all_data(file_mapa, file_precip, file_shape)
 
             if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
                 st.session_state.update({
                     'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
-                    'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
+                    'df_long': df_long, 'df_enso': df_enso,
+                    'gdf_subcuencas': gdf_subcuencas,
+                    'data_loaded': True
                 })
                 st.success("¡Datos cargados y listos!")
                 st.rerun()
@@ -76,16 +79,14 @@ def main():
                 st.session_state['data_loaded'] = False
 
     def display_map_controls(container_object, key_prefix):
-        """Muestra los controles para seleccionar mapa base y capas adicionales."""
         base_map_options = {
             "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
             "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
-            "Topografía (OpenTopoMap)": {
+            "Topografía (Open TopoMap)": {
                 "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-                "attr": "OpenTopoMap"
+                "attr": "Open TopoMap"
             },
         }
-        
         overlay_map_options = {
             "Mapa de Colombia (WMS IDEAM)": {
                 "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
@@ -96,31 +97,26 @@ def main():
                 "overlay": True
             }
         }
-
         selected_base_map_name = container_object.selectbox(
             "Seleccionar Mapa Base",
             list(base_map_options.keys()),
             key=f"{key_prefix}_base_map"
         )
-
         selected_overlays_names = container_object.multiselect(
             "Seleccionar Capas Adicionales",
             list(overlay_map_options.keys()),
             key=f"{key_prefix}_overlays"
         )
-
         selected_base_map_config = base_map_options[selected_base_map_name]
         selected_overlays_config = [overlay_map_options[name] for name in selected_overlays_names]
-
         return selected_base_map_config, selected_overlays_config
 
+    # --- Inicio de la Ejecución de la App ---
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
-    Config.initialize_session_state() # <-- LÍNEA 119
+    st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button [data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
+    Config.initialize_session_state()
 
-    # =======================================================
-    # V----- PEGA EL CÓDIGO DE LA GUÍA AQUÍ V-----
-    # =======================================================
+    # --- Guía Interactiva ---
     if 'first_visit' not in st.session_state:
         st.session_state.first_visit = True
 
@@ -131,12 +127,8 @@ def main():
         time.sleep(2)
         st.toast("...o sube tus archivos manualmente en el panel de la izquierda. 👈")
         st.session_state.first_visit = False
-    # =======================================================
-    # A----- FIN DEL CÓDIGO DE LA GUÍA A-----
-    # =======================================================
 
-    progress_placeholder = st.empty() # <-- LÍNEA 120
-
+    progress_placeholder = st.empty()
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
@@ -147,11 +139,10 @@ def main():
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
+    # --- Panel de Control (Sidebar) ---
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
-        
-        # <<<--- LA DEFINICIÓN DE LA FUNCIÓN YA NO ESTÁ AQUÍ ---<<<
         
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
@@ -159,7 +150,6 @@ def main():
             uploaded_zip_shapefile = st.file_uploader("3. Shapefile de municipios (.zip)", type="zip")
             if st.button("Procesar Datos Manuales"):
                 if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
-                    # La LLAMADA a la función se queda aquí, eso es correcto
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 else:
                     st.warning("Por favor, suba los tres archivos requeridos.")
@@ -172,10 +162,10 @@ def main():
                         'precip': load_csv_from_url(Config.URL_PRECIPITACION_CSV),
                         'shape': load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
                     }
-                if all(github_files.values()):
-                    process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
-                else:
-                    st.error("No se pudieron descargar los archivos desde GitHub.")
+                    if all(github_files.values()):
+                        process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
+                    else:
+                        st.error("No se pudieron descargar los archivos desde GitHub.")
 
     if not st.session_state.get('data_loaded', False):
         display_welcome_tab()
@@ -204,20 +194,16 @@ def main():
         selected_municipios = st.multiselect('Filtrar por Municipio', options=municipios_list, key='municipios_multiselect')
         celdas_list = sorted(temp_gdf_for_mun[Config.CELL_COL].dropna().unique()) if Config.CELL_COL in temp_gdf_for_mun.columns else []
         selected_celdas = st.multiselect('Filtrar por Celda_XY', options=celdas_list, key='celdas_multiselect')
-
-    gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
+        gdf_filtered = apply_filters_to_stations(st.session_state.gdf_stations, min_data_perc, selected_altitudes, selected_regions, selected_municipios, selected_celdas)
 
     with st.sidebar.expander("**2. Selección de Estaciones y Período**", expanded=True):
         stations_options = sorted(gdf_filtered[Config.STATION_NAME_COL].unique())
-        
         def select_all_stations():
             if st.session_state.get('select_all_checkbox_main', False):
                 st.session_state.station_multiselect = stations_options
             else:
                 st.session_state.station_multiselect = []
-        
         st.checkbox("Seleccionar/Deseleccionar todas", key='select_all_checkbox_main', on_change=select_all_stations)
-        
         selected_stations = st.multiselect('Seleccionar Estaciones', options=stations_options, key='station_multiselect')
         years_with_data = sorted(st.session_state.df_long[Config.YEAR_COL].dropna().unique())
         year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
@@ -231,14 +217,16 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
+    # --- Definición de Pestañas ---
     tab_names = [
-        "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados", 
-        "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas", 
-        "Correlación", "Análisis ENSO", "Tendencias y Pronósticos", 
-        "Pronóstico del Tiempo", "Descargas", "Tabla de Estaciones", "Generar Reporte"
+        "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
+        "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
+        "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
+        "Pronóstico del Tiempo", "Descargas", "Análisis por Cuenca", 
+        "Tabla de Estaciones", "Generar Reporte"
     ]
     tabs = st.tabs(tab_names)
-    
+
     stations_for_analysis = selected_stations
 
     if not stations_for_analysis:
@@ -250,10 +238,11 @@ def main():
                 st.info("Seleccione al menos una estación para ver el contenido.")
         return
 
+    # --- Procesamiento de Datos Post-Filtros ---
     df_monthly_filtered = st.session_state.df_long[
-        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) & 
-        (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) & 
-        (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) & 
+        (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
+        (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
+        (st.session_state.df_long[Config.DATE_COL].dt.year <= year_range[1]) &
         (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
     ].copy()
 
@@ -262,25 +251,26 @@ def main():
         df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
         progress_placeholder.empty()
 
-    if st.session_state.get('exclude_na', False): 
+    if st.session_state.get('exclude_na', False):
         df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-    if st.session_state.get('exclude_zeros', False): 
+    if st.session_state.get('exclude_zeros', False):
         df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
-    
+
     annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
-        precipitation_sum=(Config.PRECIPITATION_COL, 'sum'), 
+        precipitation_sum=(Config.PRECIPITATION_COL, 'sum'),
         meses_validos=(Config.MONTH_COL, 'nunique')
     ).reset_index()
     annual_agg.loc[annual_agg['meses_validos'] < 10, 'precipitation_sum'] = np.nan
     df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
     display_args = {
-        "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis, 
-        "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered, 
-        "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions, 
+        "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
+        "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
+        "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions,
         "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
     }
-    
+
+    # --- Renderizado de Pestañas ---
     with tabs[0]: display_welcome_tab()
     with tabs[1]: display_spatial_distribution_tab(**display_args)
     with tabs[2]: display_graphs_tab(**display_args)
@@ -294,14 +284,52 @@ def main():
     with tabs[10]: display_forecast_tab(**display_args)
     with tabs[11]: display_downloads_tab(
         df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
-        stations_for_analysis=stations_for_analysis, analysis_mode=st.session_state.analysis_mode
+        stations_for_analysis=stations_for_analysis,
+        analysis_mode=st.session_state.analysis_mode
     )
-    with tabs[12]: display_station_table_tab(**display_args)
     
-    with tabs[13]:
+    # --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA ---
+    with tabs[12]: 
+        st.header("Análisis Agregado por Cuenca Hidrográfica")
+        if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
+            BASIN_NAME_COLUMN = 'Nbr_SubC' 
+            if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
+                basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+                selected_basin = st.selectbox(
+                    "Seleccione una cuenca para analizar:",
+                    options=basin_names,
+                    key="basin_selector"
+                )
+                if selected_basin:
+                    stats_df, stations, error_msg = calculate_basin_stats(
+                        gdf_filtered, 
+                        st.session_state.gdf_subcuencas,
+                        df_monthly_filtered,
+                        selected_basin,
+                        BASIN_NAME_COLUMN
+                    )
+                    if error_msg: st.warning(error_msg)
+                    if stations:
+                        st.subheader(f"Resultados para la cuenca: {selected_basin}")
+                        st.metric("Número de Estaciones en la Cuenca", len(stations))
+                        with st.expander("Ver estaciones incluidas"): st.write(", ".join(stations))
+                        if not stats_df.empty:
+                            st.markdown("---")
+                            st.write("**Estadísticas de Precipitación Mensual (Agregada)**")
+                            st.dataframe(stats_df, use_container_width=True)
+                        else:
+                            st.info("Aunque se encontraron estaciones, no hay datos de precipitación para el período seleccionado.")
+                    else:
+                        st.warning("No se encontraron estaciones dentro de la cuenca seleccionada.")
+            else:
+                st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
+        else:
+            st.warning("Los datos de las subcuencas no están cargados. Asegúrese de que el archivo 'SubcuencasAInfluencia.geojson' esté disponible.")
+
+    with tabs[13]: display_station_table_tab(**display_args)
+    with tabs[14]:
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
-        
         report_sections_options = [
             "Resumen Ejecutivo", "Tabla de Estaciones", "Distribución Espacial",
             "Gráficos de Series Temporales", "Mapas Avanzados de Interpolación",
@@ -310,25 +338,20 @@ def main():
             "Análisis de El Niño/La Niña (ENSO)", "Análisis de Tendencias y Pronósticos",
             "Disponibilidad de Datos", "Metodología y Fuentes de Datos"
         ]
-        
         st.markdown("**Seleccione las secciones a incluir:**")
-        
         def select_all_report_sections_on_change():
             if st.session_state.select_all_report_sections_checkbox:
                 st.session_state.selected_report_sections_multiselect = report_sections_options
             else:
                 st.session_state.selected_report_sections_multiselect = []
-
         st.checkbox(
             "Seleccionar/Deseleccionar todas",
             key='select_all_report_sections_checkbox',
             on_change=select_all_report_sections_on_change
         )
-
-        # CORRECCIÓN: Esta línea ya no tiene indentación extra.
         selected_report_sections = st.multiselect(
-            "Secciones a incluir:", 
-            options=report_sections_options, 
+            "Secciones a incluir:",
+            options=report_sections_options,
             key='selected_report_sections_multiselect'
         )
         if st.button("Generar Reporte PDF"):
@@ -343,7 +366,6 @@ def main():
                             "Modo de Análisis": st.session_state.analysis_mode
                         }
                         df_anomalies = calculate_monthly_anomalies(df_monthly_filtered, st.session_state.df_long)
-                        
                         report_pdf_bytes = generate_pdf_report(
                             report_title=report_title,
                             sections_to_include=selected_report_sections,
@@ -351,7 +373,6 @@ def main():
                             df_anomalies=df_anomalies,
                             **display_args
                         )
-                        
                         st.download_button(
                             label="Descargar Reporte PDF",
                             data=report_pdf_bytes,
