@@ -1,15 +1,18 @@
-import streamlit as st
 import pandas as pd
 import geopandas as gpd
 import numpy as np
 import gstools as gs
+import rasterio
+from rasterio.transform import from_origin
+from rasterio.mask import mask
+import plotly.graph_objects as go
+from modules.config import Config
+import streamlit as st
 from scipy.interpolate import Rbf
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.model_selection import LeaveOneOut
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from modules.config import Config
 
 def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
     """Realiza una interpolación por el método IDW."""
@@ -257,56 +260,97 @@ def create_kriging_by_basin(
     gdf_basins, basin_name, basin_col, buffer_km
 ):
     """
-    Realiza una interpolación espacial para un año, limitada a una cuenca con un buffer de influencia.
+    Realiza una interpolación (IDW o Kriging) para un año, enmascarada a una cuenca.
     """
-    # 1. Seleccionar la cuenca y proyectarla a un sistema métrico
-    target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
-    if target_basin.empty:
-        return None, None, "No se encontró la cuenca."
+    try:
+        # --- 1. Preparación Geoespacial (código existente) ---
+        target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
+        if target_basin.empty:
+            return None, None, "No se encontró la cuenca."
 
-    # Proyectamos a un CRS métrico local para Colombia (SIRGAS 2000 / UTM zone 18N)
-    target_basin_metric = target_basin.to_crs("EPSG:3116")
+        target_basin_metric = target_basin.to_crs("EPSG:3116")
+        buffer_m = buffer_km * 1000
+        basin_buffer_metric = target_basin_metric.buffer(buffer_m)
+        stations_metric = gdf_stations.to_crs("EPSG:3116")
+        stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
 
-    # 2. Crear el buffer en metros
-    buffer_m = buffer_km * 1000
-    basin_buffer_metric = target_basin_metric.buffer(buffer_m)
+        if len(stations_in_buffer) < 4:
+            return None, None, f"Se encontraron menos de 4 estaciones en el área de influencia. No se puede interpolar."
 
-    # 3. Seleccionar estaciones dentro del buffer
-    # Aseguramos que las estaciones también estén en el CRS métrico para la comparación
-    stations_metric = gdf_stations.to_crs("EPSG:3116")
-    stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
+        station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
+        precip_data_year = df_anual[
+            (df_anual[Config.YEAR_COL] == year) &
+            (df_anual[Config.STATION_NAME_COL].isin(station_names))
+        ]
 
-    if len(stations_in_buffer) < 4:
-        return None, None, f"Se encontraron menos de 4 estaciones en la cuenca + buffer de {buffer_km} km. No se puede interpolar."
+        points_data = pd.merge(
+            stations_in_buffer[[Config.STATION_NAME_COL, 'geometry']],
+            precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
+            on=Config.STATION_NAME_COL
+        ).dropna(subset=[Config.PRECIPITATION_COL])
 
-    # 4. Filtrar los datos de precipitación para esas estaciones y el año
-    station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
-    precip_data_year = df_anual[
-        (df_anual[Config.YEAR_COL] == year) &
-        (df_anual[Config.STATION_NAME_COL].isin(station_names))
-    ]
+        if len(points_data) < 4:
+            return None, None, f"Menos de 4 estaciones tienen datos para el año {year}."
 
-    # Unimos los datos de precipitación con las coordenadas de las estaciones
-    points_data = pd.merge(
-        stations_in_buffer[[Config.STATION_NAME_COL, 'geometry']],
-        precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
-        on=Config.STATION_NAME_COL
-    ).dropna(subset=[Config.PRECIPITATION_COL])
+        coords = np.array([(p.x, p.y) for p in points_data.geometry])
+        values = points_data[Config.PRECIPITATION_COL].values
 
-    if len(points_data) < 4:
-        return None, None, f"Menos de 4 estaciones tienen datos para el año {year} en el área seleccionada."
+        # --- 2. Creación de la Rejilla de Interpolación ---
+        bounds = basin_buffer_metric.unary_union.bounds
+        grid_resolution = 500 # Resolución de 500 metros por píxel
+        grid_x = np.arange(bounds[0], bounds[2], grid_resolution)
+        grid_y = np.arange(bounds[1], bounds[3], grid_resolution)
 
-    # 5. Realizar el Kriging (usando una función auxiliar que podrías crear o adaptar)
-    # Por ahora, simularemos este paso. En la implementación real, llamarías a tu lógica de gstools.
-    
-    # 6. Enmascarar el resultado con la geometría de la cuenca
-    # Esta es una lógica compleja que se implementaría con rasterio y shapely.
-    
-    # Simulación de resultado por ahora:
-    st.info(f"SIMULACIÓN: Kriging para '{basin_name}' con {len(points_data)} estaciones y buffer de {buffer_km} km.")
-    # Devolveríamos la figura de plotly, la precipitación media y un mensaje de error si lo hubiera
-    
-    # Simulamos una precipitación media para que el balance hídrico funcione
-    mean_precip_simulated = points_data[Config.PRECIPITATION_COL].mean()
+        # --- 3. Ejecución de la Interpolación ---
+        if method == "IDW":
+            # Usamos el interpolador IDW de GSTools
+            idw = gs.IDW(dim=2)
+            field = idw.structured((coords[:, 0], coords[:, 1]), values, (grid_x, grid_y))
+        else: # Kriging Ordinario
+            # Estimación del variograma
+            bin_center, gamma = gs.vario_estimate((coords[:, 0], coords[:, 1]), values)
+            model = gs.Spherical(dim=2) # Usamos un modelo esférico estándar
+            model.fit_variogram(bin_center, gamma, nugget=False)
 
-    return None, mean_precip_simulated, "La función de Kriging por cuenca está en desarrollo y actualmente es una simulación."
+            # Kriging
+            kriging = gs.krige.Ordinary(model, cond_pos=[coords[:, 0], coords[:, 1]], cond_val=values)
+            field, variance = kriging.structured((grid_x, grid_y))
+
+        field[field < 0] = 0 # Asegurarse de no tener precipitaciones negativas
+
+        # --- 4. Enmascaramiento del Raster ---
+        transform = from_origin(grid_x[0], grid_y[-1], grid_resolution, grid_resolution)
+        with rasterio.io.MemoryFile() as memfile:
+            with memfile.open(
+                driver='GTiff', height=len(grid_y), width=len(grid_x),
+                count=1, dtype=str(field.dtype), crs="EPSG:3116", transform=transform
+            ) as dataset:
+                dataset.write(np.flipud(field), 1)
+
+            with memfile.open() as dataset:
+                masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
+
+        # --- 5. Cálculo y Visualización ---
+        masked_data = masked_data[0]
+        mean_precip = np.nanmean(masked_data)
+
+        fig = go.Figure(data=go.Contour(
+            z=masked_data,
+            x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
+            y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
+            colorscale='Viridis',
+            contours=dict(coloring='heatmap'),
+            colorbar=dict(title='Precipitación (mm)')
+        ))
+
+        fig.update_layout(
+            title=f"Precipitación Interpolada ({method}) para {basin_name} ({year})",
+            xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
+            yaxis_scaleanchor="x"
+        )
+
+        return fig, mean_precip, None
+
+    except Exception as e:
+        return None, None, f"Ocurrió un error durante la interpolación: {e}"
+
