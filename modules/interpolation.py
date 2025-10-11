@@ -263,11 +263,18 @@ def create_kriging_by_basin(
     Realiza una interpolación (IDW o Kriging) para un año, enmascarada a una cuenca.
     """
     try:
-        # --- 1. Preparación Geoespacial (código existente) ---
-        target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
+        # --- 1. Preparación Geoespacial (LÓGICA CORREGIDA) ---
+        if basin_col is not None:
+            # Modo antiguo: buscar cuenca por nombre
+            target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
+        else:
+            # Modo nuevo: la cuenca ya viene pre-seleccionada/unificada
+            target_basin = gdf_basins
+        
         if target_basin.empty:
-            return None, None, "No se encontró la cuenca."
-
+            return None, None, "No se encontró la geometría de la cuenca."
+        
+        # El resto de la función continúa desde aquí...
         target_basin_metric = target_basin.to_crs("EPSG:3116")
         buffer_m = buffer_km * 1000
         basin_buffer_metric = target_basin_metric.buffer(buffer_m)
@@ -295,30 +302,23 @@ def create_kriging_by_basin(
         coords = np.array([(p.x, p.y) for p in points_data.geometry])
         values = points_data[Config.PRECIPITATION_COL].values
 
-        # --- 2. Creación de la Rejilla de Interpolación ---
         bounds = basin_buffer_metric.unary_union.bounds
-        grid_resolution = 500 # Resolución de 500 metros por píxel
+        grid_resolution = 500
         grid_x = np.arange(bounds[0], bounds[2], grid_resolution)
         grid_y = np.arange(bounds[1], bounds[3], grid_resolution)
 
-        # --- 3. Ejecución de la Interpolación ---
         if method == "IDW":
-            # Usamos el interpolador IDW de GSTools
             idw = gs.IDW(dim=2)
             field = idw.structured((coords[:, 0], coords[:, 1]), values, (grid_x, grid_y))
         else: # Kriging Ordinario
-            # Estimación del variograma
             bin_center, gamma = gs.vario_estimate((coords[:, 0], coords[:, 1]), values)
-            model = gs.Spherical(dim=2) # Usamos un modelo esférico estándar
+            model = gs.Spherical(dim=2)
             model.fit_variogram(bin_center, gamma, nugget=False)
-
-            # Kriging
             kriging = gs.krige.Ordinary(model, cond_pos=[coords[:, 0], coords[:, 1]], cond_val=values)
             field, variance = kriging.structured((grid_x, grid_y))
 
-        field[field < 0] = 0 # Asegurarse de no tener precipitaciones negativas
+        field[field < 0] = 0
 
-        # --- 4. Enmascaramiento del Raster ---
         transform = from_origin(grid_x[0], grid_y[-1], grid_resolution, grid_resolution)
         with rasterio.io.MemoryFile() as memfile:
             with memfile.open(
@@ -326,11 +326,10 @@ def create_kriging_by_basin(
                 count=1, dtype=str(field.dtype), crs="EPSG:3116", transform=transform
             ) as dataset:
                 dataset.write(np.flipud(field), 1)
-
+            
             with memfile.open() as dataset:
                 masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
 
-        # --- 5. Cálculo y Visualización ---
         masked_data = masked_data[0]
         mean_precip = np.nanmean(masked_data)
 
@@ -342,9 +341,9 @@ def create_kriging_by_basin(
             contours=dict(coloring='heatmap'),
             colorbar=dict(title='Precipitación (mm)')
         ))
-
+        
         fig.update_layout(
-            title=f"Precipitación Interpolada ({method}) para {basin_name} ({year})",
+            title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({year})",
             xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
             yaxis_scaleanchor="x"
         )
@@ -352,5 +351,7 @@ def create_kriging_by_basin(
         return fig, mean_precip, None
 
     except Exception as e:
-        return None, None, f"Ocurrió un error durante la interpolación: {e}"
-
+        # Mensaje de error mejorado
+        import traceback
+        tb_str = traceback.format_exc()
+        return None, None, f"Ocurrió un error detallado durante la interpolación: {e}\n\nTraceback:\n{tb_str}"
