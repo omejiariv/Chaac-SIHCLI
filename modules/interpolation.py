@@ -2,6 +2,7 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 import gstools as gs
+from gstools.idw import Idw
 import rasterio
 from rasterio.transform import from_origin
 from rasterio.mask import mask
@@ -263,18 +264,15 @@ def create_kriging_by_basin(
     Realiza una interpolación (IDW o Kriging) para un año, enmascarada a una cuenca.
     """
     try:
-        # --- 1. Preparación Geoespacial (LÓGICA CORREGIDA) ---
+        # --- 1. Preparación Geoespacial ---
         if basin_col is not None:
-            # Modo antiguo: buscar cuenca por nombre
             target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
         else:
-            # Modo nuevo: la cuenca ya viene pre-seleccionada/unificada
             target_basin = gdf_basins
         
         if target_basin.empty:
             return None, None, "No se encontró la geometría de la cuenca."
         
-        # El resto de la función continúa desde aquí...
         target_basin_metric = target_basin.to_crs("EPSG:3116")
         buffer_m = buffer_km * 1000
         basin_buffer_metric = target_basin_metric.buffer(buffer_m)
@@ -307,8 +305,9 @@ def create_kriging_by_basin(
         grid_x = np.arange(bounds[0], bounds[2], grid_resolution)
         grid_y = np.arange(bounds[1], bounds[3], grid_resolution)
 
+        # --- 2. Ejecución de la Interpolación (CORREGIDO) ---
         if method == "IDW":
-            idw = gs.IDW(dim=2)
+            idw = Idw()  # <--- SE USA LA CLASE CORRECTA
             field = idw.structured((coords[:, 0], coords[:, 1]), values, (grid_x, grid_y))
         else: # Kriging Ordinario
             bin_center, gamma = gs.vario_estimate((coords[:, 0], coords[:, 1]), values)
@@ -317,6 +316,7 @@ def create_kriging_by_basin(
             kriging = gs.krige.Ordinary(model, cond_pos=[coords[:, 0], coords[:, 1]], cond_val=values)
             field, variance = kriging.structured((grid_x, grid_y))
 
+        # --- 3. El resto de la función no cambia ---
         field[field < 0] = 0
 
         transform = from_origin(grid_x[0], grid_y[-1], grid_resolution, grid_resolution)
@@ -351,7 +351,6 @@ def create_kriging_by_basin(
         return fig, mean_precip, None
 
     except Exception as e:
-        # Mensaje de error mejorado
         import traceback
         tb_str = traceback.format_exc()
         return None, None, f"Ocurrió un error detallado durante la interpolación: {e}\n\nTraceback:\n{tb_str}"
