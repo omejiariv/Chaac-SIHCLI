@@ -2525,10 +2525,6 @@ def display_percentile_analysis_subtab(df_monthly_filtered, station_to_analyze_p
             fig_series.update_layout(height=500)
             st.plotly_chart(fig_series, use_container_width=True)
 
-            # --- CÓDIGO ELIMINADO ---
-            # El bloque de código que generaba el gráfico de "Umbrales" ha sido removido de aquí
-            # porque ahora vive en su propia sub-pestaña.
-            
         except Exception as e:
             st.error(f"Error al calcular el análisis de percentiles: {e}")
             st.info("Asegúrese de que el archivo histórico de datos ('df_long') contenga datos suficientes para la estación seleccionada.")
@@ -2559,11 +2555,6 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
             start_date = pd.to_datetime(forecast_df['date'].iloc[0])
             correct_dates = pd.date_range(start=start_date, periods=len(forecast_df))
             forecast_df['date'] = correct_dates
-            
-            # --- INICIO DE LA CORRECCIÓN DE LEYENDA ---
-            # 1. Añadimos una columna de etiqueta para la precipitación
-            forecast_df['legend_label'] = 'Precipitación (mm)'
-            # --- FIN DE LA CORRECCIÓN DE LEYENDA ---
 
             df_temp = forecast_df.melt(
                 id_vars=['date'],
@@ -2576,28 +2567,25 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
                 x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d'))
             )
 
-            bar_chart = base.mark_bar(opacity=0.7).encode(
+            # CORRECTED BAR CHART: Removed the conflicting legend title
+            bar_chart = base.mark_bar(color='#1f77b4', opacity=0.7).encode(
                 y=alt.Y('precip_sum (mm):Q', title='Precipitación (mm)'),
-                # 2. Usamos la nueva columna para el color, forzando que sea azul
-                color=alt.Color('legend_label:N', 
-                                legend=alt.Legend(title='Variables'), 
-                                scale=alt.Scale(range=['#1f77b4'])), # Tono de azul estándar
                 tooltip=[
                     alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
                     alt.Tooltip('precip_sum (mm):Q', title='Precipitación', format='.1f')
                 ]
             )
 
+            # CORRECTED LINE CHART: It now has its own legend
             line_chart = alt.Chart(df_temp).mark_line(point=True).encode(
-                x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d')),
+                x=alt.X('date:T', title='Fecha'),
                 y=alt.Y('Temperatura (°C):Q', title='Temperatura (°C)'),
-                # 3. Unificamos el título de la leyenda para que se combinen
                 color=alt.Color('Tipo de Temperatura:N',
                                 scale=alt.Scale(
                                     domain=['temp_max (°C)', 'temp_min (°C)'],
                                     range=['red', 'orange']
                                 ),
-                                legend=alt.Legend(title="Variables")
+                                legend=alt.Legend(title="Temperatura")
                                ),
                 tooltip=[
                     alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
@@ -2614,8 +2602,7 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
             st.altair_chart(final_chart, use_container_width=True)
 
             with st.expander("Ver datos del pronóstico en tabla"):
-                # Excluimos la columna auxiliar de la tabla
-                st.dataframe(forecast_df.drop(columns=['legend_label']).style.format({
+                st.dataframe(forecast_df.style.format({
                     "date": lambda t: t.strftime('%Y-%m-%d'),
                     "temp_max (°C)": "{:.1f}",
                     "temp_min (°C)": "{:.1f}",
