@@ -120,7 +120,7 @@ def display_map_controls(container_object, key_prefix):
         },
         "Subcuencas de Influencia": {
             "type": "geojson",
-            "url": f"{base_url}SubcuencasAInfluencia.geojson",
+            "url": f"{base_url}SubcuencasAinfluencia.geojson",
             "attr": "Subcuencas",
             "style": {"color": "#4682B4", "weight": 2, "opacity": 0.7}
         },
