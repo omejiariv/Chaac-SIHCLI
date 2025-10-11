@@ -112,29 +112,16 @@ def main():
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
-
-    def process_and_store_data(file_mapa, file_precip, file_shape):
-        with st.spinner("Procesando archivos y cargando datos..."):
-            gdf_stations, gdf_municipios, df_long, df_enso = \
-                load_and_process_all_data(file_mapa, file_precip, file_shape)
-
-            if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
-                st.session_state.update({
-                    'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
-                    'df_long': df_long, 'df_enso': df_enso, 'data_loaded': True
-                })
-                st.success("¡Datos cargados y listos!")
-                st.rerun()
-            else:
-                st.error("Hubo un error al procesar los archivos.")
-                st.session_state['data_loaded'] = False
-            
+        
+        # <<<--- LA DEFINICIÓN DE LA FUNCIÓN YA NO ESTÁ AQUÍ ---<<<
+        
         if load_mode == "Manual":
             uploaded_file_mapa = st.file_uploader("1. Archivo de estaciones (CSV)", type="csv")
             uploaded_file_precip = st.file_uploader("2. Archivo de precipitación (CSV)", type="csv")
             uploaded_zip_shapefile = st.file_uploader("3. Shapefile de municipios (.zip)", type="zip")
             if st.button("Procesar Datos Manuales"):
                 if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
+                    # La LLAMADA a la función se queda aquí, eso es correcto
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 else:
                     st.warning("Por favor, suba los tres archivos requeridos.")
