@@ -291,20 +291,15 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
 
     if overlays_config:
         for layer_config in overlays_config:
+            layer_type = layer_config.get("type", "tile") # Asumir 'tile' por defecto
             url = layer_config.get("url")
             if not url:
                 continue
 
-            # Reemplaza el marcador de tiempo si existe
-            if "{Time}" in url:
-                yesterday = datetime.now() - timedelta(days=1)
-                time_str = yesterday.strftime('%Y-%m-%d')
-                url = url.replace('{Time}', time_str)
-
             layer_name = layer_config.get("attr", "Overlay")
 
-            # Distingue entre WMS y TileLayer estándar
-            if "layers" in layer_config:  # Es una capa WMS
+            # LÓGICA PARA DISTINGUIR TIPOS DE CAPA
+            if layer_type == "wms":
                 WmsTileLayer(
                     url=url,
                     layers=layer_config["layers"],
@@ -314,7 +309,18 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                     control=True,
                     name=layer_name
                 ).add_to(m)
-            else:  # Es una capa de teselas estándar (XYZ)
+            
+            elif layer_type == "geojson":
+                geojson_data = load_geojson_from_url(url)
+                if geojson_data:
+                    style_function = lambda x: layer_config.get("style", {})
+                    folium.GeoJson(
+                        geojson_data,
+                        name=layer_name,
+                        style_function=style_function
+                    ).add_to(m)
+
+            else: # Asumir que es una capa de teselas (TileLayer)
                 folium.TileLayer(
                     tiles=url,
                     attr=layer_name,
@@ -323,6 +329,7 @@ def create_folium_map(location, zoom, base_map_config, overlays_config, fit_boun
                     control=True,
                     show=False
                 ).add_to(m)
+
     return m
     
 # --- MAIN TAB DISPLAY FUNCTIONS
