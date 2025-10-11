@@ -141,16 +141,11 @@ def load_and_process_all_data(uploaded_file_mapa, uploaded_file_precip, uploaded
     df_stations_raw = load_csv_data(uploaded_file_mapa)
     df_precip_raw = load_csv_data(uploaded_file_precip)
     gdf_municipios = load_shapefile(uploaded_zip_shapefile)
-
-    # --- AÑADIR CARGA DE SUBCUENCAS ---
-    url_subcuencas = "https://raw.githubusercontent.com/omejiariv/Chaac-SIHCLI/main/data/SubcuencasAInfluencia.geojson"
-    gdf_subcuencas = load_geojson_from_github(url_subcuencas)
+    gdf_subcuencas = load_geojson_from_github(Config.URL_SUBCUENCAS_GEOJSON)
     
-    # --- FIN DE LA MODIFICACIÓN ---
-
     if any(df is None for df in [df_stations_raw, df_precip_raw, gdf_municipios, gdf_subcuencas]):
+        st.error("Fallo en la carga de uno o más archivos base. El proceso no puede continuar.")
         return None, None, None, None, None
-
     lon_col = next((col for col in df_stations_raw.columns if 'longitud' in col.lower() or 'lon' in col.lower()), None)
     lat_col = next((col for col in df_stations_raw.columns if 'latitud' in col.lower() or 'lat' in col.lower()), None)
     if not all([lon_col, lat_col]):
