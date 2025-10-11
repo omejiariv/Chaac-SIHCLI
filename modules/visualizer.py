@@ -21,6 +21,8 @@ from scipy import stats
 from prophet.plot import plot_plotly
 import io
 from datetime import datetime, timedelta
+import json
+import requests
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import (
@@ -73,27 +75,60 @@ def display_filter_summary(total_stations_count, selected_stations_count, year_r
         
     st.info(" | ".join(summary_parts))
 
+# NUEVA FUNCIÓN para cargar y cachear los GeoJSON
+@st.cache_data
+def load_geojson_from_url(url):
+    """Descarga y carga un archivo GeoJSON desde una URL."""
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Lanza un error para respuestas malas (4xx o 5xx)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"No se pudo cargar el GeoJSON desde {url}: {e}")
+        return None
+
+# MODIFICACIÓN de la función display_map_controls
 def display_map_controls(container_object, key_prefix):
     """Muestra los controles para seleccionar mapa base y capas adicionales."""
-    # Opciones de mapas base
     base_map_options = {
         "CartoDB Positron": {"tiles": "cartodbpositron", "attr": "CartoDB"},
         "OpenStreetMap": {"tiles": "OpenStreetMap", "attr": "OpenStreetMap"},
-        "Topografía (OpenTopoMap)": {
+        "Topografía (Open TopoMap)": {
             "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-            "attr": "OpenTopoMap"
+            "attr": "Open TopoMap"
         },
     }
     
-    # Opciones de capas adicionales (overlays)
+    # AÑADIR NUEVAS CAPAS GEOJSON AQUÍ
+    base_url = "https://raw.githubusercontent.com/omejiariv/Chaac-SIHCLI/main/data/"
     overlay_map_options = {
-        "Mapa de Colombia (WMS IDEAM)": {
+        # Capa WMS existente
+        "División Política Colombia (WMS IDEAM)": {
+            "type": "wms",
             "url": "https://geoservicios.ideam.gov.co/geoserver/ideam/wms",
             "layers": "ideam:col_admin",
             "fmt": 'image/png',
             "transparent": True,
             "attr": "IDEAM",
-            "overlay": True
+        },
+        # Nuevas capas GeoJSON
+        "Predios Ejecutados": {
+            "type": "geojson",
+            "url": f"{base_url}PrediosEjecutados.geojson",
+            "attr": "Predios",
+            "style": {"color": "#ff7800", "weight": 2, "opacity": 0.7}
+        },
+        "Subcuencas de Influencia": {
+            "type": "geojson",
+            "url": f"{base_url}SubcuencasAInfluencia.geojson",
+            "attr": "Subcuencas",
+            "style": {"color": "#4682B4", "weight": 2, "opacity": 0.7}
+        },
+        "Municipios de Antioquia": {
+            "type": "geojson",
+            "url": f"{base_url}MunicipiosAntioquia.geojson",
+            "attr": "Municipios Antioquia",
+            "style": {"color": "#33a02c", "weight": 1, "opacity": 0.6}
         }
     }
 
@@ -102,16 +137,14 @@ def display_map_controls(container_object, key_prefix):
         list(base_map_options.keys()),
         key=f"{key_prefix}_base_map"
     )
-
     selected_overlays_names = container_object.multiselect(
         "Seleccionar Capas Adicionales",
         list(overlay_map_options.keys()),
         key=f"{key_prefix}_overlays"
     )
-
     selected_base_map_config = base_map_options[selected_base_map_name]
     selected_overlays_config = [overlay_map_options[name] for name in selected_overlays_names]
-
+    
     return selected_base_map_config, selected_overlays_config
 
 def create_enso_chart(enso_data):
