@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import geopandas as gpd
 import numpy as np
 import gstools as gs
 from scipy.interpolate import Rbf
@@ -249,3 +250,63 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
         return fig, fig_variogram, None
 
     return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
+
+def create_kriging_by_basin(
+    year, method, variogram_model,
+    gdf_stations, df_anual,
+    gdf_basins, basin_name, basin_col, buffer_km
+):
+    """
+    Realiza una interpolación espacial para un año, limitada a una cuenca con un buffer de influencia.
+    """
+    # 1. Seleccionar la cuenca y proyectarla a un sistema métrico
+    target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
+    if target_basin.empty:
+        return None, None, "No se encontró la cuenca."
+
+    # Proyectamos a un CRS métrico local para Colombia (SIRGAS 2000 / UTM zone 18N)
+    target_basin_metric = target_basin.to_crs("EPSG:3116")
+
+    # 2. Crear el buffer en metros
+    buffer_m = buffer_km * 1000
+    basin_buffer_metric = target_basin_metric.buffer(buffer_m)
+
+    # 3. Seleccionar estaciones dentro del buffer
+    # Aseguramos que las estaciones también estén en el CRS métrico para la comparación
+    stations_metric = gdf_stations.to_crs("EPSG:3116")
+    stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
+
+    if len(stations_in_buffer) < 4:
+        return None, None, f"Se encontraron menos de 4 estaciones en la cuenca + buffer de {buffer_km} km. No se puede interpolar."
+
+    # 4. Filtrar los datos de precipitación para esas estaciones y el año
+    station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
+    precip_data_year = df_anual[
+        (df_anual[Config.YEAR_COL] == year) &
+        (df_anual[Config.STATION_NAME_COL].isin(station_names))
+    ]
+
+    # Unimos los datos de precipitación con las coordenadas de las estaciones
+    points_data = pd.merge(
+        stations_in_buffer[[Config.STATION_NAME_COL, 'geometry']],
+        precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
+        on=Config.STATION_NAME_COL
+    ).dropna(subset=[Config.PRECIPITATION_COL])
+
+    if len(points_data) < 4:
+        return None, None, f"Menos de 4 estaciones tienen datos para el año {year} en el área seleccionada."
+
+    # 5. Realizar el Kriging (usando una función auxiliar que podrías crear o adaptar)
+    # Por ahora, simularemos este paso. En la implementación real, llamarías a tu lógica de gstools.
+    
+    # 6. Enmascarar el resultado con la geometría de la cuenca
+    # Esta es una lógica compleja que se implementaría con rasterio y shapely.
+    
+    # Simulación de resultado por ahora:
+    st.info(f"SIMULACIÓN: Kriging para '{basin_name}' con {len(points_data)} estaciones y buffer de {buffer_km} km.")
+    # Devolveríamos la figura de plotly, la precipitación media y un mensaje de error si lo hubiera
+    
+    # Simulamos una precipitación media para que el balance hídrico funcione
+    mean_precip_simulated = points_data[Config.PRECIPITATION_COL].mean()
+
+    return None, mean_precip_simulated, "La función de Kriging por cuenca está en desarrollo y actualmente es una simulación."
