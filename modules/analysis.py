@@ -227,30 +227,38 @@ def get_mean_altitude_for_basin(_basin_geometry):
         st.warning(error_message)
         return None, error_message
 
-def calculate_hydrological_balance(mean_precip_mm, basin_geometry):
+def calculate_hydrological_balance(mean_precip_mm, basin_geometry_input):
     """
-    Calcula el balance hídrico (P - ET = Q) para una cuenca.
+    Calcula el balance hídrico (P - ET = Q) para una cuenca o conjunto de cuencas.
     """
     results = {
         "P_media_anual_mm": mean_precip_mm,
         "Altitud_media_m": None,
         "ET_media_anual_mm": None,
-        "Q_mm": None, # Escorrentía en lámina de mm
-        "Q_m3_año": None, # Caudal en volumen anual
+        "Q_mm": None,
+        "Q_m3_año": None,
         "Area_km2": None,
         "error": None
     }
 
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Aseguramos que siempre trabajamos con un objeto GeoPandas
+    if isinstance(basin_geometry_input, (gpd.GeoDataFrame, gpd.GeoSeries)):
+        basin_geopandas_obj = basin_geometry_input
+    else:
+        # Si es una geometría cruda, la convertimos a un GeoSeries con el CRS correcto (WGS84)
+        basin_geopandas_obj = gpd.GeoSeries([basin_geometry_input], crs="EPSG:4326")
+    # --- FIN DE LA CORRECCIÓN ---
+
     # 1. Calcular Altitud Media
-    mean_altitude, error = get_mean_altitude_for_basin(basin_geometry)
+    # Pasamos la geometría unificada a la función de altitud
+    mean_altitude, error = get_mean_altitude_for_basin(basin_geopandas_obj.unary_union)
     if error:
         results["error"] = error
         return results
     results["Altitud_media_m"] = mean_altitude
 
-    # 2. Calcular Evapotranspiración (ET) con tu ecuación
-    # ETo (mm/día) = 4.37 * exp(-0.0002 * Altitud)
-    # Lo convertimos a mm/año
+    # 2. Calcular Evapotranspiración (ET)
     eto_dia = 4.37 * np.exp(-0.0002 * mean_altitude)
     eto_anual_mm = eto_dia * 365.25
     results["ET_media_anual_mm"] = eto_anual_mm
@@ -260,12 +268,11 @@ def calculate_hydrological_balance(mean_precip_mm, basin_geometry):
     results["Q_mm"] = q_mm
 
     # 4. Calcular el Caudal en Volumen
-    # Proyectamos a un CRS métrico para obtener el área en m^2
-    basin_metric = basin_geometry.to_crs("EPSG:3116")
-    area_m2 = basin_metric.area
+    basin_metric = basin_geopandas_obj.to_crs("EPSG:3116")
+    area_m2 = basin_metric.area.sum() # Usamos .sum() para obtener el área total
     results["Area_km2"] = area_m2 / 1_000_000
 
-    q_m = q_mm / 1000 # Convertimos la lámina de agua a metros
+    q_m = q_mm / 1000
     q_volumen_m3_anual = q_m * area_m2
     results["Q_m3_año"] = q_volumen_m3_anual
     
