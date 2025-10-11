@@ -2555,58 +2555,65 @@ def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
 
         forecast_df = get_weather_forecast(lat, lon)
 
-        if forecast_df is not None:
-            # Fix 1: Convert date to a simple string to prevent misinterpretation.
+        if forecast_df is not None and not forecast_df.empty:
+            # 1. Preparamos los datos: aseguramos formato de fecha y 'derretimos' la tabla
+            # para que Altair pueda manejar las temperaturas fácilmente.
             forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.strftime('%Y-%m-%d')
-
-            # Gráfico de Pronóstico
-            fig = go.Figure()
-
-            # Barras para precipitación
-            fig.add_trace(go.Bar(
-                x=forecast_df['date'],
-                y=forecast_df['precip_sum (mm)'],
-                name='Precipitación (mm)',
-                marker_color='blue',
-                yaxis='y2'
-            ))
-
-            # Líneas para temperatura
-            fig.add_trace(go.Scatter(
-                x=forecast_df['date'],
-                y=forecast_df['temp_max (°C)'],
-                mode='lines+markers',
-                name='Temp. Máxima',
-                line=dict(color='red')
-            ))
-            fig.add_trace(go.Scatter(
-                x=forecast_df['date'],
-                y=forecast_df['temp_min (°C)'],
-                mode='lines+markers',
-                name='Temp. Mínima',
-                line=dict(color='orange'),
-                fill='tonexty',
-                fillcolor='rgba(255, 165, 0, 0.2)'
-            ))
-
-            fig.update_layout(
-                title=f'Pronóstico para {station_to_forecast}',
-                # This is the line that fixes the chart
-                xaxis=dict(type='category'),
-                yaxis=dict(title='Temperatura (°C)'),
-                yaxis2=dict(
-                    title='Precipitación (mm)',
-                    overlaying='y',
-                    side='right',
-                    showgrid=False
-                ),
-                legend=dict(x=0, y=1.1, orientation="h")
+            df_temp = forecast_df.melt(
+                id_vars=['date'],
+                value_vars=['temp_max (°C)', 'temp_min (°C)'],
+                var_name='Tipo de Temperatura',
+                value_name='Temperatura (°C)'
             )
-            st.plotly_chart(fig, use_container_width=True)
 
+            # 2. Creamos la base del gráfico con las fechas
+            base = alt.Chart(forecast_df).encode(
+                x=alt.X('date:N', title='Fecha')
+            )
+
+            # 3. Creamos el gráfico de barras para la precipitación
+            bar_chart = base.mark_bar(color='blue', opacity=0.7).encode(
+                y=alt.Y('precip_sum (mm):Q', title='Precipitación (mm)'),
+                tooltip=[
+                    alt.Tooltip('date:N', title='Fecha'),
+                    alt.Tooltip('precip_sum (mm):Q', title='Precipitación', format='.1f')
+                ]
+            ).properties(
+                width=600,
+                height=300
+            )
+
+            # 4. Creamos el gráfico de líneas para las temperaturas
+            line_chart = alt.Chart(df_temp).mark_line(point=True).encode(
+                x=alt.X('date:N', title='Fecha'),
+                y=alt.Y('Temperatura (°C):Q', title='Temperatura (°C)'),
+                color=alt.Color('Tipo de Temperatura:N',
+                                scale=alt.Scale(
+                                    domain=['temp_max (°C)', 'temp_min (°C)'],
+                                    range=['red', 'orange']
+                                ),
+                                legend=alt.Legend(title="Temperatura")
+                               ),
+                tooltip=[
+                    alt.Tooltip('date:N', title='Fecha'),
+                    alt.Tooltip('Temperatura (°C):Q', title='Temperatura', format='.1f')
+                ]
+            )
+
+            # 5. Combinamos los gráficos en uno solo con dos ejes Y
+            final_chart = alt.layer(bar_chart, line_chart).resolve_scale(
+                y='independent'
+            ).properties(
+                title=f'Pronóstico para {station_to_forecast}'
+            )
+
+            st.altair_chart(final_chart, use_container_width=True)
+
+            # La tabla de datos sigue funcionando igual
             with st.expander("Ver datos del pronóstico en tabla"):
                 st.dataframe(forecast_df.style.format({
                     "temp_max (°C)": "{:.1f}",
                     "temp_min (°C)": "{:.1f}",
                     "precip_sum (mm)": "{:.1f}"
                 }))
+
