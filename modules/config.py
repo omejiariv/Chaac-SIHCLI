@@ -18,7 +18,7 @@ class Config:
     URL_ESTACIONES_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.csv"
     URL_PRECIPITACION_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/DatosPptnmes_ENSO.csv"
     URL_SHAPEFILE_ZIP = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.zip"
-    URL_SUBCUENCAS_GEOJSON = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/SubcuencasAInfluencia.geojson"
+    URL_SUBCUENCAS_GEOJSON = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/SubcuencasAinfluencia.geojson"
 
     #--- RUTAS ROBUSTAS A LOS ARCHIVOS DEL PROYECTO ---
     _MODULES_DIR = os.path.dirname(__file__)
