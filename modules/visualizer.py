@@ -37,12 +37,12 @@ from modules.config import Config
 from modules.utils import add_folium_download_button
 from modules.interpolation import create_interpolation_surface, perform_loocv_for_all_methods
 from modules.forecasting import (
-    generate_sarima_forecast, 
+    generate_sarima_forecast,
     generate_prophet_forecast,
-    get_decomposition_results, 
-    create_acf_chart, 
+    get_decomposition_results,
+    create_acf_chart,
     create_pacf_chart,
-    auto_arima_search,
+    auto_arima_search,  # <--- ADD A COMMA HERE
     get_weather_forecast
 )
 from modules.data_processor import complete_series
