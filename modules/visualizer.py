@@ -1213,29 +1213,20 @@ with kriging_tab:
                     selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years)-1)
                     
                     method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
-                    variogram_model = 'spherical' # Default, se puede hacer configurable
-                    
                     run_balance = st.toggle("Calcular Balance Hídrico", value=True)
 
                 if st.button(f"Generar Mapa para la Cuenca '{selected_basin}'"):
                     with st.spinner("Realizando interpolación por cuenca..."):
                         fig_basin, mean_precip, error_msg = create_kriging_by_basin(
-                            year=selected_year,
-                            method=method,
-                            variogram_model=variogram_model,
-                            gdf_stations=st.session_state.gdf_stations, # Usamos todas las estaciones para el buffer
-                            df_anual=df_anual_non_na,
-                            gdf_basins=st.session_state.gdf_subcuencas,
-                            basin_name=selected_basin,
-                            basin_col=BASIN_NAME_COLUMN,
-                            buffer_km=buffer_km
+                            year=selected_year, method=method, variogram_model='spherical',
+                            gdf_stations=st.session_state.gdf_stations, df_anual=df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL]),
+                            gdf_basins=st.session_state.gdf_subcuencas, basin_name=selected_basin,
+                            basin_col=BASIN_NAME_COLUMN, buffer_km=buffer_km
                         )
 
                     with col_display:
-                        if error_msg:
-                            st.error(error_msg)
-                        if fig_basin:
-                            st.plotly_chart(fig_basin, use_container_width=True)
+                        if error_msg: st.error(error_msg)
+                        if fig_basin: st.plotly_chart(fig_basin, use_container_width=True)
 
                     if mean_precip is not None and run_balance:
                         st.markdown("---")
@@ -1253,7 +1244,6 @@ with kriging_tab:
                             c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
                             c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
                             st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-
             else:
                 st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
         else:
@@ -1262,12 +1252,12 @@ with kriging_tab:
     # --- MODO 2: KRIGING REGIONAL (TU CÓDIGO ORIGINAL PRESERVADO) ---
     else: 
         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-        if not stations_for_analysis or df_anual_non_na.empty:
+        if not stations_for_analysis:
             st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
+        elif df_anual_non_na.empty or len(df_anual_non_na[Config.YEAR_COL].unique()) == 0:
             st.warning("No hay suficientes datos anuales para realizar la interpolación.")
         else:
             min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
-            
             control_col, map_col1, map_col2 = st.columns([1, 2, 2])
             
             with control_col:
