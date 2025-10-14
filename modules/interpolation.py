@@ -271,8 +271,8 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
 def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
-    Realiza Kriging. Si falla, usa un respaldo de vecino más cercano
-    seguido de un filtro Gaussiano para asegurar una superficie suave y completa.
+    Realiza Kriging. Si falla, usa un respaldo de interpolación lineal y relleno
+    para asegurar una superficie con gradiente y sin vacíos.
     """
     lons = gdf_points.geometry.x
     lats = gdf_points.geometry.y
@@ -296,20 +296,19 @@ def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
         st.success("✅ Interpolación con Kriging completada con éxito.")
 
     except RuntimeError as e:
-        st.warning(f"""
-        ⚠️ El Kriging falló: '{e}'.
-        Usando interpolación de respaldo con suavizado Gaussiano.
-        """)
+        st.warning(f"⚠️ El Kriging falló: '{e}'. Usando interpolación de respaldo.")
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
-        # --- SOLUCIÓN MEJORADA PARA SUPERFICIE CONTINUA ---
-        # Paso 1: Rellenar toda la grilla con el vecino más cercano.
-        grid_z_nearest = griddata(points, vals, (grid_x, grid_y), method='nearest')
+        # --- SOLUCIÓN MEJORADA PARA SUPERFICIE CON GRADIENTE ---
+        # Paso 1: Interpolar con un método que cree gradientes (lineal).
+        grid_z = griddata(points, vals, (grid_x, grid_y), method='linear')
         
-        # Paso 2: Aplicar un filtro Gaussiano para suavizar la superficie.
-        # El valor de 'sigma' controla la intensidad del suavizado.
-        grid_z = gaussian_filter(grid_z_nearest, sigma=5)
+        # Paso 2: Rellenar los vacíos (NaNs) en los bordes con el vecino más cercano.
+        nan_mask = np.isnan(grid_z)
+        if np.any(nan_mask):
+            fill_values = griddata(points, vals, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
+            grid_z[nan_mask] = fill_values
         # --- FIN DE LA SOLUCIÓN ---
         
         grid_z = np.nan_to_num(grid_z)
