@@ -1247,23 +1247,27 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             st.warning("No hay datos anuales disponibles con los filtros actuales.")
                             
                     with col_display:
-                        if 'fig_basin' in st.session_state and st.session_state.fig_basin:
+                        # Usamos .get() para un acceso más seguro al estado de la sesión
+                        fig_basin = st.session_state.get('fig_basin')
+                        error_msg = st.session_state.get('error_msg')
+                        mean_precip = st.session_state.get('mean_precip')
+    
+                        if fig_basin:
                             st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
-                            st.plotly_chart(st.session_state.fig_basin, use_container_width=True)
-                        
-                        if 'error_msg' in st.session_state and st.session_state.error_msg:
-                            st.error(st.session_state.error_msg)
-                        
-                        if ('mean_precip' in st.session_state and 
-                            st.session_state.mean_precip is not None and 
+                            st.plotly_chart(fig_basin, use_container_width=True)
+    
+                        if error_msg:
+                            st.error(error_msg)
+    
+                        if (mean_precip is not None and 
                             st.session_state.get('run_balance') and 
-                            'unified_basin_gdf' in st.session_state and 
-                            st.session_state.unified_basin_gdf is not None):
-                            
+                            st.session_state.get('unified_basin_gdf') is not None):
+        
                             st.markdown("---")
                             st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
                             with st.spinner("Calculando altitud y balance..."):
-                                balance_results = calculate_hydrological_balance(st.session_state.mean_precip, st.session_state.unified_basin_gdf)
+                                # Usamos .get() también aquí para máxima seguridad
+                                balance_results = calculate_hydrological_balance(mean_precip, st.session_state.get('unified_basin_gdf'))
                                 if balance_results.get("error"):
                                     st.error(balance_results["error"])
                                 else:
