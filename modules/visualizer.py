@@ -991,6 +991,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
 
 # Reemplaza esta función completa en modules/visualizer.py
 
+# Reemplaza esta función completa en modules/visualizer.py
 def create_interpolation_surface(year, method, variogram_model, bounds, gdf_metadata, df_anual):
     """Crea una superficie de interpolación robusta diferenciando entre IDW y Spline."""
     try:
