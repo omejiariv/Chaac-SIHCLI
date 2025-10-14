@@ -1052,7 +1052,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         
                         if years:
                             selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1)
-                            method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario"], key="interp_method_basin")
+                            method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
                             run_balance = st.toggle("Calcular Balance Hídrico", value=True)
 
                             if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
