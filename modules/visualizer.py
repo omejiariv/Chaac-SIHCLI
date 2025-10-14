@@ -1127,7 +1127,20 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
-                        basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+                        # --- LÓGICA DE FILTRADO EN CASCADA ---
+                        # gdf_filtered contiene las estaciones que cumplen los criterios del panel izquierdo
+                        if not gdf_filtered.empty:
+                            # Crea un área unificada a partir de las estaciones filtradas
+                            filtered_stations_area = gdf_filtered.unary_union.convex_hull
+                            # Encuentra las subcuencas que se cruzan con el área de las estaciones
+                            relevant_basins = st.session_state.gdf_subcuencas[
+                                st.session_state.gdf_subcuencas.intersects(filtered_stations_area)
+                            ]
+                            basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
+                        else:
+                            # Si no hay estaciones filtradas, muestra todas las cuencas como antes
+                            basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+                        # --- FIN DEL FILTRADO ---
                         
                         selected_basins = st.multiselect(
                             "Seleccione una o más subcuencas:",
@@ -1200,10 +1213,19 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             colorbar=dict(title='Precipitación (mm)')
                                         ))
 
+                                        # Prepara el texto para los popups (tooltips)
+                                        points_data['hover_text'] = points_data.apply(
+                                            lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
+                                                        f"Precipitación: {row['Valor']:.1f} mm",
+                                            axis=1
+                                        )
+
                                         fig_basin.add_trace(go.Scatter(
                                             x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
                                             marker=dict(color='black', size=5, symbol='circle-open'), 
                                             name='Estaciones'
+                                            hoverinfo='text',
+                                            hovertext=points_data['hover_text']
                                         ))
                                         
                                         fig_basin.update_layout(
