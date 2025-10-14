@@ -990,7 +990,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
             st.info("No hay datos mensuales para descargar.")
 
 def create_interpolation_surface(year, method, variogram_model, bounds, gdf_metadata, df_anual):
-    """Crea una superficie de interpolación para un año y método dados, con mejoras visuales."""
+    """Crea una superficie de interpolación con contornos suavizados."""
     try:
         points_year = df_anual[df_anual[Config.YEAR_COL] == year]
         if points_year.empty or points_year[Config.PRECIPITATION_COL].isnull().all():
@@ -1003,8 +1003,8 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         if len(values) < 4:
             return None, None, "Se necesitan al menos 4 estaciones con datos para interpolar."
 
-        grid_lon = np.linspace(bounds[0], bounds[2], 200)
-        grid_lat = np.linspace(bounds[1], bounds[3], 200)
+        grid_lon = np.linspace(bounds[0], bounds[2], 200) # Mayor resolución
+        grid_lat = np.linspace(bounds[1], bounds[3], 200) # Mayor resolución
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
         fig_variogram = None
@@ -1013,35 +1013,27 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             model_class = {'linear': gs.Linear, 'spherical': gs.Spherical, 'exponential': gs.Exponential, 'gaussian': gs.Gaussian}.get(variogram_model, gs.Spherical)
             model = model_class(dim=2)
             model.fit_variogram(bin_center, gamma, nugget=True)
-            
             kriging = gs.krige.Ordinary(model, cond_pos=coords.T, cond_val=values)
             grid_z, variance = kriging.structured((grid_lon, grid_lat))
             rmse = np.sqrt(np.mean(variance))
-            
-            # --- CORRECCIÓN 1: Manejo del retorno de model.plot() ---
             ax = model.plot(x_max=max(bin_center))
             fig_variogram = ax.get_figure()
             fig_variogram.set_size_inches(6, 4)
-            # --- FIN DE LA CORRECCIÓN ---
-
-        else: # IDW y otros métodos que usan griddata
-            # --- CORRECCIÓN 2: Usar interpolación cúbica para isolíneas suaves ---
-            interp_method = 'cubic'
-            # --- FIN DE LA CORRECCIÓN ---
-            
-            grid_z = griddata(coords, values, (grid_x, grid_y), method=interp_method)
-            
+        else:
+            grid_z = griddata(coords, values, (grid_x, grid_y), method='cubic')
             nan_mask = np.isnan(grid_z)
             if np.any(nan_mask):
                 fill_values = griddata(coords, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
                 grid_z[nan_mask] = fill_values
-
-            predicted_values = griddata(coords, values, coords, method=interp_method)
+            predicted_values = griddata(coords, values, coords, method='cubic')
             rmse = np.sqrt(np.mean((values - predicted_values)**2))
 
         fig = go.Figure(data=go.Contour(
             z=grid_z.T, x=grid_lon, y=grid_lat,
-            colorscale='viridis', contours=dict(coloring='heatmap'),
+            colorscale='viridis',
+            # --- SOLUCIÓN PARA CONTORNOS IRREGULARES ---
+            contours=dict(coloring='heatmap', smoothing=0.8),
+            # --- FIN DE LA SOLUCIÓN ---
             colorbar=dict(title='Precipitación (mm)')
         ))
         fig.add_trace(go.Scatter(
