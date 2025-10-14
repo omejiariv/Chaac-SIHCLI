@@ -3,4 +3,4 @@ folderWatchBlacklist = ['venv', '.*', 'data', 'assets']
 headless = true
 
 [runner]
-pythonVersion = "3.11"
+pythonVersion = "3.10"
