@@ -1076,6 +1076,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                               df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
                               selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
+    # ... (El código de display_filter_summary y el GIF no cambia) ...
     display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
                            selected_stations_count=len(stations_for_analysis),
                            year_range=st.session_state.year_range,
@@ -1127,20 +1128,18 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
-                        
+                        # ... (Filtro de cuencas en cascada) ...
                         if not gdf_filtered.empty:
-                            filtered_stations_area = gdf_filtered.unary_union.convex_hull
-                            relevant_basins = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas.intersects(filtered_stations_area)]
-                            basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
+                            relevant_regions = gdf_filtered[Config.REGION_COL].unique()
+                            if Config.REGION_COL in st.session_state.gdf_subcuencas.columns:
+                                relevant_basins = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[Config.REGION_COL].isin(relevant_regions)]
+                                basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
+                            else:
+                                basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
                         else:
                             basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
                         
-                        selected_basins = st.multiselect(
-                            "Seleccione una o más subcuencas:",
-                            options=basin_names,
-                            key="interp_basin_multiselect"
-                        )
-                        
+                        selected_basins = st.multiselect("Seleccione una o más subcuencas:", options=basin_names)
                         buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5)
                         df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
                         years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
@@ -1155,71 +1154,80 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 unified_basin_gdf = None
                                 try:
                                     with st.spinner("Preparando datos y realizando interpolación..."):
+                                        # ... (Preparación de datos: target_basins_gdf, points_data, etc. no cambia) ...
                                         target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
                                         merged_basin_geom = target_basins_gdf.unary_union
                                         unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
-                                        
                                         target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
                                         basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
                                         stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
                                         stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
-
                                         station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
                                         precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
-
+                                        cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
                                         points_data = gpd.GeoDataFrame(pd.merge(
-                                            stations_in_buffer[[Config.STATION_NAME_COL, 'geometry']],
+                                            stations_in_buffer[cols_to_merge],
                                             precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
                                             on=Config.STATION_NAME_COL
                                         )).dropna(subset=[Config.PRECIPITATION_COL])
                                         points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
-                                        
                                         bounds = basin_buffer_metric.unary_union.bounds
                                         grid_resolution = 500
                                         grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
                                         grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
 
-                                        grid_z, variance = create_kriging_by_basin(
-                                            gdf_points=points_data, grid_lon=grid_lon,
-                                            grid_lat=grid_lat, value_col='Valor'
-                                        )
-
+                                        # --- INICIO DEL FRAGMENTO INSERTADO ---
+                                        if method == "Kriging Ordinario":
+                                            grid_z, variance = create_kriging_by_basin(
+                                                gdf_points=points_data, grid_lon=grid_lon,
+                                                grid_lat=grid_lat, value_col='Valor'
+                                            )
+                                        else: # Lógica para IDW
+                                            st.write("🏃‍♂️ Realizando interpolación con IDW...")
+                                            points = np.column_stack((points_data.geometry.x, points_data.geometry.y))
+                                            values = points_data['Valor'].values
+                                            grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+                                            grid_z = griddata(points, values, (grid_x, grid_y), method='linear')
+                                            nan_mask = np.isnan(grid_z)
+                                            if np.any(nan_mask):
+                                                fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
+                                                grid_z[nan_mask] = fill_values
+                                            st.success("✅ Interpolación con IDW completada.")
+                                        # --- FIN DEL FRAGMENTO INSERTADO ---
+                                        
+                                        # ... (El resto del código para crear ráster, figura y popups no cambia) ...
                                         grid_z[grid_z < 0] = 0
                                         transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
                                         with rasterio.io.MemoryFile() as memfile:
-                                            with memfile.open(
-                                                driver='GTiff', height=len(grid_lat), width=len(grid_lon),
-                                                count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform
-                                            ) as dataset:
+                                            with memfile.open(driver='GTiff', height=len(grid_lat), width=len(grid_lon), count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform) as dataset:
                                                 dataset.write(np.flipud(grid_z), 1)
                                             with memfile.open() as dataset:
                                                 masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
-
                                         masked_data = masked_data[0]
                                         mean_precip = np.nanmean(masked_data)
-
                                         fig_basin = go.Figure(data=go.Contour(
                                             z=masked_data,
                                             x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
                                             y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
-                                            colorscale='viridis', contours=dict(coloring='heatmap'),
+                                            colorscale='viridis',
+                                            contours=dict(coloring='heatmap', showlabels=True, showlines=True, labelfont=dict(size=10, color='white')),
+                                            line_color='black', line_width=0.5,
                                             colorbar=dict(title='Precipitación (mm)')
                                         ))
-                                        
                                         points_data['hover_text'] = points_data.apply(
                                             lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
-                                                        f"Precipitación: {row['Valor']:.1f} mm",
+                                                        f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
+                                                        f"Altitud: {row[Config.ALTITUDE_COL]:.0f} m<br>"
+                                                        f"Precipitación: {row['Valor']:.0f} mm",
                                             axis=1
                                         )
-                                        
                                         fig_basin.add_trace(go.Scatter(
                                             x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
-                                            marker=dict(color='black', size=5, symbol='circle-open'), # <-- COMA AÑADIDA
+                                            marker=dict(color='black', size=5, symbol='circle-open'),
                                             name='Estaciones',
                                             hoverinfo='text',
                                             hovertext=points_data['hover_text']
                                         ))
-
                                         fig_basin.update_layout(
                                             title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
                                             xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
@@ -1235,10 +1243,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 st.session_state['run_balance'] = run_balance
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-                        
                         else:
                             st.warning("No hay datos anuales disponibles con los filtros actuales.")
-
+                            
                     with col_display:
                         if 'fig_basin' in st.session_state and st.session_state.fig_basin:
                             st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
