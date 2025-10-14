@@ -989,26 +989,28 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         else:
             st.info("No hay datos mensuales para descargar.")
 
+# Reemplaza esta función completa en modules/visualizer.py
+
 def create_interpolation_surface(year, method, variogram_model, bounds, gdf_metadata, df_anual):
-    """Crea una superficie de interpolación robusta para cualquier método."""
+    """Crea una superficie de interpolación con contornos suavizados."""
     try:
-        # ... (código de preparación de datos: points_year, merged_data, etc. no cambia)
         points_year = df_anual[df_anual[Config.YEAR_COL] == year]
         if points_year.empty or points_year[Config.PRECIPITATION_COL].isnull().all():
             return None, None, f"No hay datos de precipitación para el año {year}."
+
         merged_data = pd.merge(gdf_metadata, points_year, on=Config.STATION_NAME_COL)
         coords = np.array(merged_data[[Config.LONGITUDE_COL, Config.LATITUDE_COL]])
         values = merged_data[Config.PRECIPITATION_COL].values
+
         if len(values) < 4:
             return None, None, "Se necesitan al menos 4 estaciones con datos para interpolar."
 
         grid_lon = np.linspace(bounds[0], bounds[2], 200)
         grid_lat = np.linspace(bounds[1], bounds[3], 200)
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
-        fig_variogram = None
 
+        fig_variogram = None
         if "Kriging" in method:
-            # ... (la lógica de Kriging no cambia)
             bin_center, gamma = gs.vario_estimate(coords.T, values)
             model_class = {'linear': gs.Linear, 'spherical': gs.Spherical, 'exponential': gs.Exponential, 'gaussian': gs.Gaussian}.get(variogram_model, gs.Spherical)
             model = model_class(dim=2)
@@ -1020,14 +1022,10 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             fig_variogram = ax.get_figure()
             fig_variogram.set_size_inches(6, 4)
         else:
-            # --- SOLUCIÓN DE ROBUSTEZ PARA IDW/SPLINE ---
             try:
-                # Intenta el método de alta calidad primero
                 grid_z = griddata(coords, values, (grid_x, grid_y), method='cubic')
             except Exception:
-                # Si falla, usa el método más simple como respaldo
                 grid_z = griddata(coords, values, (grid_x, grid_y), method='nearest')
-            # --- FIN DE LA SOLUCIÓN ---
             
             nan_mask = np.isnan(grid_z)
             if np.any(nan_mask):
@@ -1036,27 +1034,27 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             predicted_values = griddata(coords, values, coords, method='cubic')
             rmse = np.sqrt(np.mean((values - predicted_values)**2))
 
-        # --- SOLUCIÓN PARA POPUPS (ver punto 3) ---
-        # Asegúrate de que estas columnas existan en tu archivo de estaciones
-        # Puede que necesites añadir 'COD_ESTACION' a la lista de columnas al cargar los datos
         merged_data['hover_text'] = merged_data.apply(
             lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
                         f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
                         f"Precipitación: {row[Config.PRECIPITATION_COL]:.1f} mm",
             axis=1
         )
-        # --- FIN DE LA SOLUCIÓN ---
         
         fig = go.Figure(data=go.Contour(
             z=grid_z.T, x=grid_lon, y=grid_lat,
-            colorscale='viridis', contours=dict(coloring='heatmap', smoothing=0.8),
-            colorbar=dict(title='Precipitación (mm)')
+            colorscale='viridis',
+            contours=dict(coloring='heatmap'),
+            colorbar=dict(title='Precipitación (mm)'),
+            # --- LÍNEA CORREGIDA ---
+            line_smoothing=0.85
+            # --- FIN DE LA CORRECCIÓN ---
         ))
         fig.add_trace(go.Scatter(
             x=coords[:, 0], y=coords[:, 1], mode='markers',
             marker=dict(color='red', size=5),
             hoverinfo='text',
-            hovertext=merged_data['hover_text'], # <-- Añadir hovertext
+            hovertext=merged_data['hover_text'],
             showlegend=False
         ))
         fig.update_layout(
