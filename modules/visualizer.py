@@ -1058,13 +1058,11 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
                             if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
                                 
-                                # Inicializar variables para que existan fuera del 'try'
                                 fig_basin, mean_precip, error_msg = None, None, None
                                 unified_basin_gdf = None
 
                                 try:
                                     with st.spinner("Preparando datos y realizando interpolación..."):
-                                        # --- 1. PREPARACIÓN DE DATOS (Responsabilidad del visualizador) ---
                                         target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
                                         merged_basin_geom = target_basins_gdf.unary_union
                                         unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
@@ -1092,7 +1090,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                         grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
                                         grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
 
-                                        # --- 2. LLAMADA A LA FUNCIÓN DE CÁLCULO ROBUSTA ---
                                         grid_z, variance = create_kriging_by_basin(
                                             gdf_points=points_data,
                                             grid_lon=grid_lon,
@@ -1100,7 +1097,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             value_col='Valor'
                                         )
 
-                                        # --- 3. VISUALIZACIÓN (Responsabilidad del visualizador) ---
                                         grid_z[grid_z < 0] = 0
                                         transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
                                         with rasterio.io.MemoryFile() as memfile:
@@ -1131,16 +1127,18 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     import traceback
                                     error_msg = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
                                 
-                                # Guardar resultados en session_state para que persistan
                                 st.session_state['fig_basin'] = fig_basin
                                 st.session_state['mean_precip'] = mean_precip
                                 st.session_state['error_msg'] = error_msg
                                 st.session_state['run_balance'] = run_balance
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
+                        
+                        # Este es el 'else' que faltaba
+                        else:
+                            st.warning("No hay datos anuales disponibles con los filtros actuales.")
 
                 with col_display:
-                    # Mostrar resultados desde session_state para persistencia en la UI
                     if 'fig_basin' in st.session_state and st.session_state.fig_basin:
                         st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
                         st.plotly_chart(st.session_state.fig_basin, use_container_width=True)
@@ -1167,8 +1165,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
                                 c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
                                 st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-                        else:
-                            st.warning("No hay datos anuales disponibles con los filtros actuales.")
             else:
                 st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
         else:
