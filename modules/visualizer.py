@@ -1020,7 +1020,9 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             grid_z, variance = kriging.structured((grid_lon, grid_lat))
             rmse = np.sqrt(np.mean(variance))
             
-            fig_variogram, _ = model.plot(x_max=max(bin_center))
+            # The plot method returns a single axes object, not a tuple
+            ax = model.plot(x_max=max(bin_center))
+            fig_variogram = ax.get_figure() # Get the figure from the axes
             fig_variogram.set_size_inches(6, 4)
 
         else: # IDW y otros métodos que usan griddata
