@@ -1,5 +1,11 @@
+# Para la generación de reportes con Selenium
 ffmpeg
 libsm6
 libxext6
 chromium
 chromium-driver
+
+# Para las librerías Geoespaciales (geopandas, rasterio, etc.)
+libproj-dev
+gdal-bin
+libgdal-dev
