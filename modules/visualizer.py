@@ -986,6 +986,75 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         else:
             st.info("No hay datos mensuales para descargar.")
 
+def create_interpolation_surface(year, method, variogram_model, bounds, gdf_metadata, df_anual):
+    """Crea una superficie de interpolación para un año y método dados, rellenando vacíos."""
+    try:
+        points_year = df_anual[df_anual[Config.YEAR_COL] == year]
+        if points_year.empty or points_year[Config.PRECIPITATION_COL].isnull().all():
+            return None, None, f"No hay datos de precipitación para el año {year}."
+
+        merged_data = pd.merge(gdf_metadata, points_year, on=Config.STATION_NAME_COL)
+        coords = np.array(merged_data[[Config.LON_COL, Config.LAT_COL]])
+        values = merged_data[Config.PRECIPITATION_COL].values
+
+        if len(values) < 4:
+            return None, None, "Se necesitan al menos 4 estaciones con datos para interpolar."
+
+        grid_lon = np.linspace(bounds[0], bounds[2], 100)
+        grid_lat = np.linspace(bounds[1], bounds[3], 100)
+        grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+
+        fig_variogram = None
+        if "Kriging" in method:
+            bin_center, gamma = gs.vario_estimate(coords.T, values)
+            model_class = {'linear': gs.Linear, 'spherical': gs.Spherical, 'exponential': gs.Exponential, 'gaussian': gs.Gaussian}.get(variogram_model, gs.Spherical)
+            model = model_class(dim=2)
+            model.fit_variogram(bin_center, gamma, nugget=True)
+            
+            kriging = gs.krige.Ordinary(model, cond_pos=coords.T, cond_val=values)
+            grid_z, variance = kriging.structured((grid_lon, grid_lat))
+            rmse = np.sqrt(np.mean(variance))
+            
+            fig_variogram, _ = model.plot(x_max=max(bin_center))
+            fig_variogram.set_size_inches(6, 4)
+
+        else: # IDW y otros métodos que usan griddata
+            interp_method = 'cubic' if "Spline" in method else 'linear'
+            grid_z = griddata(coords, values, (grid_x, grid_y), method=interp_method)
+            
+            # --- SOLUCIÓN PARA EL RECORTE DEL MAPA ---
+            # Rellena los valores NaN en las esquinas usando el vecino más cercano
+            nan_mask = np.isnan(grid_z)
+            if np.any(nan_mask):
+                fill_values = griddata(coords, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
+                grid_z[nan_mask] = fill_values
+            # --- FIN DE LA SOLUCIÓN ---
+
+            predicted_values = griddata(coords, values, coords, method=interp_method)
+            rmse = np.sqrt(np.mean((values - predicted_values)**2))
+
+        fig = go.Figure(data=go.Contour(
+            z=grid_z.T, x=grid_lon, y=grid_lat,
+            colorscale='viridis', contours=dict(coloring='heatmap'),
+            colorbar=dict(title='Precipitación (mm)')
+        ))
+        fig.add_trace(go.Scatter(
+            x=coords[:, 0], y=coords[:, 1], mode='markers',
+            marker=dict(color='red', size=5), showlegend=False
+        ))
+        fig.update_layout(
+            title=f"Precipitación en {year} ({method})",
+            xaxis_title="Longitud", yaxis_title="Latitud",
+            annotations=[dict(x=0.05, y=0.95, xref='paper', yref='paper',
+                              text=f'RMSE: {rmse:.1f} mm', showarrow=False,
+                              font=dict(size=12, color="black"),
+                              bgcolor="yellow", opacity=0.8)]
+        )
+        return fig, fig_variogram, None
+    except Exception as e:
+        import traceback
+        return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
+
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
                               df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
                               selected_altitudes, **kwargs):
