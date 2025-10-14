@@ -76,6 +76,7 @@ class Config:
 
     @staticmethod
     def initialize_session_state():
+        # --- Estado existente ---
         if 'data_loaded' not in st.session_state:
             st.session_state.data_loaded = False
         if 'gdf_stations' not in st.session_state:
@@ -106,3 +107,17 @@ class Config:
             st.session_state.selected_report_sections_multiselect = []
         if 'gdf_subcuencas' not in st.session_state:
             st.session_state.gdf_subcuencas = None
+        
+        # --- AÑADIR ESTE BLOQUE PARA ESTABILIZAR LOS MAPAS ---
+        if 'fig_basin' not in st.session_state:
+            st.session_state.fig_basin = None
+        if 'mean_precip' not in st.session_state:
+            st.session_state.mean_precip = None
+        if 'error_msg' not in st.session_state:
+            st.session_state.error_msg = None
+        if 'run_balance' not in st.session_state:
+            st.session_state.run_balance = False
+        if 'unified_basin_gdf' not in st.session_state:
+            st.session_state.unified_basin_gdf = None
+        if 'selected_basins_title' not in st.session_state:
+            st.session_state.selected_basins_title = ""
