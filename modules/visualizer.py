@@ -27,6 +27,7 @@ from modules.analysis import calculate_hydrological_balance
 from modules.interpolation import create_kriging_by_basin
 import rasterio
 from rasterio.transform import from_origin
+from rasterio.mask import mask
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import (
