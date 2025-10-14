@@ -994,7 +994,11 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             return None, None, f"No hay datos de precipitación para el año {year}."
 
         merged_data = pd.merge(gdf_metadata, points_year, on=Config.STATION_NAME_COL)
-        coords = np.array(merged_data[[Config.LON_COL, Config.LAT_COL]])
+        
+        # --- LÍNEA CORREGIDA ---
+        coords = np.array(merged_data[[Config.LONGITUDE_COL, Config.LATITUDE_COL]])
+        # --- FIN DE LA CORRECCIÓN ---
+        
         values = merged_data[Config.PRECIPITATION_COL].values
 
         if len(values) < 4:
@@ -1022,13 +1026,10 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             interp_method = 'cubic' if "Spline" in method else 'linear'
             grid_z = griddata(coords, values, (grid_x, grid_y), method=interp_method)
             
-            # --- SOLUCIÓN PARA EL RECORTE DEL MAPA ---
-            # Rellena los valores NaN en las esquinas usando el vecino más cercano
             nan_mask = np.isnan(grid_z)
             if np.any(nan_mask):
                 fill_values = griddata(coords, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
                 grid_z[nan_mask] = fill_values
-            # --- FIN DE LA SOLUCIÓN ---
 
             predicted_values = griddata(coords, values, coords, method=interp_method)
             rmse = np.sqrt(np.mean((values - predicted_values)**2))
@@ -1054,7 +1055,7 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
     except Exception as e:
         import traceback
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
-
+        
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
                               df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
                               selected_altitudes, **kwargs):
