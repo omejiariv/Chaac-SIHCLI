@@ -271,96 +271,50 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
     Realiza la interpolación geoestadística por Kriging Ordinario para un conjunto de puntos.
-
-    Esta función es robusta: intenta realizar Kriging, pero si el modelo de variograma
-    no se puede ajustar (un problema común con datos complejos o escasos),
-    automáticamente utiliza un método de interpolación de respaldo (scipy.griddata)
-    para evitar que la aplicación falle.
-
-    Args:
-        gdf_points (GeoDataFrame): GeoDataFrame con las estaciones (puntos).
-                                   Debe contener una columna 'Valor' y la geometría.
-        grid_lon (array): Vector de coordenadas de longitud para la grilla de salida.
-        grid_lat (array): Vector de coordenadas de latitud para la grilla de salida.
-        value_col (str): Nombre de la columna en gdf_points que contiene los valores a interpolar.
-
-    Returns:
-        tuple: Una tupla conteniendo:
-            - grid_z (numpy.ndarray): La grilla 2D con los valores interpolados.
-            - variance (numpy.ndarray): La grilla 2D con la varianza del Kriging.
-                                        Será una grilla de ceros si se usa el método de respaldo.
+    Es robusta y tiene un método de respaldo si el Kriging falla.
     """
-    # --- 1. Preparación de Datos ---
-    # Extraer coordenadas y valores del GeoDataFrame
     lons = gdf_points.geometry.x
     lats = gdf_points.geometry.y
     vals = gdf_points[value_col].values
     
-    # Eliminar posibles valores nulos que puedan causar problemas
     valid_indices = ~np.isnan(vals)
     lons, lats, vals = lons[valid_indices], lats[valid_indices], vals[valid_indices]
 
-    # Verificar si hay suficientes datos para la interpolación
     if len(vals) < 3:
         st.error("No hay suficientes datos (se necesitan al menos 3 puntos) para realizar la interpolación.")
-        # Devolver grillas vacías para evitar errores posteriores
         ny, nx = len(grid_lat), len(grid_lon)
         return np.zeros((ny, nx)), np.zeros((ny, nx))
 
-    # --- 2. Lógica de Interpolación Robusta ---
     try:
-        # --- INTENTO DE KRIGING ORDINARIO ---
-        st.write("🛰️ **Paso 1:** Intentando interpolación con Kriging Ordinario...")
+        st.write("🛰️ Intentando interpolación con Kriging Ordinario...")
 
-        # a) Calcular el variograma empírico a partir de los datos
-        # bin_width y max_dist pueden necesitar ajustes según la densidad de tus datos
-        max_dist = np.sqrt((lons.max() - lons.min())**2 + (lats.max() - lats.min())**2) / 2
-        bin_center, gamma = gs.variogram.standard_variogram(
-            pos=(lons, lats),
-            vals=vals,
-            max_dist=max_dist
-        )
+        # --- CORRECCIÓN AQUÍ ---
+        # Usamos vario_estimate en lugar de standard_variogram
+        bin_center, gamma = gs.vario_estimate((lons, lats), vals)
 
-        # b) Ajustar un modelo teórico al variograma empírico
-        # gs.Spherical es un modelo comúnmente usado en hidrología
         model = gs.Spherical(dim=2)
         model.fit_variogram(bin_center, gamma, nugget=True)
 
-        # c) Crear la instancia del Kriging con el modelo ajustado
         kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_vals=vals)
-
-        # d) Ejecutar la interpolación sobre la grilla definida
         grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
         
-        st.success("✅ **Éxito:** Interpolación con Kriging completada.")
+        st.success("✅ Interpolación con Kriging completada con éxito.")
 
     except RuntimeError as e:
-        # --- PLAN B: FALLBACK SI EL KRIGING FALLA ---
         st.warning(f"""
-        ⚠️ **Advertencia:** El ajuste del modelo Kriging no fue posible.
-        * **Error:** `{e}`
-        * **Causa común:** Pocos datos o datos espacialmente complejos (ej: al unir varias cuencas).
-        * **Solución:** Se utilizará un método de interpolación de respaldo (Bicúbico).
+        ⚠️ El Kriging falló: '{e}'. Usando interpolación de respaldo (Bicúbico).
         """)
-
-        # a) Preparar los datos para griddata
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
-        # b) Interpolar usando el método 'cubic' que da resultados suaves
         grid_z = griddata(points, vals, (grid_x, grid_y), method='cubic')
         
-        # c) Rellenar los valores NaN que puedan quedar fuera del área de los puntos
-        # Se puede usar 'nearest' para rellenar los bordes de manera inteligente
         nan_mask = np.isnan(grid_z)
         if np.any(nan_mask):
             fill_values = griddata(points, vals, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
             grid_z[nan_mask] = fill_values
 
-        # Asegurarse de que no quede ningún NaN
         grid_z = np.nan_to_num(grid_z)
-        
-        # Como no hay Kriging, la varianza es una grilla de ceros
         variance = np.zeros_like(grid_z)
 
     return grid_z, variance
