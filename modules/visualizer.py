@@ -25,6 +25,7 @@ import json
 import requests
 from modules.analysis import calculate_hydrological_balance
 from modules.interpolation import create_kriging_by_basin
+from rasterio.transform import from_origin
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import (
