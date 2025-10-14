@@ -2,7 +2,6 @@
 
 # app.py
 
-import gstools
 import streamlit as st
 import geopandas as gpd
 import pandas as pd
@@ -120,7 +119,6 @@ def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button [data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
-    st.header(f"Versión de GSTools detectada: {gstools.__version__}")
 
     # --- Guía Interactiva ---
     if 'first_visit' not in st.session_state:
