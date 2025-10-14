@@ -288,14 +288,14 @@ def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     try:
         st.write("🛰️ Intentando interpolación con Kriging Ordinario...")
 
-        # --- CORRECCIÓN AQUÍ ---
-        # Usamos vario_estimate en lugar de standard_variogram
+        # CORRECCIÓN 1: Usamos vario_estimate
         bin_center, gamma = gs.vario_estimate((lons, lats), vals)
 
         model = gs.Spherical(dim=2)
         model.fit_variogram(bin_center, gamma, nugget=True)
 
-        kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_vals=vals)
+        # CORRECCIÓN 2: Usamos cond_val (singular)
+        kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_val=vals)
         grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
         
         st.success("✅ Interpolación con Kriging completada con éxito.")
