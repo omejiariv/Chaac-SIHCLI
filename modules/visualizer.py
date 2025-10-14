@@ -1188,6 +1188,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             colorscale='Viridis', contours=dict(coloring='heatmap'),
                                             colorbar=dict(title='Precipitación (mm)')
                                         ))
+
+                                        fig_basin.add_trace(go.Scatter(
+                                            x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
+                                            marker=dict(color='black', size=5, symbol='circle-open'), 
+                                            name='Estaciones'
+                                        ))
+                                        
                                         fig_basin.update_layout(
                                             title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
                                             xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
