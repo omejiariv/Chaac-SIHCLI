@@ -270,8 +270,9 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
 def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
-    Realiza la interpolación geoestadística por Kriging Ordinario para un conjunto de puntos.
-    Es robusta y tiene un método de respaldo si el Kriging falla.
+    Realiza la interpolación geoestadística por Kriging Ordinario.
+    Si el Kriging falla, usa el método del 'vecino más cercano' como respaldo
+    para garantizar una superficie completa sin vacíos.
     """
     lons = gdf_points.geometry.x
     lats = gdf_points.geometry.y
@@ -281,39 +282,32 @@ def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     lons, lats, vals = lons[valid_indices], lats[valid_indices], vals[valid_indices]
 
     if len(vals) < 3:
-        st.error("No hay suficientes datos (se necesitan al menos 3 puntos) para realizar la interpolación.")
+        st.error("Se necesitan al menos 3 puntos con datos para realizar la interpolación.")
         ny, nx = len(grid_lat), len(grid_lon)
         return np.zeros((ny, nx)), np.zeros((ny, nx))
 
     try:
         st.write("🛰️ Intentando interpolación con Kriging Ordinario...")
-
-        # CORRECCIÓN 1: Usamos vario_estimate
         bin_center, gamma = gs.vario_estimate((lons, lats), vals)
-
         model = gs.Spherical(dim=2)
         model.fit_variogram(bin_center, gamma, nugget=True)
-
-        # CORRECCIÓN 2: Usamos cond_val (singular)
         kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_val=vals)
         grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
-        
         st.success("✅ Interpolación con Kriging completada con éxito.")
 
     except RuntimeError as e:
         st.warning(f"""
-        ⚠️ El Kriging falló: '{e}'. Usando interpolación de respaldo (Bicúbico).
+        ⚠️ El Kriging falló: '{e}'.
+        Usando interpolación de respaldo (Vecino más cercano) para garantizar un mapa completo.
         """)
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
-        grid_z = griddata(points, vals, (grid_x, grid_y), method='cubic')
+        # --- SOLUCIÓN PARA LOS PUNTOS AISLADOS ---
+        # Usamos 'nearest' directamente para asegurar que toda la grilla se rellene
+        grid_z = griddata(points, vals, (grid_x, grid_y), method='nearest')
+        # --- FIN DE LA SOLUCIÓN ---
         
-        nan_mask = np.isnan(grid_z)
-        if np.any(nan_mask):
-            fill_values = griddata(points, vals, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
-            grid_z[nan_mask] = fill_values
-
         grid_z = np.nan_to_num(grid_z)
         variance = np.zeros_like(grid_z)
 
