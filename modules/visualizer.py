@@ -990,16 +990,14 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
             st.info("No hay datos mensuales para descargar.")
 
 def create_interpolation_surface(year, method, variogram_model, bounds, gdf_metadata, df_anual):
-    """Crea una superficie de interpolación para un año y método dados, rellenando vacíos."""
+    """Crea una superficie de interpolación para un año y método dados, con mejoras visuales."""
     try:
         points_year = df_anual[df_anual[Config.YEAR_COL] == year]
         if points_year.empty or points_year[Config.PRECIPITATION_COL].isnull().all():
             return None, None, f"No hay datos de precipitación para el año {year}."
 
         merged_data = pd.merge(gdf_metadata, points_year, on=Config.STATION_NAME_COL)
-        
         coords = np.array(merged_data[[Config.LONGITUDE_COL, Config.LATITUDE_COL]])
-
         values = merged_data[Config.PRECIPITATION_COL].values
 
         if len(values) < 4:
@@ -1020,13 +1018,17 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
             grid_z, variance = kriging.structured((grid_lon, grid_lat))
             rmse = np.sqrt(np.mean(variance))
             
-            # The plot method returns a single axes object, not a tuple
+            # --- CORRECCIÓN 1: Manejo del retorno de model.plot() ---
             ax = model.plot(x_max=max(bin_center))
-            fig_variogram = ax.get_figure() # Get the figure from the axes
+            fig_variogram = ax.get_figure()
             fig_variogram.set_size_inches(6, 4)
+            # --- FIN DE LA CORRECCIÓN ---
 
         else: # IDW y otros métodos que usan griddata
-            interp_method = 'cubic' if "Spline" in method else 'linear'
+            # --- CORRECCIÓN 2: Usar interpolación cúbica para isolíneas suaves ---
+            interp_method = 'cubic'
+            # --- FIN DE LA CORRECCIÓN ---
+            
             grid_z = griddata(coords, values, (grid_x, grid_y), method=interp_method)
             
             nan_mask = np.isnan(grid_z)
