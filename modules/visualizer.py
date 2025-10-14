@@ -1289,39 +1289,37 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
                                 st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
                     
-                    # --- INICIO DEL NUEVO BLOQUE DE MORFOMETRÍA ---
-                    if st.session_state.get('unified_basin_gdf') is not None and dem_file_from_state is not None:
-                        st.markdown("---")
-                        st.subheader("Morfometría de la Cuenca Agregada")
-                        with st.spinner("Calculando parámetros morfométricos..."):
-                            # Guardar temporalmente el DEM subido para que rasterstats pueda leerlo
-                            dem_path = os.path.join(os.getcwd(), dem_file_from_state.name)
-                            with open(dem_path, "wb") as f:
-                                f.write(dem_file_from_state.getbuffer())
-                            
-                            morph_results = calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
-                            
-                            # Opcional: eliminar el archivo temporal después de usarlo
-                            os.remove(dem_path)
+                        # --- INICIO DEL BLOQUE DE MORFOMETRÍA ---
+                        dem_file_from_state = st.session_state.get('dem_file')
+                        if st.session_state.get('unified_basin_gdf') is not None and dem_file_from_state is not None:
+                            st.markdown("---")
+                            st.subheader("Morfometría de la Cuenca Agregada")
+                            with st.spinner("Calculando parámetros morfométricos..."):
+                                dem_path = os.path.join(os.getcwd(), dem_file_from_state.name)
+                                with open(dem_path, "wb") as f:
+                                    f.write(dem_file_from_state.getbuffer())
+                                
+                                morph_results = calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
+                                os.remove(dem_path) # Limpiar archivo temporal
 
-                            if morph_results.get("error"):
-                                st.error(morph_results["error"])
-                            else:
-                                c1, c2, c3 = st.columns(3)
-                                c1.metric("Área", f"{morph_results['area_km2']:.2f} km²")
-                                c2.metric("Perímetro", f"{morph_results['perimetro_km']:.2f} km")
-                                c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
+                                if morph_results.get("error"):
+                                    st.error(morph_results["error"])
+                                else:
+                                    c1, c2, c3 = st.columns(3)
+                                    c1.metric("Área", f"{morph_results['area_km2']:.2f} km²")
+                                    c2.metric("Perímetro", f"{morph_results['perimetro_km']:.2f} km")
+                                    c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
 
-                                c4, c5, c6 = st.columns(3)
-                                c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results['alt_max_m'] else "N/A")
-                                c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results['alt_min_m'] else "N/A")
-                                c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results['alt_prom_m'] else "N/A")
-                    # --- FIN DEL NUEVO BLOQUE DE MORFOMETRÍA ---
-                
+                                    c4, c5, c6 = st.columns(3)
+                                    c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results.get('alt_max_m') else "N/A")
+                                    c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results.get('alt_min_m') else "N/A")
+                                    c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results.get('alt_prom_m') else "N/A")
+                        # --- FIN DEL BLOQUE DE MORFOMETRÍA ---
+
                 else:
-                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
+                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró.")
             else:
-                st.warning("Los datos de cuencas no están disponibles para este modo.")
+                st.warning("Los datos de cuencas no están disponibles.")
         
         else: # MODO REGIONAL
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
