@@ -1128,14 +1128,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
                         
-                        # --- LÓGICA DE FILTRADO EN CASCADA ---
                         if not gdf_filtered.empty:
                             filtered_stations_area = gdf_filtered.unary_union.convex_hull
                             relevant_basins = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas.intersects(filtered_stations_area)]
                             basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
                         else:
                             basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
-                        # --- FIN DEL FILTRADO ---
                         
                         selected_basins = st.multiselect(
                             "Seleccione una o más subcuencas:",
@@ -1214,15 +1212,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             axis=1
                                         )
                                         
-                                        # --- LÍNEA CORREGIDA CON LA COMA FALTANTE ---
                                         fig_basin.add_trace(go.Scatter(
                                             x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
-                                            marker=dict(color='black', size=5, symbol='circle-open'), # <-- COMA AÑADIDA AQUÍ
+                                            marker=dict(color='black', size=5, symbol='circle-open'), # <-- COMA AÑADIDA
                                             name='Estaciones',
                                             hoverinfo='text',
                                             hovertext=points_data['hover_text']
                                         ))
-                                        # --- FIN DE LA CORRECCIÓN ---
 
                                         fig_basin.update_layout(
                                             title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
