@@ -50,7 +50,7 @@ from modules.forecasting import (
     get_decomposition_results,
     create_acf_chart,
     create_pacf_chart,
-    auto_arima_search,  # <--- ADD A COMMA HERE
+    auto_arima_search,
     get_weather_forecast
 )
 from modules.data_processor import complete_series
@@ -1003,8 +1003,8 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         if len(values) < 4:
             return None, None, "Se necesitan al menos 4 estaciones con datos para interpolar."
 
-        grid_lon = np.linspace(bounds[0], bounds[2], 100)
-        grid_lat = np.linspace(bounds[1], bounds[3], 100)
+        grid_lon = np.linspace(bounds[0], bounds[2], 200)
+        grid_lat = np.linspace(bounds[1], bounds[3], 200)
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
         fig_variogram = None
