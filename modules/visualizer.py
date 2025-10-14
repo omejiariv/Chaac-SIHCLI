@@ -28,6 +28,9 @@ from modules.interpolation import create_kriging_by_basin
 import rasterio
 from rasterio.transform import from_origin
 from rasterio.mask import mask
+from scipy.interpolate import griddata
+import gstools as gs
+
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import (
