@@ -1057,7 +1057,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             run_balance = st.toggle("Calcular Balance Hídrico", value=True)
 
                             if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
-                                
                                 fig_basin, mean_precip, error_msg = None, None, None
                                 unified_basin_gdf = None
 
@@ -1091,10 +1090,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                         grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
 
                                         grid_z, variance = create_kriging_by_basin(
-                                            gdf_points=points_data,
-                                            grid_lon=grid_lon,
-                                            grid_lat=grid_lat,
-                                            value_col='Valor'
+                                            gdf_points=points_data, grid_lon=grid_lon,
+                                            grid_lat=grid_lat, value_col='Valor'
                                         )
 
                                         grid_z[grid_z < 0] = 0
@@ -1133,9 +1130,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 st.session_state['run_balance'] = run_balance
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-                        
-                        # Este es el 'else' que faltaba
                         else:
+                            # CORRECCIÓN: Este 'else' corresponde a 'if years:'
                             st.warning("No hay datos anuales disponibles con los filtros actuales.")
 
                 with col_display:
@@ -1165,6 +1161,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
                                 c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
                                 st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                
             else:
                 st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
         else:
