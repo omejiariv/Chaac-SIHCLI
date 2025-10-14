@@ -4,5 +4,4 @@ libxext6
 chromium
 chromium-driver
 libproj-dev
-gdal-bin
 libgdal-dev
