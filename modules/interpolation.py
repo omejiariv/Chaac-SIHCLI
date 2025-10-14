@@ -271,9 +271,8 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
 def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
-    Realiza la interpolación geoestadística por Kriging Ordinario.
-    Si el Kriging falla, usa el método del 'vecino más cercano' como respaldo
-    para garantizar una superficie completa sin vacíos.
+    Realiza Kriging. Si falla, usa un respaldo de vecino más cercano
+    seguido de un filtro Gaussiano para asegurar una superficie suave y completa.
     """
     lons = gdf_points.geometry.x
     lats = gdf_points.geometry.y
@@ -299,14 +298,18 @@ def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     except RuntimeError as e:
         st.warning(f"""
         ⚠️ El Kriging falló: '{e}'.
-        Usando interpolación de respaldo (Vecino más cercano) para garantizar un mapa completo.
+        Usando interpolación de respaldo con suavizado Gaussiano.
         """)
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
-        # --- SOLUCIÓN PARA LOS PUNTOS AISLADOS ---
-        # Usamos 'nearest' directamente para asegurar que toda la grilla se rellene
-        grid_z = griddata(points, vals, (grid_x, grid_y), method='nearest')
+        # --- SOLUCIÓN MEJORADA PARA SUPERFICIE CONTINUA ---
+        # Paso 1: Rellenar toda la grilla con el vecino más cercano.
+        grid_z_nearest = griddata(points, vals, (grid_x, grid_y), method='nearest')
+        
+        # Paso 2: Aplicar un filtro Gaussiano para suavizar la superficie.
+        # El valor de 'sigma' controla la intensidad del suavizado.
+        grid_z = gaussian_filter(grid_z_nearest, sigma=5)
         # --- FIN DE LA SOLUCIÓN ---
         
         grid_z = np.nan_to_num(grid_z)
