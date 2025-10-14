@@ -1258,30 +1258,25 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                              st.warning("No hay datos anuales disponibles.")
 
                     with col_display:
-                    fig_basin = st.session_state.get('fig_basin')
-                    error_msg = st.session_state.get('error_msg')
-                    mean_precip = st.session_state.get('mean_precip')
-                    dem_file_from_state = st.session_state.get('dem_file')
-                    
-                    if fig_basin:
-                        st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
-                        st.plotly_chart(fig_basin, use_container_width=True)
-                    
-                    if error_msg:
-                        st.error(error_msg)
-                    
-                    # Mostrar Balance Hídrico
-                    if (mean_precip is not None and 
-                        st.session_state.get('run_balance') and 
-                        st.session_state.get('unified_basin_gdf') is not None):
+                        fig_basin = st.session_state.get('fig_basin')
+                        error_msg = st.session_state.get('error_msg')
+                        mean_precip = st.session_state.get('mean_precip')
                         
-                        st.markdown("---")
-                        st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
-                        with st.spinner("Calculando altitud y balance..."):
-                            balance_results = calculate_hydrological_balance(mean_precip, st.session_state.get('unified_basin_gdf'))
-                            if balance_results.get("error"):
-                                st.error(balance_results["error"])
-                            else:
+                        if fig_basin:
+                            st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
+                            st.plotly_chart(fig_basin, use_container_width=True)
+                        
+                        if error_msg:
+                            st.error(error_msg)
+                        
+                        if (mean_precip is not None and st.session_state.get('run_balance') and st.session_state.get('unified_basin_gdf') is not None):
+                            st.markdown("---")
+                            st.subheader("Balance Hídrico Estimado")
+                            with st.spinner("Calculando balance..."):
+                                balance_results = calculate_hydrological_balance(mean_precip, st.session_state.get('unified_basin_gdf'))
+                                if balance_results.get("error"):
+                                    st.error(balance_results["error"])
+                                else:
                                 c1, c2, c3, c4 = st.columns(4)
                                 c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
                                 c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
