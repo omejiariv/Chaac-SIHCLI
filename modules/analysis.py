@@ -7,6 +7,7 @@ import requests
 import numpy as np
 from scipy.stats import gamma, norm
 from modules.config import Config
+from rasterstats import zonal_stats
 
 @st.cache_data
 def calculate_spi(series, window):
@@ -277,3 +278,52 @@ def calculate_hydrological_balance(mean_precip_mm, basin_geometry_input):
     results["Q_m3_año"] = q_volumen_m3_anual
     
     return results
+
+def calculate_morphometry(basin_gdf, dem_path):
+    """
+    Calcula los parámetros morfométricos de una cuenca hidrográfica.
+
+    Args:
+        basin_gdf (GeoDataFrame): GeoDataFrame con la geometría de la cuenca (una sola fila).
+        dem_path (str): Ruta al archivo del Modelo de Elevación Digital (DEM).
+
+    Returns:
+        dict: Un diccionario con los parámetros morfométricos calculados.
+    """
+    if basin_gdf.empty or basin_gdf.iloc[0].geometry is None:
+        return {"error": "Geometría de cuenca no válida."}
+
+    # Asegurarse de que la proyección sea métrica (ej. EPSG:3116) para cálculos precisos
+    basin_metric = basin_gdf.to_crs("EPSG:3116")
+    geom = basin_metric.iloc[0].geometry
+
+    # --- 1. Cálculos Geométricos ---
+    area_m2 = geom.area
+    perimetro_m = geom.length
+    
+    # Índice de Forma (Índice de Gravelius): Compara la forma de la cuenca con un círculo perfecto (valor = 1).
+    # Valores más altos indican una forma más alargada y compleja.
+    # Fórmula: K = P / (2 * sqrt(pi * A))
+    indice_forma = perimetro_m / (2 * np.sqrt(np.pi * area_m2)) if area_m2 > 0 else 0
+
+    # --- 2. Cálculos de Elevación usando el DEM ---
+    stats = {}
+    try:
+        # Extraer estadísticas del DEM dentro del polígono de la cuenca
+        z_stats = zonal_stats(basin_metric, dem_path, stats="min max mean", nodata=-9999)
+        if z_stats:
+            stats['alt_min'] = z_stats[0].get('min')
+            stats['alt_max'] = z_stats[0].get('max')
+            stats['alt_prom'] = z_stats[0].get('mean')
+    except Exception as e:
+        stats['error_dem'] = f"No se pudieron calcular las estadísticas de elevación: {e}"
+
+    return {
+        "area_km2": area_m2 / 1_000_000,
+        "perimetro_km": perimetro_m / 1_000,
+        "indice_forma": indice_forma,
+        "alt_max_m": stats.get('alt_max'),
+        "alt_min_m": stats.get('alt_min'),
+        "alt_prom_m": stats.get('alt_prom'),
+        "error": stats.get('error_dem')
+    }
