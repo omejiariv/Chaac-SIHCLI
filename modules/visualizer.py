@@ -1127,18 +1127,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
+                        
                         # --- LÓGICA DE FILTRADO EN CASCADA ---
-                        # gdf_filtered contiene las estaciones que cumplen los criterios del panel izquierdo
                         if not gdf_filtered.empty:
-                            # Crea un área unificada a partir de las estaciones filtradas
                             filtered_stations_area = gdf_filtered.unary_union.convex_hull
-                            # Encuentra las subcuencas que se cruzan con el área de las estaciones
-                            relevant_basins = st.session_state.gdf_subcuencas[
-                                st.session_state.gdf_subcuencas.intersects(filtered_stations_area)
-                            ]
+                            relevant_basins = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas.intersects(filtered_stations_area)]
                             basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
                         else:
-                            # Si no hay estaciones filtradas, muestra todas las cuencas como antes
                             basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
                         # --- FIN DEL FILTRADO ---
                         
@@ -1209,25 +1204,26 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             z=masked_data,
                                             x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
                                             y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
-                                            colorscale='Viridis', contours=dict(coloring='heatmap'),
+                                            colorscale='viridis', contours=dict(coloring='heatmap'),
                                             colorbar=dict(title='Precipitación (mm)')
                                         ))
-
-                                        # Prepara el texto para los popups (tooltips)
+                                        
                                         points_data['hover_text'] = points_data.apply(
                                             lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
                                                         f"Precipitación: {row['Valor']:.1f} mm",
                                             axis=1
                                         )
-
+                                        
+                                        # --- LÍNEA CORREGIDA CON LA COMA FALTANTE ---
                                         fig_basin.add_trace(go.Scatter(
                                             x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
-                                            marker=dict(color='black', size=5, symbol='circle-open'), 
-                                            name='Estaciones'
+                                            marker=dict(color='black', size=5, symbol='circle-open'), # <-- COMA AÑADIDA AQUÍ
+                                            name='Estaciones',
                                             hoverinfo='text',
                                             hovertext=points_data['hover_text']
                                         ))
-                                        
+                                        # --- FIN DE LA CORRECCIÓN ---
+
                                         fig_basin.update_layout(
                                             title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
                                             xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
@@ -1244,7 +1240,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
                         
-                        else: # CORRECCIÓN: Este 'else' corresponde a 'if years:'
+                        else:
                             st.warning("No hay datos anuales disponibles con los filtros actuales.")
 
                     with col_display:
@@ -1279,7 +1275,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             else:
                 st.warning("Los datos de cuencas no están disponibles para este modo.")
         
-        else: # MODO REGIONAL (Se mantiene tu código original sin cambios)
+        else: # MODO REGIONAL
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             if not stations_for_analysis or df_anual_non_na.empty:
                 st.warning("No hay suficientes datos anuales para realizar la interpolación.")
@@ -1336,7 +1332,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         plt.close(fig_var2)
                     else:
                         st.info("El variograma no está disponible para este método.")
-                
+             
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
