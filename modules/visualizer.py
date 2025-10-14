@@ -1034,7 +1034,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
                 BASIN_NAME_COLUMN = 'SUBC_LBL'
                 if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
-                    
                     col_control, col_display = st.columns([1, 2])
                     
                     with col_control:
@@ -1052,14 +1051,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
                         
                         if years:
-                            selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years)-1)
+                            selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1)
                             method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario"], key="interp_method_basin")
                             run_balance = st.toggle("Calcular Balance Hídrico", value=True)
 
                             if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
                                 fig_basin, mean_precip, error_msg = None, None, None
                                 unified_basin_gdf = None
-
                                 try:
                                     with st.spinner("Preparando datos y realizando interpolación..."):
                                         target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
@@ -1072,10 +1070,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                         stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
 
                                         station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
-                                        precip_data_year = df_anual_non_na[
-                                            (df_anual_non_na[Config.YEAR_COL] == selected_year) &
-                                            (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))
-                                        ]
+                                        precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
 
                                         points_data = gpd.GeoDataFrame(pd.merge(
                                             stations_in_buffer[[Config.STATION_NAME_COL, 'geometry']],
@@ -1130,100 +1125,99 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 st.session_state['run_balance'] = run_balance
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-                        else:
-                            # CORRECCIÓN: Este 'else' corresponde a 'if years:'
+                        
+                        else: # CORRECCIÓN: Este 'else' corresponde a 'if years:'
                             st.warning("No hay datos anuales disponibles con los filtros actuales.")
 
-                with col_display:
-                    if 'fig_basin' in st.session_state and st.session_state.fig_basin:
-                        st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
-                        st.plotly_chart(st.session_state.fig_basin, use_container_width=True)
-                    
-                    if 'error_msg' in st.session_state and st.session_state.error_msg:
-                        st.error(st.session_state.error_msg)
-                    
-                    if ('mean_precip' in st.session_state and 
-                        st.session_state.mean_precip is not None and 
-                        st.session_state.get('run_balance') and 
-                        'unified_basin_gdf' in st.session_state and 
-                        st.session_state.unified_basin_gdf is not None):
+                    with col_display:
+                        if 'fig_basin' in st.session_state and st.session_state.fig_basin:
+                            st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
+                            st.plotly_chart(st.session_state.fig_basin, use_container_width=True)
                         
-                        st.markdown("---")
-                        st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
-                        with st.spinner("Calculando altitud y balance..."):
-                            balance_results = calculate_hydrological_balance(st.session_state.mean_precip, st.session_state.unified_basin_gdf)
-                            if balance_results.get("error"):
-                                st.error(balance_results["error"])
-                            else:
-                                c1, c2, c3, c4 = st.columns(4)
-                                c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
-                                c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
-                                c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
-                                c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
-                                st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-                
+                        if 'error_msg' in st.session_state and st.session_state.error_msg:
+                            st.error(st.session_state.error_msg)
+                        
+                        if ('mean_precip' in st.session_state and 
+                            st.session_state.mean_precip is not None and 
+                            st.session_state.get('run_balance') and 
+                            'unified_basin_gdf' in st.session_state and 
+                            st.session_state.unified_basin_gdf is not None):
+                            
+                            st.markdown("---")
+                            st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
+                            with st.spinner("Calculando altitud y balance..."):
+                                balance_results = calculate_hydrological_balance(st.session_state.mean_precip, st.session_state.unified_basin_gdf)
+                                if balance_results.get("error"):
+                                    st.error(balance_results["error"])
+                                else:
+                                    c1, c2, c3, c4 = st.columns(4)
+                                    c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
+                                    c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
+                                    c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
+                                    c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
+                                    st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                else:
+                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
             else:
-                st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
-        else:
-            st.warning("Los datos de cuencas no están disponibles para este modo.")
-            
-    else: # MODO REGIONAL (Se mantiene tu código original sin cambios)
-        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-        if not stations_for_analysis or df_anual_non_na.empty:
-            st.warning("No hay suficientes datos anuales para realizar la interpolación.")
-        else:
-            min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
-            control_col, map_col1, map_col2 = st.columns([1, 2, 2])
-            with control_col:
-                st.markdown("#### Controles de los Mapas")
-                interpolation_methods = ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]
-                st.markdown("**Mapa 1**")
-                year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
-                method1 = st.selectbox("Método de interpolación", options=interpolation_methods, key="interp_method1")
-                variogram_model1 = None
-                if "Kriging" in method1:
-                    variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
-                    variogram_model1 = st.selectbox("Modelo de Variograma para Mapa 1", variogram_options, key="var_model_1")
+                st.warning("Los datos de cuencas no están disponibles para este modo.")
+        
+        else: # MODO REGIONAL (Se mantiene tu código original sin cambios)
+            df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+            if not stations_for_analysis or df_anual_non_na.empty:
+                st.warning("No hay suficientes datos anuales para realizar la interpolación.")
+            else:
+                min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
+                control_col, map_col1, map_col2 = st.columns([1, 2, 2])
+                with control_col:
+                    st.markdown("#### Controles de los Mapas")
+                    interpolation_methods = ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]
+                    st.markdown("**Mapa 1**")
+                    year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
+                    method1 = st.selectbox("Método de interpolación", options=interpolation_methods, key="interp_method1")
+                    variogram_model1 = None
+                    if "Kriging" in method1:
+                        variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
+                        variogram_model1 = st.selectbox("Modelo de Variograma para Mapa 1", variogram_options, key="var_model_1")
+                    st.markdown("---")
+                    st.markdown("**Mapa 2**")
+                    year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
+                    method2 = st.selectbox("Método de interpolación", options=interpolation_methods, index=1, key="interp_method2")
+                    variogram_model2 = None
+                    if "Kriging" in method2:
+                        variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
+                        variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2", variogram_options, key="var_model_2")
+                
+                gdf_bounds = gdf_filtered.total_bounds.tolist()
+                gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
+                fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
+                fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
+                with map_col1:
+                    if fig1: st.plotly_chart(fig1, use_container_width=True)
+                    else: st.info(error1)
+                with map_col2:
+                    if fig2: st.plotly_chart(fig2, use_container_width=True)
+                    else: st.info(error2)
                 st.markdown("---")
-                st.markdown("**Mapa 2**")
-                year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
-                method2 = st.selectbox("Método de interpolación", options=interpolation_methods, index=1, key="interp_method2")
-                variogram_model2 = None
-                if "Kriging" in method2:
-                    variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
-                    variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2", variogram_options, key="var_model_2")
-            
-            gdf_bounds = gdf_filtered.total_bounds.tolist()
-            gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
-            fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
-            fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
-            with map_col1:
-                if fig1: st.plotly_chart(fig1, use_container_width=True)
-                else: st.info(error1)
-            with map_col2:
-                if fig2: st.plotly_chart(fig2, use_container_width=True)
-                else: st.info(error2)
-            st.markdown("---")
-            st.markdown("##### Variogramas de los Mapas")
-            col3, col4 = st.columns(2)
-            with col3:
-                if fig_var1:
-                    buf = io.BytesIO()
-                    fig_var1.savefig(buf, format="png")
-                    st.image(buf)
-                    st.download_button(label="Descargar Variograma 1 (PNG)", data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png", mime="image/png")
-                    plt.close(fig_var1)
-                else:
-                    st.info("El variograma no está disponible para este método.")
-            with col4:
-                if fig_var2:
-                    buf = io.BytesIO()
-                    fig_var2.savefig(buf, format="png")
-                    st.image(buf)
-                    st.download_button(label="Descargar Variograma 2 (PNG)", data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png", mime="image/png")
-                    plt.close(fig_var2)
-                else:
-                    st.info("El variograma no está disponible para este método.")
+                st.markdown("##### Variogramas de los Mapas")
+                col3, col4 = st.columns(2)
+                with col3:
+                    if fig_var1:
+                        buf = io.BytesIO()
+                        fig_var1.savefig(buf, format="png")
+                        st.image(buf)
+                        st.download_button(label="Descargar Variograma 1 (PNG)", data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png", mime="image/png")
+                        plt.close(fig_var1)
+                    else:
+                        st.info("El variograma no está disponible para este método.")
+                with col4:
+                    if fig_var2:
+                        buf = io.BytesIO()
+                        fig_var2.savefig(buf, format="png")
+                        st.image(buf)
+                        st.download_button(label="Descargar Variograma 2 (PNG)", data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png", mime="image/png")
+                        plt.close(fig_var2)
+                    else:
+                        st.info("El variograma no está disponible para este método.")
                 
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
