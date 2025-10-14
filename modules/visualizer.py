@@ -1277,12 +1277,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 if balance_results.get("error"):
                                     st.error(balance_results["error"])
                                 else:
-                                c1, c2, c3, c4 = st.columns(4)
-                                c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
-                                c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
-                                c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
-                                c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
-                                st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                                    c1, c2, c3, c4 = st.columns(4)
+                                    c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
+                                    c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
+                                    c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
+                                    c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
+                                    st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
                     
                         # --- INICIO DEL BLOQUE DE MORFOMETRÍA ---
                         dem_file_from_state = st.session_state.get('dem_file')
