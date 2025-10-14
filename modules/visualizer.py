@@ -995,10 +995,8 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
 
         merged_data = pd.merge(gdf_metadata, points_year, on=Config.STATION_NAME_COL)
         
-        # --- LÍNEA CORREGIDA ---
         coords = np.array(merged_data[[Config.LONGITUDE_COL, Config.LATITUDE_COL]])
-        # --- FIN DE LA CORRECCIÓN ---
-        
+
         values = merged_data[Config.PRECIPITATION_COL].values
 
         if len(values) < 4:
