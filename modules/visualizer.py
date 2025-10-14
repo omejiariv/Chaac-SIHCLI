@@ -1077,7 +1077,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                               df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
                               selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
-    # ... (El código de display_filter_summary y el GIF no cambia) ...
     display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
                            selected_stations_count=len(stations_for_analysis),
                            year_range=st.session_state.year_range,
@@ -1116,8 +1115,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         analysis_mode_interp = st.radio(
             "Seleccione el modo de interpolación:",
             ("Regional (Toda la selección)", "Por Cuenca Específica"),
-            key="interp_mode_radio",
-            horizontal=True
+            key="interp_mode_radio", horizontal=True
         )
         st.markdown("---")
 
@@ -1129,15 +1127,14 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
-                        st.markdown("##### Modelo de Elevación (Opcional)")
-                        dem_file = st.file_uploader("Sube tu archivo DEM (.tif)", type=["tif", "tiff"], key="dem_uploader")
-                        # ... (Filtro de cuencas en cascada) ...
+                        
                         if not gdf_filtered.empty:
                             relevant_regions = gdf_filtered[Config.REGION_COL].unique()
                             if Config.REGION_COL in st.session_state.gdf_subcuencas.columns:
                                 relevant_basins = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[Config.REGION_COL].isin(relevant_regions)]
                                 basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
                             else:
+                                st.warning(f"El archivo de cuencas no tiene columna '{Config.REGION_COL}'.")
                                 basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
                         else:
                             basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
@@ -1151,13 +1148,16 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1)
                             method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
                             run_balance = st.toggle("Calcular Balance Hídrico", value=True)
+                            
+                            st.markdown("---")
+                            st.markdown("##### Modelo de Elevación (Opcional)")
+                            dem_file = st.file_uploader("Sube tu archivo DEM (.tif)", type=["tif", "tiff"], key="dem_uploader")
 
                             if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
                                 fig_basin, mean_precip, error_msg = None, None, None
                                 unified_basin_gdf = None
                                 try:
                                     with st.spinner("Preparando datos y realizando interpolación..."):
-                                        # --- 1. PREPARACIÓN DE DATOS ---
                                         target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
                                         merged_basin_geom = target_basins_gdf.unary_union
                                         unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
@@ -1247,17 +1247,17 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     import traceback
                                     error_msg = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
                                 
-                                # Guardar resultados en session_state para que persistan
                                 st.session_state['fig_basin'] = fig_basin
                                 st.session_state['mean_precip'] = mean_precip
                                 st.session_state['error_msg'] = error_msg
                                 st.session_state['run_balance'] = run_balance
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-                                st.session_state['dem_file'] = dem_file # Guardar el archivo DEM en el estado
+                                st.session_state['dem_file'] = dem_file
+                        else:
+                             st.warning("No hay datos anuales disponibles.")
 
-                # El bloque 'with col_display' muestra los resultados guardados en session_state
-                with col_display:
+                    with col_display:
                     fig_basin = st.session_state.get('fig_basin')
                     error_msg = st.session_state.get('error_msg')
                     mean_precip = st.session_state.get('mean_precip')
@@ -1300,7 +1300,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     f.write(dem_file_from_state.getbuffer())
                                 
                                 morph_results = calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
-                                os.remove(dem_path) # Limpiar archivo temporal
+                                os.remove(dem_path)
 
                                 if morph_results.get("error"):
                                     st.error(morph_results["error"])
@@ -1314,12 +1314,11 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results.get('alt_max_m') else "N/A")
                                     c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results.get('alt_min_m') else "N/A")
                                     c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results.get('alt_prom_m') else "N/A")
-                        # --- FIN DEL BLOQUE DE MORFOMETRÍA ---
 
                 else:
-                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró.")
+                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
             else:
-                st.warning("Los datos de cuencas no están disponibles.")
+                st.warning("Los datos de cuencas no están disponibles para este modo.")
         
         else: # MODO REGIONAL
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
