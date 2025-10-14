@@ -15,25 +15,38 @@ import plotly.express as px
 from sklearn.model_selection import LeaveOneOut
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, power=2):
-    """Realiza una interpolación por el método IDW."""
-    nx, ny = len(grid_lon), len(grid_lat)
-    grid_z = np.zeros((ny, nx))
-    for i in range(nx):
-        for j in range(ny):
-            x, y = grid_lon[i], grid_lat[j]
-            distances = np.sqrt((lons - x)**2 + (lats - y)**2)
-            if np.any(distances < 1e-10):
-                grid_z[j, i] = vals[np.argmin(distances)]
-                continue
-            weights = 1.0 / (distances**power)
-            weighted_sum = np.sum(weights * vals)
-            total_weight = np.sum(weights)
-            if total_weight > 0:
-                grid_z[j, i] = weighted_sum / total_weight
-            else:
-                grid_z[j, i] = np.nan
-    return grid_z.T
+def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, method='cubic'):
+    """
+    Realiza una interpolación espacial utilizando scipy.griddata.
+    Es mucho más rápido que una implementación manual de IDW.
+
+    Args:
+        lons (array): Longitudes de los puntos de datos.
+        lats (array): Latitudes de los puntos de datos.
+        vals (array): Valores en los puntos de datos.
+        grid_lon (array): Coordenadas de longitud de la grilla de salida.
+        grid_lat (array): Coordenadas de latitud de la grilla de salida.
+        method (str): Método de interpolación ('cubic', 'linear', 'nearest').
+                      'cubic' produce resultados más suaves.
+
+    Returns:
+        array: La grilla interpolada (grid_z).
+    """
+    # 1. Preparar los puntos de datos en el formato correcto (N, 2)
+    points = np.column_stack((lons, lats))
+
+    # 2. Crear una malla (meshgrid) a partir de los vectores de la grilla de salida
+    grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+
+    # 3. Realizar la interpolación
+    # griddata es altamente optimizada y realiza el trabajo pesado.
+    grid_z = griddata(points, vals, (grid_x, grid_y), method=method)
+
+    # 4. griddata puede dejar NaNs en los bordes. Los rellenamos con 0.
+    grid_z = np.nan_to_num(grid_z)
+
+    # La salida de griddata ya tiene la forma (ny, nx), por lo que la retornamos directamente.
+    return grid_z
 
 # -----------------------------------------------------------------------------
 # NUEVA FUNCIÓN INTERNA PARA REUTILIZAR LA LÓGICA DE VALIDACIÓN CRUZADA
