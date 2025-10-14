@@ -28,3 +28,4 @@ Pillow==10.3.0
 openmeteo-requests
 requests-cache
 retry-requests
+rich==13.7.1
