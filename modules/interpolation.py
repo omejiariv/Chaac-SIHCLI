@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 from sklearn.model_selection import LeaveOneOut
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from scipy.ndimage import gaussian_filter
 
 def interpolate_idw(lons, lats, vals, grid_lon, grid_lat, method='cubic'):
     """
