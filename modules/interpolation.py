@@ -268,102 +268,99 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
     return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
 
-def create_kriging_by_basin(
-    year, method, variogram_model,
-    gdf_stations, df_anual,
-    gdf_basins, basin_name, basin_col, buffer_km
-):
+def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
-    Realiza una interpolación (IDW o Kriging) para un año, enmascarada a una cuenca.
+    Realiza la interpolación geoestadística por Kriging Ordinario para un conjunto de puntos.
+
+    Esta función es robusta: intenta realizar Kriging, pero si el modelo de variograma
+    no se puede ajustar (un problema común con datos complejos o escasos),
+    automáticamente utiliza un método de interpolación de respaldo (scipy.griddata)
+    para evitar que la aplicación falle.
+
+    Args:
+        gdf_points (GeoDataFrame): GeoDataFrame con las estaciones (puntos).
+                                   Debe contener una columna 'Valor' y la geometría.
+        grid_lon (array): Vector de coordenadas de longitud para la grilla de salida.
+        grid_lat (array): Vector de coordenadas de latitud para la grilla de salida.
+        value_col (str): Nombre de la columna en gdf_points que contiene los valores a interpolar.
+
+    Returns:
+        tuple: Una tupla conteniendo:
+            - grid_z (numpy.ndarray): La grilla 2D con los valores interpolados.
+            - variance (numpy.ndarray): La grilla 2D con la varianza del Kriging.
+                                        Será una grilla de ceros si se usa el método de respaldo.
     """
+    # --- 1. Preparación de Datos ---
+    # Extraer coordenadas y valores del GeoDataFrame
+    lons = gdf_points.geometry.x
+    lats = gdf_points.geometry.y
+    vals = gdf_points[value_col].values
+    
+    # Eliminar posibles valores nulos que puedan causar problemas
+    valid_indices = ~np.isnan(vals)
+    lons, lats, vals = lons[valid_indices], lats[valid_indices], vals[valid_indices]
+
+    # Verificar si hay suficientes datos para la interpolación
+    if len(vals) < 3:
+        st.error("No hay suficientes datos (se necesitan al menos 3 puntos) para realizar la interpolación.")
+        # Devolver grillas vacías para evitar errores posteriores
+        ny, nx = len(grid_lat), len(grid_lon)
+        return np.zeros((ny, nx)), np.zeros((ny, nx))
+
+    # --- 2. Lógica de Interpolación Robusta ---
     try:
-        # --- 1. Preparación Geoespacial ---
-        if basin_col is not None:
-            target_basin = gdf_basins[gdf_basins[basin_col] == basin_name]
-        else:
-            target_basin = gdf_basins
-        
-        if target_basin.empty:
-            return None, None, "No se encontró la geometría de la cuenca."
-        
-        target_basin_metric = target_basin.to_crs("EPSG:3116")
-        buffer_m = buffer_km * 1000
-        basin_buffer_metric = target_basin_metric.buffer(buffer_m)
-        stations_metric = gdf_stations.to_crs("EPSG:3116")
-        stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
+        # --- INTENTO DE KRIGING ORDINARIO ---
+        st.write("🛰️ **Paso 1:** Intentando interpolación con Kriging Ordinario...")
 
-        if len(stations_in_buffer) < 4:
-            return None, None, f"Se encontraron menos de 4 estaciones en el área de influencia. No se puede interpolar."
-
-        station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
-        precip_data_year = df_anual[
-            (df_anual[Config.YEAR_COL] == year) &
-            (df_anual[Config.STATION_NAME_COL].isin(station_names))
-        ]
-
-        points_data = pd.merge(
-            stations_in_buffer[[Config.STATION_NAME_COL, 'geometry']],
-            precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
-            on=Config.STATION_NAME_COL
-        ).dropna(subset=[Config.PRECIPITATION_COL])
-
-        if len(points_data) < 4:
-            return None, None, f"Menos de 4 estaciones tienen datos para el año {year}."
-
-        coords = np.array([(p.x, p.y) for p in points_data.geometry])
-        values = points_data[Config.PRECIPITATION_COL].values
-
-        bounds = basin_buffer_metric.unary_union.bounds
-        grid_resolution = 500
-        grid_x = np.arange(bounds[0], bounds[2], grid_resolution)
-        grid_y = np.arange(bounds[1], bounds[3], grid_resolution)
-
-        # --- 2. Ejecución de la Interpolación (CORREGIDO) ---
-        if method == "IDW":
-            idw = Idw()  # <--- SE USA LA CLASE CORRECTA
-            field = idw.structured((coords[:, 0], coords[:, 1]), values, (grid_x, grid_y))
-        else: # Kriging Ordinario
-            bin_center, gamma = gs.vario_estimate((coords[:, 0], coords[:, 1]), values)
-            model = gs.Spherical(dim=2)
-            model.fit_variogram(bin_center, gamma, nugget=False)
-            kriging = gs.krige.Ordinary(model, cond_pos=[coords[:, 0], coords[:, 1]], cond_val=values)
-            field, variance = kriging.structured((grid_x, grid_y))
-
-        # --- 3. El resto de la función no cambia ---
-        field[field < 0] = 0
-
-        transform = from_origin(grid_x[0], grid_y[-1], grid_resolution, grid_resolution)
-        with rasterio.io.MemoryFile() as memfile:
-            with memfile.open(
-                driver='GTiff', height=len(grid_y), width=len(grid_x),
-                count=1, dtype=str(field.dtype), crs="EPSG:3116", transform=transform
-            ) as dataset:
-                dataset.write(np.flipud(field), 1)
-            
-            with memfile.open() as dataset:
-                masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
-
-        masked_data = masked_data[0]
-        mean_precip = np.nanmean(masked_data)
-
-        fig = go.Figure(data=go.Contour(
-            z=masked_data,
-            x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
-            y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
-            colorscale='Viridis',
-            contours=dict(coloring='heatmap'),
-            colorbar=dict(title='Precipitación (mm)')
-        ))
-        
-        fig.update_layout(
-            title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({year})",
-            xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
-            yaxis_scaleanchor="x"
+        # a) Calcular el variograma empírico a partir de los datos
+        # bin_width y max_dist pueden necesitar ajustes según la densidad de tus datos
+        max_dist = np.sqrt((lons.max() - lons.min())**2 + (lats.max() - lats.min())**2) / 2
+        bin_center, gamma = gs.variogram.standard_variogram(
+            pos=(lons, lats),
+            vals=vals,
+            max_dist=max_dist
         )
 
-        return fig, mean_precip, None
+        # b) Ajustar un modelo teórico al variograma empírico
+        # gs.Spherical es un modelo comúnmente usado en hidrología
+        model = gs.Spherical(dim=2)
+        model.fit_variogram(bin_center, gamma, nugget=True)
 
-    except Exception as e:
-        import traceback
-        tb_str = traceback.format_exc()
-        return None, None, f"Ocurrió un error detallado durante la interpolación: {e}\n\nTraceback:\n{tb_str}"
+        # c) Crear la instancia del Kriging con el modelo ajustado
+        kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_vals=vals)
+
+        # d) Ejecutar la interpolación sobre la grilla definida
+        grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
+        
+        st.success("✅ **Éxito:** Interpolación con Kriging completada.")
+
+    except RuntimeError as e:
+        # --- PLAN B: FALLBACK SI EL KRIGING FALLA ---
+        st.warning(f"""
+        ⚠️ **Advertencia:** El ajuste del modelo Kriging no fue posible.
+        * **Error:** `{e}`
+        * **Causa común:** Pocos datos o datos espacialmente complejos (ej: al unir varias cuencas).
+        * **Solución:** Se utilizará un método de interpolación de respaldo (Bicúbico).
+        """)
+
+        # a) Preparar los datos para griddata
+        points = np.column_stack((lons, lats))
+        grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+        
+        # b) Interpolar usando el método 'cubic' que da resultados suaves
+        grid_z = griddata(points, vals, (grid_x, grid_y), method='cubic')
+        
+        # c) Rellenar los valores NaN que puedan quedar fuera del área de los puntos
+        # Se puede usar 'nearest' para rellenar los bordes de manera inteligente
+        nan_mask = np.isnan(grid_z)
+        if np.any(nan_mask):
+            fill_values = griddata(points, vals, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
+            grid_z[nan_mask] = fill_values
+
+        # Asegurarse de que no quede ningún NaN
+        grid_z = np.nan_to_num(grid_z)
+        
+        # Como no hay Kriging, la varianza es una grilla de ceros
+        variance = np.zeros_like(grid_z)
+
+    return grid_z, variance
