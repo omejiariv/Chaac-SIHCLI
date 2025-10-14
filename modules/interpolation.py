@@ -1,8 +1,8 @@
 import pandas as pd
 import geopandas as gpd
 import numpy as np
-import gstools as gs
-from gstools import Idw
+# import gstools as gs
+# from gstools import Idw
 import rasterio
 from rasterio.transform import from_origin
 from rasterio.mask import mask
