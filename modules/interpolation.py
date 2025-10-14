@@ -2,7 +2,6 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 import gstools as gs
-from gstools.interpolator import Idw
 import rasterio
 from rasterio.transform import from_origin
 from rasterio.mask import mask
@@ -10,6 +9,7 @@ import plotly.graph_objects as go
 from modules.config import Config
 import streamlit as st
 from scipy.interpolate import Rbf
+from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 import plotly.express as px
 from sklearn.model_selection import LeaveOneOut
