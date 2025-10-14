@@ -33,6 +33,7 @@ import gstools as gs
 
 
 # --- Importaciones de Módulos Propios
+from modules.analysis import calculate_morphometry
 from modules.analysis import (
     calculate_spi, 
     calculate_spei, 
@@ -1128,6 +1129,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     
                     with col_control:
                         st.markdown("#### Controles de Cuenca")
+                        st.markdown("##### Modelo de Elevación (Opcional)")
+                        dem_file = st.file_uploader("Sube tu archivo DEM (.tif)", type=["tif", "tiff"], key="dem_uploader")
                         # ... (Filtro de cuencas en cascada) ...
                         if not gdf_filtered.empty:
                             relevant_regions = gdf_filtered[Config.REGION_COL].unique()
@@ -1154,16 +1157,19 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 unified_basin_gdf = None
                                 try:
                                     with st.spinner("Preparando datos y realizando interpolación..."):
-                                        # ... (Preparación de datos: target_basins_gdf, points_data, etc. no cambia) ...
+                                        # --- 1. PREPARACIÓN DE DATOS ---
                                         target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
                                         merged_basin_geom = target_basins_gdf.unary_union
                                         unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
+                                        
                                         target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
                                         basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
                                         stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
                                         stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
+
                                         station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
                                         precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
+
                                         cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
                                         points_data = gpd.GeoDataFrame(pd.merge(
                                             stations_in_buffer[cols_to_merge],
@@ -1171,12 +1177,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             on=Config.STATION_NAME_COL
                                         )).dropna(subset=[Config.PRECIPITATION_COL])
                                         points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
+                                        
                                         bounds = basin_buffer_metric.unary_union.bounds
                                         grid_resolution = 500
                                         grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
                                         grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
 
-                                        # --- INICIO DEL FRAGMENTO INSERTADO ---
+                                        # --- 2. SELECCIÓN Y EJECUCIÓN DEL MÉTODO DE INTERPOLACIÓN ---
                                         if method == "Kriging Ordinario":
                                             grid_z, variance = create_kriging_by_basin(
                                                 gdf_points=points_data, grid_lon=grid_lon,
@@ -1193,9 +1200,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                                 fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
                                                 grid_z[nan_mask] = fill_values
                                             st.success("✅ Interpolación con IDW completada.")
-                                        # --- FIN DEL FRAGMENTO INSERTADO ---
                                         
-                                        # ... (El resto del código para crear ráster, figura y popups no cambia) ...
+                                        # --- 3. CREACIÓN DE RÁSTER Y FIGURA ---
                                         grid_z[grid_z < 0] = 0
                                         transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
                                         with rasterio.io.MemoryFile() as memfile:
@@ -1205,6 +1211,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                                 masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
                                         masked_data = masked_data[0]
                                         mean_precip = np.nanmean(masked_data)
+
                                         fig_basin = go.Figure(data=go.Contour(
                                             z=masked_data,
                                             x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
@@ -1214,6 +1221,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             line_color='black', line_width=0.5,
                                             colorbar=dict(title='Precipitación (mm)')
                                         ))
+                                        
                                         points_data['hover_text'] = points_data.apply(
                                             lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
                                                         f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
@@ -1221,6 +1229,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                                         f"Precipitación: {row['Valor']:.0f} mm",
                                             axis=1
                                         )
+                                        
                                         fig_basin.add_trace(go.Scatter(
                                             x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
                                             marker=dict(color='black', size=5, symbol='circle-open'),
@@ -1228,6 +1237,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             hoverinfo='text',
                                             hovertext=points_data['hover_text']
                                         ))
+
                                         fig_basin.update_layout(
                                             title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
                                             xaxis_title="Coordenada Este (m)", yaxis_title="Coordenada Norte (m)",
@@ -1237,46 +1247,77 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     import traceback
                                     error_msg = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
                                 
+                                # Guardar resultados en session_state para que persistan
                                 st.session_state['fig_basin'] = fig_basin
                                 st.session_state['mean_precip'] = mean_precip
                                 st.session_state['error_msg'] = error_msg
                                 st.session_state['run_balance'] = run_balance
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-                        else:
-                            st.warning("No hay datos anuales disponibles con los filtros actuales.")
+                                st.session_state['dem_file'] = dem_file # Guardar el archivo DEM en el estado
+
+                # El bloque 'with col_display' muestra los resultados guardados en session_state
+                with col_display:
+                    fig_basin = st.session_state.get('fig_basin')
+                    error_msg = st.session_state.get('error_msg')
+                    mean_precip = st.session_state.get('mean_precip')
+                    dem_file_from_state = st.session_state.get('dem_file')
+                    
+                    if fig_basin:
+                        st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
+                        st.plotly_chart(fig_basin, use_container_width=True)
+                    
+                    if error_msg:
+                        st.error(error_msg)
+                    
+                    # Mostrar Balance Hídrico
+                    if (mean_precip is not None and 
+                        st.session_state.get('run_balance') and 
+                        st.session_state.get('unified_basin_gdf') is not None):
+                        
+                        st.markdown("---")
+                        st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
+                        with st.spinner("Calculando altitud y balance..."):
+                            balance_results = calculate_hydrological_balance(mean_precip, st.session_state.get('unified_basin_gdf'))
+                            if balance_results.get("error"):
+                                st.error(balance_results["error"])
+                            else:
+                                c1, c2, c3, c4 = st.columns(4)
+                                c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
+                                c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
+                                c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
+                                c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
+                                st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                    
+                    # --- INICIO DEL NUEVO BLOQUE DE MORFOMETRÍA ---
+                    if st.session_state.get('unified_basin_gdf') is not None and dem_file_from_state is not None:
+                        st.markdown("---")
+                        st.subheader("Morfometría de la Cuenca Agregada")
+                        with st.spinner("Calculando parámetros morfométricos..."):
+                            # Guardar temporalmente el DEM subido para que rasterstats pueda leerlo
+                            dem_path = os.path.join(os.getcwd(), dem_file_from_state.name)
+                            with open(dem_path, "wb") as f:
+                                f.write(dem_file_from_state.getbuffer())
                             
-                    with col_display:
-                        # Usamos .get() para un acceso más seguro al estado de la sesión
-                        fig_basin = st.session_state.get('fig_basin')
-                        error_msg = st.session_state.get('error_msg')
-                        mean_precip = st.session_state.get('mean_precip')
-    
-                        if fig_basin:
-                            st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
-                            st.plotly_chart(fig_basin, use_container_width=True)
-    
-                        if error_msg:
-                            st.error(error_msg)
-    
-                        if (mean_precip is not None and 
-                            st.session_state.get('run_balance') and 
-                            st.session_state.get('unified_basin_gdf') is not None):
-        
-                            st.markdown("---")
-                            st.subheader("Balance Hídrico Estimado para la Cuenca Agregada")
-                            with st.spinner("Calculando altitud y balance..."):
-                                # Usamos .get() también aquí para máxima seguridad
-                                balance_results = calculate_hydrological_balance(mean_precip, st.session_state.get('unified_basin_gdf'))
-                                if balance_results.get("error"):
-                                    st.error(balance_results["error"])
-                                else:
-                                    c1, c2, c3, c4 = st.columns(4)
-                                    c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
-                                    c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
-                                    c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
-                                    c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
-                                    st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                            morph_results = calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
+                            
+                            # Opcional: eliminar el archivo temporal después de usarlo
+                            os.remove(dem_path)
+
+                            if morph_results.get("error"):
+                                st.error(morph_results["error"])
+                            else:
+                                c1, c2, c3 = st.columns(3)
+                                c1.metric("Área", f"{morph_results['area_km2']:.2f} km²")
+                                c2.metric("Perímetro", f"{morph_results['perimetro_km']:.2f} km")
+                                c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
+
+                                c4, c5, c6 = st.columns(3)
+                                c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results['alt_max_m'] else "N/A")
+                                c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results['alt_min_m'] else "N/A")
+                                c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results['alt_prom_m'] else "N/A")
+                    # --- FIN DEL NUEVO BLOQUE DE MORFOMETRÍA ---
+                
                 else:
                     st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
             else:
