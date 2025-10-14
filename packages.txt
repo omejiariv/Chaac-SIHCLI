@@ -3,3 +3,4 @@ libsm6
 libxext6
 chromium
 chromium-driver
+git add requirements.txt
