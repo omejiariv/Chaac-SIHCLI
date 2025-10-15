@@ -688,8 +688,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         sub_tab_descarga = st.tabs(tab_keys)
 
     with sub_tab_anual:
-        anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis
-                                                     Multianual"])
+        anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
 
         with anual_graf_tab:
             if not df_anual_rich.empty:
@@ -704,13 +703,11 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                         tooltip=[
                             alt.Tooltip(Config.STATION_NAME_COL),
                             alt.Tooltip(Config.YEAR_COL, format='d', title='Año'),
-                            alt.Tooltip(f'{Config.PRECIPITATION_COL}:Q', format='.0f', title='Ppt. Anual
-                                        (mm)'),
+                            alt.Tooltip(f'{Config.PRECIPITATION_COL}:Q', format='.0f', title='Ppt. Anual (mm)'),
                             alt.Tooltip(f'{Config.MUNICIPALITY_COL}:N', title='Municipio'),
                             alt.Tooltip(f'{Config.ALTITUDE_COL}:N', title='Altitud (m)')
                         ]
-                    ).properties(title=f'Precipitación Anual por Estación ({year_min} -
-                                 {year_max})').interactive()
+                    ).properties(title=f'Precipitación Anual por Estación ({year_min} - {year_max})').interactive()
 
                 st.altair_chart(chart_anual, use_container_width=True)
 
@@ -756,16 +753,13 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                         df_summary,
                         x=Config.STATION_NAME_COL,
                         y=Config.PRECIPITATION_COL,
-                        title=f'Promedio de Precipitación Anual por Estación ({year_min} -
-                               {year_max})',
-                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL:
-                                'Precipitación Media Anual (mm)'},
+                        title=f'Promedio de Precipitación Anual por Estación ({year_min} - {year_max})',
+                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Media Anual (mm)'},
                         color=Config.PRECIPITATION_COL,
                         color_continuous_scale=px.colors.sequential.Blues_r
                     )
 
-                    category_order = 'total descending' if "Mayor" in sort_order else ('total
-                                                                                        ascending' if "Menor" in sort_order else 'trace')
+                    category_order = 'total descending' if "Mayor" in sort_order else ('total ascending' if "Menor" in sort_order else 'trace')
                     fig_avg.update_layout(height=500, xaxis={'categoryorder': category_order})
                     st.plotly_chart(fig_avg, use_container_width=True)
 
@@ -780,8 +774,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                         color=Config.STATION_NAME_COL,
                         points='all',
                         title='Distribución de la Precipitación Anual por Estación',
-                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL:
-                                'Precipitación Anual (mm)'}
+                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Anual (mm)'}
                     )
 
                     fig_box_annual.update_layout(height=500)
@@ -792,8 +785,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                 st.warning("No hay datos anuales para mostrar el análisis multianual.")
 
         with sub_tab_mensual:
-            mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs(["Gráfico de
-                                                                             Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"])
+            mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs(["Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"])
 
             with mensual_graf_tab:
                 if not df_monthly_rich.empty:
@@ -803,8 +795,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                         st.markdown("##### Opciones del Gráfico")
                         chart_type = st.radio(
                             "Tipo de Gráfico:",
-                            ["Líneas y Puntos", "Nube de Puntos", "Gráfico de Cajas (Distribución
-                             Mensual)"],
+                            ["Líneas y Puntos", "Nube de Puntos", "Gráfico de Cajas (Distribución Mensual)"],
                             key="monthly_chart_type"
                         )
 
@@ -823,8 +814,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                                 y=alt.Y(f'{Config.PRECIPITATION_COL}:Q', title='Precipitación (mm)'),
                                 tooltip=[
                                     alt.Tooltip(f'{Config.DATE_COL}:T', format='%Y-%m', title='Fecha'),
-                                    alt.Tooltip(f'{Config.PRECIPITATION_COL}:Q', format='.0f', title='ppt.
-                                                Mensual'),
+                                    alt.Tooltip(f'{Config.PRECIPITATION_COL}:Q', format='.0f', title='ppt. Mensual'),
                                     alt.Tooltip(f'{Config.STATION_NAME_COL}:N', title='Estación'),
                                     alt.Tooltip(f'{Config.MONTH_COL}:N', title="Mes"),
                                     alt.Tooltip(f'{Config.MUNICIPALITY_COL}:N', title='Municipio'),
@@ -852,8 +842,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                                                                       size=60).encode(color=color_encoding)
 
                             st.altair_chart(
-                                final_chart.properties(height=500, title=f"Serie de Precipitación Mensual
-                                                       ({year_min} - {year_max})").interactive(),
+                                final_chart.properties(height=500, title=f"Serie de Precipitación Mensual ({year_min} - {year_max})").interactive(),
                                 use_container_width=True
                             )
 
@@ -933,17 +922,14 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                     x=Config.MONTH_COL,
                     y='precip_promedio',
                     color=Config.STATION_NAME_COL,
-                    labels={'precip_promedio': 'Precipitación Promedio (mm)', Config.MONTH_COL:
-                            'Mes'},
+                    labels={'precip_promedio': 'Precipitación Promedio (mm)', Config.MONTH_COL: 'Mes'},
                     title='Promedio de Precipitación Mensual por Estación',
-                    hover_data={'municipio': True, 'altitud': True, 'precip_max': ':.0f', 'precip_min':
-                                ':.0f'}
+                    hover_data={'municipio': True, 'altitud': True, 'precip_max': ':.0f', 'precip_min': ':.0f'}
                 )
 
                 meses_dict = {
                     'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6,
-                    'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre':
-                    12
+                    'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
                 }
 
                 fig_avg_monthly.update_layout(
@@ -972,8 +958,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                         color=Config.STATION_NAME_COL,
                         points='all',
                         title='Distribución de la Precipitación Anual por Estación',
-                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL:
-                                'Precipitación Anual (mm)'}
+                        labels={Config.STATION_NAME_COL: 'Estación', Config.PRECIPITATION_COL: 'Precipitación Anual (mm)'}
                     )
 
                     fig_box_annual.update_layout(height=500)
@@ -1005,8 +990,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                             x=Config.PRECIPITATION_COL,
                             color=Config.STATION_NAME_COL,
                             title=f'Distribución Anual de Precipitación ({year_min} - {year_max})',
-                            labels={Config.PRECIPITATION_COL: 'Precipitación Anual (mm)', 'count':
-                                    'Frecuencia'},
+                            labels={Config.PRECIPITATION_COL: 'Precipitación Anual (mm)', 'count': 'Frecuencia'},
                             hover_data=hover_info
                         )
 
@@ -1041,8 +1025,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                             x=Config.PRECIPITATION_COL,
                             color=Config.STATION_NAME_COL,
                             title=f'Distribución Mensual de Precipitación ({year_min} - {year_max})',
-                            labels={Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)', 'count':
-                                    'Frecuencia'},
+                            labels={Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)', 'count': 'Frecuencia'},
                             hover_data=hover_info
                         )
 
@@ -1119,8 +1102,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                     y=Config.PRECIPITATION_COL,
                     color=Config.STATION_NAME_COL,
                     title='Relación entre Precipitación Media Anual y Altitud',
-                    labels={Config.ALTITUDE_COL: 'Altitud (m)', Config.PRECIPITATION_COL:
-                            'Precipitación Media Anual (mm)'},
+                    labels={Config.ALTITUDE_COL: 'Altitud (m)', Config.PRECIPITATION_COL: 'Precipitación Media Anual (mm)'},
                     hover_data=[Config.MUNICIPALITY_COL]
                 )
 
@@ -1332,7 +1314,7 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
 
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                               Rdf_monthly_filtered, analysis_mode, selected_regions,
+                               df_monthly_filtered, analysis_mode, selected_regions,
                                selected_municipios,
                                selected_altitudes, **kwargs):
 
@@ -2251,8 +2233,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
                     df_plot, x=Config.DATE_COL, y=Config.PRECIPITATION_COL,
                     color='event_type', color_discrete_map=color_map,
                     title=f"Precipitación Mensual y Eventos Extremos en {station_to_analyze_perc}",
-                    labels={Config.PRECIPITATION_COL: "Precipitación (mm)", Config.DATE_COL:
-                            "Fecha"},
+                    labels={Config.PRECIPITATION_COL: "Precipitación (mm)", Config.DATE_COL: "Fecha"},
                     hover_data={'event_type': True, 'p_lower': ':.0f', 'p_upper': ':.0f'}
                 )
 
