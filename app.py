@@ -81,6 +81,16 @@ def main():
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
 
+    # --- Definición de Pestañas ---
+    tab_names = [
+        "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
+        "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
+        "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
+        "Descargas", "Análisis por Cuenca", "Comparación de Periodos",
+        "Tabla de Estaciones", "Generar Reporte"
+    ]
+    tabs = st.tabs(tab_names)    
+
     # --- Panel de Control (Sidebar) ---
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
@@ -168,15 +178,7 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-    # --- Definición de Pestañas ---
-    tab_names = [
-        "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
-        "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
-        "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
-        "Descargas", "Análisis por Cuenca", "Comparación de Periodos",
-        "Tabla de Estaciones", "Generar Reporte"
-    ]
-    tabs = st.tabs(tab_names)    
+
     
     stations_for_analysis = selected_stations
     if not stations_for_analysis:
