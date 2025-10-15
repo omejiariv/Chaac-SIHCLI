@@ -3558,12 +3558,12 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered
         with st.spinner("Realizando cálculos, por favor espera..."):
             try:
                 # La función auxiliar para el cálculo de estadísticas completas debe estar en el visualizador o importada
-                # Asumo que esta función existe en este archivo o en analysis.py
                 @st.cache_data
                 def calculate_comprehensive_stats(_df_anual, _df_monthly, _stations):
                     """Calcula un conjunto completo de estadísticas para cada estación seleccionada."""
                     results = []
-                    # Importamos Mann-Kendall localmente si es necesario
+                    # Importamos numpy y scipy/pymannkendall localmente para robustez
+                    import numpy as np
                     from scipy import stats
                     try:
                         import pymannkendall as mk
