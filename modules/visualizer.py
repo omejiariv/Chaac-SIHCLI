@@ -3546,147 +3546,115 @@ def display_downloads_tab(df_anual_melted, df_monthly_filtered, stations_for_ana
             st.info("No hay datos mensuales para descargar con los filtros actuales.")
             
 def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered,
-                               stations_for_analysis, **kwargs):
+                              stations_for_analysis, **kwargs):
     st.header("Información Detallada de las Estaciones")
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
+
     st.info("Presiona el botón para generar una tabla detallada con estadísticas calculadas para cada estación seleccionada.")
+
     if st.button("Calcular Estadísticas Detalladas"):
-        @st.cache_data
-        def calculate_comprehensive_stats(_df_anual, _df_monthly, _stations):
-            """Calcula un conjunto completo de estadísticas para cada estación seleccionada."""
-            results = []
-            for station in _stations:
-                stats = {"Estación": station}
-                station_anual = _df_anual[_df_anual[Config.STATION_NAME_COL] ==
-                                          station].dropna(subset=[Config.PRECIPITATION_COL])
-                station_monthly = _df_monthly[_df_monthly[Config.STATION_NAME_COL] ==
-                                              station].dropna(subset=[Config.PRECIPITATION_COL])
-                if not station_anual.empty:
-                    stats['Años con Datos'] = int(station_anual[Config.PRECIPITATION_COL].count())
-                    stats['Ppt. Media Anual (mm)'] = station_anual[Config.PRECIPITATION_COL].mean()
-                    stats['Desv. Estándar Anual (mm)'] = station_anual[Config.PRECIPITATION_COL].std()
-                    max_anual_row = \
-                        station_anual.loc[station_anual[Config.PRECIPITATION_COL].idxmax()]
-                    stats['Ppt. Máxima Anual (mm)'] = max_anual_row[Config.PRECIPITATION_COL]
-                    stats['Año Ppt. Máxima'] = int(max_anual_row[Config.YEAR_COL])
-                    min_anual_row = \
-                        station_anual.loc[station_anual[Config.PRECIPITATION_COL].idxmin()]
-                    stats['Ppt. Mínima Anual (mm)'] = min_anual_row[Config.PRECIPITATION_COL]
-                    stats['Año Ppt. Mínima'] = int(min_anual_row[Config.YEAR_COL])
-                    if len(station_anual) >= 4:
-                        mk_result = mk.original_test(station_anual[Config.PRECIPITATION_COL])
-                        stats['Tendencia (mm/año)'] = mk_result.slope
-                        stats['Significancia (p-valor)'] = mk_result.p
-                    else:
-                        stats['Tendencia (mm/año)'] = np.nan
-                        stats['Significancia (p-valor)'] = np.nan
-                if not station_monthly.empty:
-                    meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-                    monthly_means = \
-                        station_monthly.groupby(station_monthly[Config.DATE_COL].dt.month)[Config.PRECIPITATION_COL].mean()
-                    for i, mes in enumerate(meses, 1):
-                        stats[f'Ppt Media {mes} (mm)'] = monthly_means.get(i, 0)
-                results.append(stats)
-            return pd.DataFrame(results)
-        try:
-            detailed_stats_df = calculate_comprehensive_stats(df_anual_melted,
-                                                              df_monthly_filtered, stations_for_analysis)
-            base_info_df = gdf_filtered[[Config.STATION_NAME_COL, Config.ALTITUDE_COL,
-                                         Config.MUNICIPALITY_COL, Config.REGION_COL]].copy()
-            base_info_df.rename(columns={Config.STATION_NAME_COL: 'Estación'},
-                                inplace=True)
-            final_df = pd.merge(base_info_df.drop_duplicates(subset=['Estación']),
-                                detailed_stats_df, on="Estación", how="right")
-            column_order = ['Estación', 'municipio', 'depto_region', 'alt_est', 'Años con Datos', 'Ppt. Media Anual (mm)', 'Desv. Estándar Anual (mm)', 'Ppt. Máxima Anual (mm)', 'Año Ppt. Máxima', 'Ppt. Mínima Anual (mm)', 'Año Ppt. Mínima', 'Tendencia (mm/año)', 'Significancia (p-valor)', 'Ppt Media Ene (mm)', 'Ppt Media Feb (mm)', 'Ppt Media Mar (mm)', 'Ppt Media Abr (mm)', 'Ppt Media May (mm)', 'Ppt Media Jun (mm)', 'Ppt Media Jul (mm)', 'Ppt Media Ago (mm)', 'Ppt Media Sep (mm)', 'Ppt Media Oct (mm)', 'Ppt Media Nov (mm)', 'Ppt Media Dic (mm)']
-            display_columns = [col for col in column_order if col in final_df.columns]
-            final_df_display = final_df[display_columns]
-            st.dataframe(final_df_display.style.format({'Ppt. Media Anual (mm)': '{:.1f}', 'Desv. Estándar Anual (mm)': '{:.1f}', 'Ppt. Máxima Anual (mm)': '{:.1f}', 'Ppt. Mínima Anual (mm)': '{:.1f}', 'Tendencia (mm/año)': '{:.2f}', 'Significancia (p-valor)': '{:.3f}', 'Ppt Media Ene (mm)': '{:.1f}', 'Ppt Media Feb (mm)': '{:.1f}', 'Ppt Media Mar (mm)': '{:.1f}', 'Ppt Media Abr (mm)': '{:.1f}', 'Ppt Media May (mm)': '{:.1f}', 'Ppt Media Jun (mm)': '{:.1f}', 'Ppt Media Jul (mm)': '{:.1f}', 'Ppt Media Ago (mm)': '{:.1f}', 'Ppt Media Sep (mm)': '{:.1f}', 'Ppt Media Oct (mm)': '{:.1f}', 'Ppt Media Nov (mm)': '{:.1f}', 'Ppt Media Dic (mm)': '{:.1f}'}))
-        except Exception as e:
-            st.error(f"Ocurrió un error al calcular las estadísticas: {e}")
+        with st.spinner("Realizando cálculos, por favor espera..."):
+            try:
+                # La función auxiliar para el cálculo de estadísticas completas debe estar en el visualizador o importada
+                # Asumo que esta función existe en este archivo o en analysis.py
+                @st.cache_data
+                def calculate_comprehensive_stats(_df_anual, _df_monthly, _stations):
+                    """Calcula un conjunto completo de estadísticas para cada estación seleccionada."""
+                    results = []
+                    # Importamos Mann-Kendall localmente si es necesario
+                    from scipy import stats
+                    try:
+                        import pymannkendall as mk
+                    except ImportError:
+                        st.warning("La librería pymannkendall no está disponible para cálculo de tendencias.")
+                        mk = None
+                    
+                    for station in _stations:
+                        stats_dict = {"Estación": station}
+                        station_anual = _df_anual[_df_anual[Config.STATION_NAME_COL] ==
+                                                  station].dropna(subset=[Config.PRECIPITATION_COL])
+                        station_monthly = _df_monthly[_df_monthly[Config.STATION_NAME_COL] ==
+                                                      station].dropna(subset=[Config.PRECIPITATION_COL])
 
-def display_forecast_tab(gdf_filtered, stations_for_analysis, **kwargs):
-    st.header("Pronóstico del Tiempo a 7 Días (Open-Meteo)")
+                        if not station_anual.empty:
+                            stats_dict['Años con Datos'] = int(station_anual[Config.PRECIPITATION_COL].count())
+                            stats_dict['Ppt. Media Anual (mm)'] = station_anual[Config.PRECIPITATION_COL].mean()
+                            stats_dict['Desv. Estándar Anual (mm)'] = station_anual[Config.PRECIPITATION_COL].std()
+                            
+                            max_anual_row = \
+                                station_anual.loc[station_anual[Config.PRECIPITATION_COL].idxmax()]
+                            stats_dict['Ppt. Máxima Anual (mm)'] = max_anual_row[Config.PRECIPITATION_COL]
+                            stats_dict['Año Ppt. Máxima'] = int(max_anual_row[Config.YEAR_COL])
 
-    if not stations_for_analysis:
-        st.warning("Seleccione al menos una estación para ver el pronóstico.")
-        return
+                            min_anual_row = \
+                                station_anual.loc[station_anual[Config.PRECIPITATION_COL].idxmin()]
+                            stats_dict['Ppt. Mínima Anual (mm)'] = min_anual_row[Config.PRECIPITATION_COL]
+                            stats_dict['Año Ppt. Mínima'] = int(min_anual_row[Config.YEAR_COL])
 
-    station_to_forecast = st.selectbox(
-        "Seleccione una estación para obtener su pronóstico:",
-        options=sorted(stations_for_analysis),
-        key="forecast_station_select"
-    )
+                            if len(station_anual) >= 4 and mk is not None:
+                                mk_result = mk.original_test(station_anual[Config.PRECIPITATION_COL])
+                                stats_dict['Tendencia (mm/año)'] = mk_result.slope
+                                stats_dict['Significancia (p-valor)'] = mk_result.p
+                            else:
+                                stats_dict['Tendencia (mm/año)'] = np.nan
+                                stats_dict['Significancia (p-valor)'] = np.nan
 
-    if station_to_forecast:
-        station_info = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL] ==
-                                    station_to_forecast].iloc[0]
-        lat = station_info.geometry.y
-        lon = station_info.geometry.x
+                        if not station_monthly.empty:
+                            meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                            monthly_means = \
+                                station_monthly.groupby(station_monthly[Config.DATE_COL].dt.month)[Config.PRECIPITATION_COL].mean()
+                            for i, mes in enumerate(meses, 1):
+                                stats_dict[f'Ppt Media {mes} (mm)'] = monthly_means.get(i, 0)
+                        
+                        results.append(stats_dict)
+                    
+                    return pd.DataFrame(results)
 
-        st.info(f"Obteniendo pronóstico para **{station_to_forecast}** (Lat: {lat:.4f}, Lon: {lon:.4f})")
 
-        forecast_df = get_weather_forecast(lat, lon)
+                detailed_stats_df = calculate_comprehensive_stats(df_anual_melted,
+                                                                  df_monthly_filtered, stations_for_analysis)
+                
+                base_info_df = gdf_filtered[[Config.STATION_NAME_COL, Config.ALTITUDE_COL,
+                                             Config.MUNICIPALITY_COL, Config.REGION_COL]].copy()
+                base_info_df.rename(columns={Config.STATION_NAME_COL: 'Estación'},
+                                    inplace=True)
 
-        if forecast_df is not None and not forecast_df.empty:
-            # 1. Correct the dates
-            start_date = pd.to_datetime(forecast_df['date'].iloc[0])
-            correct_dates = pd.date_range(start=start_date, periods=len(forecast_df))
-            forecast_df['date'] = correct_dates
+                # Corregir el merge: Usar 'Estación' como columna de unión
+                final_df = pd.merge(base_info_df.drop_duplicates(subset=['Estación']),
+                                    detailed_stats_df, on="Estación", how="right")
 
-            # 2. Reshape all data into a single 'long-form' DataFrame for plotting
-            plot_df = forecast_df.melt(
-                id_vars=['date'],
-                value_vars=['precip_sum (mm)', 'temp_max (°C)', 'temp_min (°C)'],
-                var_name='Variable',
-                value_name='Valor'
-            )
+                # Asegurar que las columnas de Config coincidan con los nombres reales antes de ordenar
+                column_order = [
+                    'Estación', Config.MUNICIPALITY_COL, Config.REGION_COL, Config.ALTITUDE_COL,
+                    'Años con Datos', 'Ppt. Media Anual (mm)', 'Desv. Estándar Anual (mm)', 
+                    'Ppt. Máxima Anual (mm)', 'Año Ppt. Máxima', 'Ppt. Mínima Anual (mm)', 
+                    'Año Ppt. Mínima', 'Tendencia (mm/año)', 'Significancia (p-valor)', 
+                    'Ppt Media Ene (mm)', 'Ppt Media Feb (mm)', 'Ppt Media Mar (mm)', 
+                    'Ppt Media Abr (mm)', 'Ppt Media May (mm)', 'Ppt Media Jun (mm)', 
+                    'Ppt Media Jul (mm)', 'Ppt Media Ago (mm)', 'Ppt Media Sep (mm)', 
+                    'Ppt Media Oct (mm)', 'Ppt Media Nov (mm)', 'Ppt Media Dic (mm)'
+                ]
+                
+                # Filtrar solo las columnas que existen en final_df
+                display_columns = [col for col in column_order if col in final_df.columns]
+                final_df_display = final_df[display_columns]
+                
+                # Formateo de los datos para la visualización
+                format_dict = {
+                    'Ppt. Media Anual (mm)': '{:.1f}', 'Desv. Estándar Anual (mm)': '{:.1f}', 
+                    'Ppt. Máxima Anual (mm)': '{:.1f}', 'Ppt. Mínima Anual (mm)': '{:.1f}', 
+                    'Tendencia (mm/año)': '{:.2f}', 'Significancia (p-valor)': '{:.3f}', 
+                    'Ppt Media Ene (mm)': '{:.1f}', 'Ppt Media Feb (mm)': '{:.1f}', 
+                    'Ppt Media Mar (mm)': '{:.1f}', 'Ppt Media Abr (mm)': '{:.1f}', 
+                    'Ppt Media May (mm)': '{:.1f}', 'Ppt Media Jun (mm)': '{:.1f}', 
+                    'Ppt Media Jul (mm)': '{:.1f}', 'Ppt Media Ago (mm)': '{:.1f}', 
+                    'Ppt Media Sep (mm)': '{:.1f}', 'Ppt Media Oct (mm)': '{:.1f}', 
+                    'Ppt Media Nov (mm)': '{:.1f}', 'Ppt Media Dic (mm)': '{:.1f}'
+                }
 
-            # 3. Create the base chart
-            base = alt.Chart(plot_df).encode(
-                x=alt.X('date:T', title='Fecha', axis=alt.Axis(format='%Y-%m-%d'))
-            )
+                st.dataframe(final_df_display.style.format({k: v for k, v in format_dict.items() if k in final_df_display.columns}))
 
-            # 4. Create the precipitation bars layer by filtering the data
-            bar_chart = base.mark_bar(opacity=0.7).encode(
-                y=alt.Y('Valor:Q', title='Precipitación (mm)'),
-                color=alt.Color('Variable:N',
-                                legend=alt.Legend(title="Variables"),
-                                scale=alt.Scale(
-                                    domain=['precip_sum (mm)', 'temp_max (°C)', 'temp_min (°C)'],
-                                    range=['#1f77b4', 'red', 'orange']  # Blue, Red, Orange
-                                )),
-                tooltip=[alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
-                         alt.Tooltip('Valor:Q', title='Precipitación', format='.1f')]
-            ).transform_filter(
-                alt.datum.Variable == 'precip_sum (mm)'
-            )
-
-            # 5. Create the temperature lines layer by filtering the data
-            line_chart = base.mark_line(point=True).encode(
-                y=alt.Y('Valor:Q', title='Temperatura (°C)'),
-                color=alt.Color('Variable:N'),  # The legend is already defined in the bar chart
-                tooltip=[alt.Tooltip('date:T', title='Fecha', format='%Y-%m-%d'),
-                         alt.Tooltip('Valor:Q', title='Temperatura', format='.1f')]
-            ).transform_filter(
-                alt.datum.Variable != 'precip_sum (mm)'
-            )
-
-            # 6. Layer the two charts together
-            final_chart = alt.layer(bar_chart, line_chart).resolve_scale(
-                y='independent'
-            ).properties(
-                title=f'Pronóstico para {station_to_forecast}'
-            )
-
-            st.altair_chart(final_chart, use_container_width=True)
-
-            # Display the original, unmodified forecast data in the table
-            with st.expander("Ver datos del pronóstico en tabla"):
-                st.dataframe(forecast_df.style.format({
-                    "date": lambda t: t.strftime('%Y-%m-%d'),
-                    "temp_max (°C)": "{:.1f}",
-                    "temp_min (°C)": "{:.1f}",
-                    "precip_sum (mm)": "{:.1f}"
-                }))
+            except Exception as e:
+                st.error(f"Ocurrió un error al calcular las estadísticas: {e}")
