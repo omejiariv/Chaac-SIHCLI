@@ -9,6 +9,8 @@ from scipy.stats import gamma, norm
 from modules.config import Config
 import rasterio
 from rasterstats import zonal_stats
+import pymannkendall as mk
+
 
 @st.cache_data
 def calculate_spi(series, window):
@@ -381,3 +383,46 @@ def calculate_hypsometric_curve(basin_gdf, dem_path):
 
     except Exception as e:
         return {"error": f"Error al calcular la curva hipsométrica: {e}"}
+
+def calculate_all_station_trends(df_anual, gdf_stations):
+    """
+    Calcula la tendencia de Mann-Kendall y la Pendiente de Sen para todas las
+    estaciones con datos suficientes.
+
+    Args:
+        df_anual (DataFrame): DataFrame con la precipitación anual por estación y año.
+        gdf_stations (GeoDataFrame): GeoDataFrame con la información de las estaciones.
+
+    Returns:
+        GeoDataFrame: Un GeoDataFrame con las estaciones que tienen una tendencia calculada,
+                      incluyendo las columnas 'slope_sen' y 'p_value'.
+    """
+    trend_results = []
+    stations_with_data = df_anual[Config.STATION_NAME_COL].unique()
+
+    for station in stations_with_data:
+        station_data = df_anual[df_anual[Config.STATION_NAME_COL] == station].dropna(subset=[Config.PRECIPITATION_COL])
+        if len(station_data) >= 10: # Usamos un mínimo de 10 años para una tendencia robusta
+            try:
+                mk_result = mk.original_test(station_data[Config.PRECIPITATION_COL])
+                trend_results.append({
+                    Config.STATION_NAME_COL: station,
+                    'slope_sen': mk_result.slope,
+                    'p_value': mk_result.p
+                })
+            except Exception:
+                continue # Ignorar estaciones donde la prueba falle
+
+    if not trend_results:
+        return gpd.GeoDataFrame()
+
+    df_trends = pd.DataFrame(trend_results)
+    
+    # Unir los resultados de tendencias con la información geoespacial de las estaciones
+    gdf_trends = pd.merge(
+        gdf_stations,
+        df_trends,
+        on=Config.STATION_NAME_COL
+    )
+    
+    return gpd.GeoDataFrame(gdf_trends)
