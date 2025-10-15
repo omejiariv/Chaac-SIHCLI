@@ -2415,7 +2415,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
                         
 
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
-                           analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+                             analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
 
     st.header("Análisis de Anomalías de Precipitación")
 
@@ -2443,6 +2443,7 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
     )
 
     df_anomalias = pd.DataFrame()
+    avg_col_name = ""
 
     if analysis_type == "Una Normal Climatológica (período base fijo)":
         years_in_long = sorted(df_long[Config.YEAR_COL].unique())
@@ -2462,15 +2463,15 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
             return
 
         with st.spinner(f"Calculando anomalías vs. normal climatológica ({baseline_start}-{baseline_end})..."):
+            from modules.analysis import calculate_climatological_anomalies # Asume importación
             df_anomalias = calculate_climatological_anomalies(df_monthly_filtered, df_long,
-                                                              baseline_start, baseline_end)
-
+                                                             baseline_start, baseline_end)
         avg_col_name = 'precip_promedio_climatologico'
 
     else:
         with st.spinner("Calculando anomalías vs. promedio de todo el período..."):
+            from modules.analysis import calculate_monthly_anomalies # Asume importación
             df_anomalias = calculate_monthly_anomalies(df_monthly_filtered, df_long)
-
         avg_col_name = 'precip_promedio_mes'
 
     if df_anomalias.empty or df_anomalias['anomalia'].isnull().all():
@@ -2481,7 +2482,9 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
                                                                "Anomalías por Fase ENSO", "Tabla de Eventos Extremos"])
 
     with anom_graf_tab:
-        df_plot = df_anomalias.groupby(Config.DATE_COL).agg(anomalia=('anomalia', 'mean')).reset_index()
+        df_plot = df_anomalias.groupby(Config.DATE_COL).agg(anomalia=('anomalia',
+                                                                        'mean')).reset_index()
+        from .visualizer import create_anomaly_chart # Asume importación local de la función
         fig = create_anomaly_chart(df_plot)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -2491,24 +2494,19 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
 
             conditions = [df_anomalias_enso[Config.ENSO_ONI_COL] >= 0.5,
                           df_anomalias_enso[Config.ENSO_ONI_COL] <= -0.5]
-
             phases = ['El Niño', 'La Niña']
-
             df_anomalias_enso['enso_fase'] = np.select(conditions, phases, default='Neutral')
 
             fig_box = px.box(df_anomalias_enso, x='enso_fase', y='anomalia',
                              color='enso_fase', title="Distribución de Anomalías de Precipitación por Fase ENSO",
                              labels={'anomalia': 'Anomalía de Precipitación (mm)', 'enso_fase': 'Fase ENSO'},
                              points='all')
-
             st.plotly_chart(fig_box, use_container_width=True)
-
         else:
             st.warning(f"La columna '{Config.ENSO_ONI_COL}' no está disponible para este análisis.")
 
     with anom_extremos_tab:
         st.subheader("Eventos Mensuales Extremos (Basado en Anomalías)")
-
         df_extremos = df_anomalias.dropna(subset=['anomalia']).copy()
         df_extremos['fecha'] = df_extremos[Config.DATE_COL].dt.strftime('%Y-%m')
 
@@ -2531,7 +2529,6 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
             }
 
         col1, col2 = st.columns(2)
-
         with col1:
             st.markdown("##### 10 Meses más Secos")
             secos = df_extremos.nsmallest(10, 'anomalia')[cols_to_show]
@@ -2545,8 +2542,8 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
                          use_container_width=True)
 
 def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
-                       stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios,
-                       selected_altitudes, **kwargs):
+                         stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios,
+                         selected_altitudes, **kwargs):
 
     st.header("Estadísticas de Precipitación")
 
@@ -2569,7 +2566,6 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
     with matriz_tab:
         st.subheader("Matriz de Disponibilidad de Datos Anual")
-
         heatmap_df = pd.DataFrame()
         title_text = ""
         color_scale = "Greens"
@@ -2584,8 +2580,8 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
             if view_mode == "Porcentaje de Datos Completados":
                 df_counts = df_monthly_filtered[df_monthly_filtered[Config.ORIGIN_COL] ==
-                                                 'Completado'].groupby([Config.STATION_NAME_COL,
-                                                                        Config.YEAR_COL]).size().reset_index(name='count')
+                                                'Completado'].groupby([Config.STATION_NAME_COL,
+                                                                      Config.YEAR_COL]).size().reset_index(name='count')
                 df_counts['porc_value'] = (df_counts['count'] / 12) * 100
                 heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL,
                                              columns=Config.YEAR_COL, values='porc_value').fillna(0)
@@ -2594,7 +2590,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
             elif view_mode == "Porcentaje de Datos Totales":
                 df_counts = df_monthly_filtered.groupby([Config.STATION_NAME_COL,
-                                                         Config.YEAR_COL]).size().reset_index(name='count')
+                                                        Config.YEAR_COL]).size().reset_index(name='count')
                 df_counts['porc_value'] = (df_counts['count'] / 12) * 100
                 heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL,
                                              columns=Config.YEAR_COL, values='porc_value').fillna(0)
@@ -2606,7 +2602,6 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
                     df_long[(df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
                             (df_long[Config.DATE_COL].dt.year >= st.session_state.year_range[0]) &
                             (df_long[Config.DATE_COL].dt.year <= st.session_state.year_range[1])]
-
                 df_counts = df_original_filtered.groupby([Config.STATION_NAME_COL,
                                                          Config.YEAR_COL]).size().reset_index(name='count')
                 df_counts['porc_value'] = (df_counts['count'] / 12) * 100
@@ -2616,7 +2611,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
         else:  # Modo de datos originales
             df_counts = df_monthly_filtered.groupby([Config.STATION_NAME_COL,
-                                                     Config.YEAR_COL]).size().reset_index(name='count')
+                                                    Config.YEAR_COL]).size().reset_index(name='count')
             df_counts['porc_value'] = (df_counts['count'] / 12) * 100
             heatmap_df = df_counts.pivot(index=Config.STATION_NAME_COL,
                                          columns=Config.YEAR_COL, values='porc_value').fillna(0)
@@ -2637,7 +2632,6 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
             summary_data = []
             for station_name, group in \
                     df_monthly_filtered.groupby(Config.STATION_NAME_COL):
-
                 if not group[Config.PRECIPITATION_COL].dropna().empty:
                     max_row = group.loc[group[Config.PRECIPITATION_COL].idxmax()]
                     min_row = group.loc[group[Config.PRECIPITATION_COL].idxmin()]
@@ -2653,20 +2647,18 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
             if summary_data:
                 summary_df = pd.DataFrame(summary_data)
                 st.dataframe(summary_df.round(1), use_container_width=True)
-
             else:
                 st.info("No hay datos suficientes para calcular el resumen mensual.")
+
         else:
             st.info("No hay datos para mostrar el resumen mensual.")
 
     with series_tab:
         st.subheader("Series de Precipitación Anual por Estación (mm)")
-
         if not df_anual_melted.empty:
             ppt_series_df = df_anual_melted.pivot_table(index=Config.STATION_NAME_COL,
                                                         columns=Config.YEAR_COL, values=Config.PRECIPITATION_COL)
             st.dataframe(ppt_series_df.style.format("{:.0f}", na_rep="-").background_gradient(cmap='viridis', axis=1))
-
         else:
             st.info("No hay datos anuales para mostrar en la tabla.")
 
@@ -2680,12 +2672,12 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
             if not df_anual_valid.empty and not df_monthly_valid.empty and not \
                gdf_filtered.empty:
-
                 # --- A. EXTREMOS DE PRECIPITACIÓN
                 max_monthly_row = \
                     df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmax()]
                 min_monthly_row = \
                     df_monthly_valid.loc[df_monthly_valid[Config.PRECIPITATION_COL].idxmin()]
+
                 max_annual_row = \
                     df_anual_valid.loc[df_anual_valid[Config.PRECIPITATION_COL].idxmax()]
                 min_annual_row = \
@@ -2694,7 +2686,6 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
                 # B. PROMEDIOS REGIONALES/CLIMATOLÓGICOS ---
                 df_yearly_avg = \
                     df_anual_valid.groupby(Config.YEAR_COL)[Config.PRECIPITATION_COL].mean().reset_index()
-
                 year_max_avg = \
                     df_yearly_avg.loc[df_yearly_avg[Config.PRECIPITATION_COL].idxmax()]
                 year_min_avg = \
@@ -2710,6 +2701,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
                 #--- C. EXTREMOS DE ALTITUD ---
                 df_stations_valid = gdf_filtered.dropna(subset=[Config.ALTITUDE_COL])
+
                 station_max_alt = None
                 station_min_alt = None
 
@@ -2725,6 +2717,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
                 # --- D. CÁLCULO DE TENDENCIAS (SEN'S SLOPE)
                 trend_results = []
+                from modules.analysis import mk # Asume importación de pymannkendall
                 for station in stations_for_analysis:
                     station_data = df_anual_valid[df_anual_valid[Config.STATION_NAME_COL] ==
                                                   station].copy()
@@ -2744,7 +2737,6 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
 
                     if not df_pos_trends.empty: max_pos_trend_row = \
                         df_pos_trends.loc[df_pos_trends['slope_sen'].idxmax()]
-
                     if not df_neg_trends.empty: min_neg_trend_row = \
                         df_neg_trends.loc[df_neg_trends['slope_sen'].idxmin()]
 
@@ -2752,66 +2744,52 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
                              'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
 
                 # DISPLAY DE RESULTADOS
-
                 st.markdown("#### 1. Extremos de Precipitación")
                 col1, col2, col3, col4 = st.columns(4)
-
                 with col1: st.metric("Máxima Ppt. Anual",
                                      f"{max_annual_row[Config.PRECIPITATION_COL]:.0f} mm",
                                      f"{max_annual_row[Config.STATION_NAME_COL]} ({int(max_annual_row[Config.YEAR_COL])})")
-
                 with col2: st.metric("Mínima Ppt. Anual",
                                      f"{min_annual_row[Config.PRECIPITATION_COL]:.0f} mm",
                                      f"{min_annual_row[Config.STATION_NAME_COL]} ({int(min_annual_row[Config.YEAR_COL])})")
-
                 with col3: st.metric("Máxima Ppt. Mensual",
                                      f"{max_monthly_row[Config.PRECIPITATION_COL]:.0f} mm",
                                      f"{max_monthly_row[Config.STATION_NAME_COL]} ({meses_map.get(max_monthly_row[Config.MONTH_COL])} {max_monthly_row[Config.DATE_COL].year})")
-
                 with col4: st.metric("Mínima Ppt. Mensual",
                                      f"{min_monthly_row[Config.PRECIPITATION_COL]:.0f} mm",
                                      f"{min_monthly_row[Config.STATION_NAME_COL]} ({meses_map.get(min_monthly_row[Config.MONTH_COL])} {min_monthly_row[Config.DATE_COL].year})")
 
                 st.markdown("#### 2. Promedios Históricos y Climatológicos")
                 col5, col6, col7 = st.columns(3)
-
                 with col5: st.metric("Año más Lluvioso (Promedio Regional)",
                                      f"{year_max_avg[Config.PRECIPITATION_COL]:.0f} mm", f"Año: {int(year_max_avg[Config.YEAR_COL])}")
-
                 with col6: st.metric("Año menos Lluvioso (Promedio Regional)",
                                      f"{year_min_avg[Config.PRECIPITATION_COL]:.0f} mm", f"Año: {int(year_min_avg[Config.YEAR_COL])}")
-
                 with col7: st.metric("Mes Climatológico más Lluvioso",
                                      f"{df_monthly_avg.loc[df_monthly_avg[Config.MONTH_COL] == month_max_avg, Config.PRECIPITATION_COL].iloc[0]:.0f} mm", f"{meses_map.get(month_max_avg)} (Min: {meses_map.get(month_min_avg)})")
 
                 st.markdown("#### 3. Geografía y Tendencias")
                 col8, col9, col10, col11 = st.columns(4)
-
                 with col8:
                     if station_max_alt is not None: st.metric("Estación a Mayor Altitud",
                                                               f"{float(station_max_alt[Config.ALTITUDE_COL]):.0f} m",
                                                               f"{station_max_alt[Config.STATION_NAME_COL]}")
                     else: st.info("No hay datos de altitud.")
-
                 with col9:
                     if station_min_alt is not None: st.metric("Estación a Menor Altitud",
                                                               f"{float(station_min_alt[Config.ALTITUDE_COL]):.0f} m",
                                                               f"{station_min_alt[Config.STATION_NAME_COL]}")
                     else: st.info("No hay datos de altitud.")
-
                 with col10:
                     if max_pos_trend_row is not None: st.metric("Mayor Tendencia Positiva",
                                                                 f"+{max_pos_trend_row['slope_sen']:.2f} mm/año",
                                                                 f"{max_pos_trend_row[Config.STATION_NAME_COL]} (p={max_pos_trend_row['p_value']:.3f})")
                     else: st.info("No hay tendencias positivas.")
-
                 with col11:
                     if min_neg_trend_row is not None: st.metric("Mayor Tendencia Negativa",
                                                                 f"{min_neg_trend_row['slope_sen']:.2f} mm/año",
                                                                 f"{min_neg_trend_row[Config.STATION_NAME_COL]} (p={min_neg_trend_row['p_value']:.3f})")
-                    else:
-                        st.info("No hay tendencias negativas.")
-
+                    else: st.info("No hay tendencias negativas.")
             else:
                 st.info("No hay datos anuales, mensuales o geográficos válidos para mostrar la síntesis.")
         else:
