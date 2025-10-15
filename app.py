@@ -81,7 +81,7 @@ def main():
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; } button[data-baseweb="tab"] {font-size:16px;font-weight:bold;color:#333;}</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
 
-    # --- Definición de Pestañas ---
+    # --- Definición de Pestañas (se crea la estructura visual) ---
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
@@ -89,7 +89,7 @@ def main():
         "Descargas", "Análisis por Cuenca", "Comparación de Periodos",
         "Tabla de Estaciones", "Generar Reporte"
     ]
-    tabs = st.tabs(tab_names)    
+    tabs = st.tabs(tab_names)
 
     # --- Panel de Control (Sidebar) ---
     st.sidebar.header("Panel de Control")
@@ -100,10 +100,10 @@ def main():
             uploaded_file_precip = st.file_uploader("2. Archivo de precipitación (CSV)", type="csv")
             uploaded_zip_shapefile = st.file_uploader("3. Shapefile de municipios (.zip)", type="zip")
             if st.button("Procesar Datos Manuales"):
-                if all([uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile]):
+                if all([uploaded_file_mapa, uploaded_file_precip]): # Shapefile es opcional
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 else:
-                    st.warning("Por favor, suba los tres archivos requeridos.")
+                    st.warning("Por favor, suba al menos los archivos de estaciones y precipitación.")
         else:
             st.info(f"Datos desde: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
             if st.button("Cargar Datos desde GitHub"):
@@ -113,15 +113,20 @@ def main():
                         'precip': load_csv_from_url(Config.URL_PRECIPITACION_CSV),
                         'shape': load_zip_from_url(Config.URL_SHAPEFILE_ZIP)
                     }
-                    if all(github_files.values()):
+                    if github_files['mapa'] is not None and github_files['precip'] is not None:
                         process_and_store_data(github_files['mapa'], github_files['precip'], github_files['shape'])
                     else:
                         st.error("No se pudieron descargar los archivos desde GitHub.")
 
+    # --- LÓGICA DE CONTROL DE FLUJO ---
     if not st.session_state.get('data_loaded', False):
-        display_welcome_tab()
-        st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
-        st.stop()
+        with tabs[0]:
+            display_welcome_tab()
+        for i, tab in enumerate(tabs):
+            if i > 0:
+                with tab:
+                    st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
+        st.stop() # Detiene la ejecución aquí si no hay datos
 
     st.sidebar.success("Datos cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar"):
@@ -178,16 +183,14 @@ def main():
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
 
-
-    
     stations_for_analysis = selected_stations
     if not stations_for_analysis:
         with tabs[0]:
             display_welcome_tab()
-        st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
-        for tab in tabs[1:]:
-            with tab:
-                st.info("Seleccione al menos una estación para ver el contenido.")
+        for i, tab in enumerate(tabs):
+            if i > 0:
+                with tab:
+                    st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
         st.stop()
 
     # --- Procesamiento de Datos Post-Filtros ---
@@ -198,10 +201,10 @@ def main():
         (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
     ].copy()
 
-    if st.session_state.analysis_mode == "Completar series (interpolación)":
+    if st.session_state.get('analysis_mode') == "Completar series (interpolación)":
         bar = st.progress(0, text="Iniciando interpolación...")
         df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
-        st.empty()
+        bar.empty()
     
     if st.session_state.get('exclude_na', False):
         df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
@@ -218,11 +221,11 @@ def main():
     display_args = {
         "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
         "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
-        "analysis_mode": st.session_state.analysis_mode, "selected_regions": selected_regions,
+        "analysis_mode": st.session_state.get('analysis_mode'), "selected_regions": selected_regions,
         "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
     }
 
-    # --- Renderizado de Pestañas ---
+    #--- Renderizado de Pestañas ---
     with tabs[0]:
         display_welcome_tab()
     with tabs[1]:
