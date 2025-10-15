@@ -270,25 +270,26 @@ def main():
     }
 
     # --- Renderizado de Pestañas ---
-    with tabs[0]: display_welcome_tab()
-    with tabs[1]: display_spatial_distribution_tab(**display_args)
-    with tabs[2]: display_graphs_tab(**display_args)
-    with tabs[3]: display_advanced_maps_tab(**display_args)
-    with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[5]: display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[7]: display_correlation_tab(**display_args)
-    with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-    with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    # with tabs[10]: display_forecast_tab(**display_args)
-    with tabs[10]: display_downloads_tab(
-        df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
-        stations_for_analysis=stations_for_analysis,
-        analysis_mode=st.session_state.analysis_mode
-    )
+with tabs[0]: display_welcome_tab()
+with tabs[1]: display_spatial_distribution_tab(**display_args)
+with tabs[2]: display_graphs_tab(**display_args)
+with tabs[3]: display_advanced_maps_tab(**display_args)
+with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
+with tabs[5]: display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
+with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
+with tabs[7]: display_correlation_tab(**display_args)
+with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
 
-    # --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA ---
-    with tabs[11]:
+# La pestaña 10 (Pronóstico del Tiempo) está comentada
+# El índice 10 ahora corresponde a Descargas
+with tabs[10]: display_downloads_tab(
+    df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
+    stations_for_analysis=stations_for_analysis,
+    analysis_mode=st.session_state.analysis_mode
+)
+# El índice 11 ahora corresponde a Análisis por Cuenca
+with tabs[11]:
         st.header("Análisis Agregado por Cuenca Hidrográfica")
         if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
             BASIN_NAME_COLUMN = 'SUBC_LBL'
