@@ -326,3 +326,58 @@ def calculate_morphometry(basin_gdf, dem_path):
         "alt_prom_m": stats.get('alt_prom'),
         "error": stats.get('error_dem')
     }
+
+def calculate_hypsometric_curve(basin_gdf, dem_path):
+    """
+    Calcula los datos para la curva hipsométrica de una cuenca.
+
+    Extrae todos los valores de elevación del DEM dentro de la geometría de la cuenca
+    y calcula el área acumulada por encima de cada nivel de elevación.
+
+    Args:
+        basin_gdf (GeoDataFrame): GeoDataFrame con la geometría de la cuenca.
+        dem_path (str): Ruta al archivo del Modelo de Elevación Digital (DEM).
+
+    Returns:
+        dict: Un diccionario con 'elevations' y 'cumulative_area_percent',
+              o un error si el cálculo falla.
+    """
+    try:
+        with rasterio.open(dem_path) as src:
+            dem_crs = src.crs
+            # Reproyectar la cuenca al CRS del DEM
+            basin_reprojected = basin_gdf.to_crs(dem_crs)
+            
+            # Usar rasterstats para extraer TODOS los valores de píxeles, no solo estadísticas
+            # El argumento 'raster_out=True' devuelve un array de numpy enmascarado
+            zonal_result = zonal_stats(
+                basin_reprojected,
+                dem_path,
+                stats="count",
+                raster_out=True,
+                nodata=src.nodata
+            )
+            
+            # Extraer los valores de elevación válidos del array enmascarado
+            elevations = zonal_result[0]['mini_raster_array'].compressed()
+            
+            if elevations.size == 0:
+                return {"error": "No se encontraron valores de elevación en la cuenca."}
+
+        # Ordenar las elevaciones de menor a mayor
+        elevations_sorted = np.sort(elevations)
+        total_pixels = len(elevations_sorted)
+        
+        # Calcular el porcentaje de área acumulada que está POR ENCIMA de una elevación dada
+        # (1 - [posición / total]) * 100
+        cumulative_area_percent = (1 - np.arange(total_pixels) / total_pixels) * 100
+
+        # Para el gráfico, necesitamos las elevaciones en el eje Y y el área en el eje X
+        # Devolvemos las elevaciones ordenadas y el área acumulada correspondiente
+        return {
+            "elevations": elevations_sorted,
+            "cumulative_area_percent": cumulative_area_percent
+        }
+
+    except Exception as e:
+        return {"error": f"Error al calcular la curva hipsométrica: {e}"}
