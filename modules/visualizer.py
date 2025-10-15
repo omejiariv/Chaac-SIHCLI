@@ -1332,7 +1332,7 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
 
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
-                               df_monthly_filtered, analysis_mode, selected_regions,
+                               Rdf_monthly_filtered, analysis_mode, selected_regions,
                                selected_municipios,
                                selected_altitudes, **kwargs):
 
