@@ -31,7 +31,7 @@ from rasterio.mask import mask
 from scipy.interpolate import griddata
 import gstools as gs
 import pyproj
-
+from rasterio.warp import reproject, Resampling
 
 # --- Importaciones de Módulos Propios
 from modules.analysis import calculate_morphometry
@@ -1150,17 +1150,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
                             run_balance = st.toggle("Calcular Balance Hídrico", value=True)
 
-                            show_dem_background = st.toggle("Visualizar DEM de fondo", value=False)
-                            
-                            st.markdown("---")
-                            st.markdown("##### Modelo de Elevación (Opcional)")
-                            dem_file = st.file_uploader("Sube tu archivo DEM (.tif)", type=["tif", "tiff"], key="dem_uploader")
+                        show_dem_background = st.toggle("Visualizar DEM de fondo", value=False)
+                        dem_file = st.file_uploader("Sube tu archivo DEM (.tif)", type=["tif", "tiff"], key="dem_uploader")
 
-                            if st.button(f"Generar Mapa para Cuenca(s) Seleccionada(s)", disabled=not selected_basins):
-                                fig_basin, mean_precip, error_msg = None, None, None
-                                unified_basin_gdf = None
-                                try:
-                                    with st.spinner("Preparando datos y realizando interpolación..."):
+                        if st.button(f"Generar Mapa...", disabled=not selected_basins):
+                            try:
+                                with st.spinner("Preparando datos y realizando interpolación..."):
                                         target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
                                         merged_basin_geom = target_basins_gdf.unary_union
                                         unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
@@ -1213,46 +1208,59 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             with memfile.open() as dataset:
                                                 masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
                                         masked_data = masked_data[0]
-                                        mean_precip = np.nanmean(masked_data)
+                                    mean_precip = np.nanmean(masked_data)
 
-                                        map_traces = [] # Lista para almacenar las capas del mapa
+                                    # --- LÓGICA DE VISUALIZACIÓN CORREGIDA ---
+                                    map_traces = []
                                     
-                                        if show_dem_background and dem_file is not None:
-                                            dem_path = os.path.join(os.getcwd(), dem_file.name)
-                                            with open(dem_path, "wb") as f:
-                                                f.write(dem_file.getbuffer())
-                                            
-                                            with rasterio.open(dem_path) as dem_src:
-                                                dem_data = dem_src.read(1)
-                                                dem_bounds = dem_src.bounds
-                                                dem_crs = dem_src.crs
-                                                
-                                                dem_lon = np.linspace(dem_bounds.left, dem_bounds.right, dem_data.shape[1])
-                                                dem_lat = np.linspace(dem_bounds.bottom, dem_bounds.top, dem_data.shape[0])
-                                                
-                                                lons_proj, lats_proj = pyproj.transform(pyproj.Proj(dem_crs), pyproj.Proj("EPSG:3116"), dem_lon, dem_lat)
-                                                
-                                                dem_trace = go.Heatmap(
-                                                    z=dem_data, x=lons_proj, y=lats_proj,
-                                                    colorscale='gray', showscale=False, name='Elevación'
-                                                )
-                                                map_traces.append(dem_trace)
-                                            os.remove(dem_path)
+                                    if show_dem_background and dem_file is not None:
+                                        dem_path = os.path.join(os.getcwd(), dem_file.name)
+                                        with open(dem_path, "wb") as f: f.write(dem_file.getbuffer())
 
-                                        precip_trace = go.Contour(
-                                            z=masked_data,
-                                            x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
-                                            y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
-                                            colorscale='viridis',
-                                            contours=dict(coloring='heatmap', showlabels=True, showlines=True, labelfont=dict(size=10, color='white')),
-                                            line_color='black', line_width=0.5,
-                                            colorbar=dict(title='Precipitación (mm)'),
-                                            opacity=0.7 if show_dem_background and dem_file is not None else 1.0,
-                                            name='Precipitación'
-                                        )
-                                        map_traces.append(precip_trace)
-                                        
-                                        fig_basin = go.Figure(data=map_traces)
+                                        with rasterio.open(dem_path) as dem_src:
+                                            # Define la grilla de destino (la misma que la de precipitación)
+                                            dst_crs = 'EPSG:3116'
+                                            dst_transform = masked_transform
+                                            dst_height = masked_data.shape[0]
+                                            dst_width = masked_data.shape[1]
+
+                                            # Prepara un array vacío para el DEM reproyectado
+                                            dem_reprojected = np.empty((dst_height, dst_width), dtype=np.float32)
+
+                                            # Reproyecta el DEM a la grilla de destino
+                                            reproject(
+                                                source=rasterio.band(dem_src, 1),
+                                                destination=dem_reprojected,
+                                                src_transform=dem_src.transform,
+                                                src_crs=dem_src.crs,
+                                                dst_transform=dst_transform,
+                                                dst_crs=dst_crs,
+                                                resampling=Resampling.bilinear
+                                            )
+                                            
+                                            dem_trace = go.Heatmap(
+                                                z=dem_reprojected,
+                                                x=np.arange(dst_transform[2], dst_transform[2] + dst_width * dst_transform[0], dst_transform[0]),
+                                                y=np.arange(dst_transform[5], dst_transform[5] + dst_height * dst_transform[4], dst_transform[4]),
+                                                colorscale='gray', showscale=False, name='Elevación'
+                                            )
+                                            map_traces.append(dem_trace)
+                                        os.remove(dem_path)
+
+                                    precip_trace = go.Contour(
+                                        z=masked_data,
+                                        x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
+                                        y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
+                                        colorscale='viridis',
+                                        contours=dict(coloring='heatmap', showlabels=True, showlines=True, labelfont=dict(size=10, color='white')),
+                                        line_color='black', line_width=0.5,
+                                        colorbar=dict(title='Precipitación (mm)'),
+                                        opacity=0.7 if show_dem_background and dem_file is not None else 1.0,
+                                        name='Precipitación'
+                                    )
+                                    map_traces.append(precip_trace)
+                                    
+                                    fig_basin = go.Figure(data=map_traces)
                                         
                                         points_data['hover_text'] = points_data.apply(
                                             lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
