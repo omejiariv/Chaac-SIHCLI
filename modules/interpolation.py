@@ -192,8 +192,8 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
     metrics = _perform_loocv(method, lons, lats, vals, elevs)
     rmse = metrics.get('RMSE')
 
-    grid_lon = np.linspace(gdf_bounds[0] - 0.1, gdf_bounds[2] + 0.1, 100)
-    grid_lat = np.linspace(gdf_bounds[1] - 0.1, gdf_bounds[3] + 0.1, 100)
+    grid_lon = np.linspace(gdf_bounds[0] - 0.1, gdf_bounds[2] + 0.1, 200)
+    grid_lat = np.linspace(gdf_bounds[1] - 0.1, gdf_bounds[3] + 0.1, 200)
     z_grid, fig_variogram, error_message = None, None, None
 
     try:
