@@ -1577,7 +1577,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 st.warning("Los datos de cuencas no están disponibles para este modo.")
         
         else: # MODO REGIONAL
-
             
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             if not stations_for_analysis or df_anual_non_na.empty:
