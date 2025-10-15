@@ -1921,17 +1921,21 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 year1 = st.selectbox("Seleccione el primer año", options=all_years, index=len(all_years) - 1, key="compare_year1")
                 
                 st.markdown("**Mapa 2**")
-
-                year2 = st.selectbox("Seleccione el segundo año", options=all_years, 
-                                     index=len(all_years) - 2 if len(all_years) > 1 else 0,
-                                     key="compare_year2")
+                year2 = st.selectbox(
+                    "Seleccione el segundo año",
+                    options=all_years,
+                    index=len(all_years) - 2 if len(all_years) > 1 else 0,
+                    key="compare_year2"
+                )
 
                 min_precip, max_precip = int(df_anual_valid[Config.PRECIPITATION_COL].min()), int(df_anual_valid[Config.PRECIPITATION_COL].max())
                 if min_precip >= max_precip: max_precip = min_precip + 1
                 color_range = st.slider("Rango de Escala de Color (mm)", min_precip, max_precip, (min_precip, max_precip), key="color_compare")
-                
-                colormap = cm.LinearColormap(colors=plt.cm.viridis.colors, vmin=color_range[0],
-                                             vmax=color_range[1])
+                colormap = cm.LinearColormap(
+                    colors=plt.cm.viridis.colors,
+                    vmin=color_range[0],
+                    vmax=color_range[1]
+                )
 
             def create_compare_map(data, year, col, gdf_stations_info, df_anual_full):
                 col.markdown(f"**Precipitación en {year}**")
