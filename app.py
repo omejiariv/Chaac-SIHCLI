@@ -1,5 +1,3 @@
-# Última actualización para forzar la reconstrucción del entorno
-
 # app.py
 
 import streamlit as st
@@ -20,7 +18,7 @@ from modules.visualizer import (
     display_advanced_maps_tab, display_anomalies_tab, display_drought_analysis_tab,
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
-    display_forecast_tab
+    # display_forecast_tab,
 )
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies
