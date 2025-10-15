@@ -282,35 +282,37 @@ def calculate_hydrological_balance(mean_precip_mm, basin_geometry_input):
 
 def calculate_morphometry(basin_gdf, dem_path):
     """
-    Calcula los parámetros morfométricos de una cuenca, leyendo dinámicamente
-    el valor NoData del DEM para cálculos de elevación precisos.
+    Calcula la morfometría, re-proyectando la cuenca al CRS del DEM
+    para asegurar la compatibilidad y evitar errores de 'N/A'.
     """
     if basin_gdf.empty or basin_gdf.iloc[0].geometry is None:
         return {"error": "Geometría de cuenca no válida."}
 
+    # --- Cálculos Geométricos (en proyección métrica) ---
     basin_metric = basin_gdf.to_crs("EPSG:3116")
-    geom = basin_metric.iloc[0].geometry
-
-    # --- Cálculos Geométricos (sin cambios) ---
-    area_m2 = geom.area
-    perimetro_m = geom.length
+    geom_metric = basin_metric.iloc[0].geometry
+    area_m2 = geom_metric.area
+    perimetro_m = geom_metric.length
     indice_forma = perimetro_m / (2 * np.sqrt(np.pi * area_m2)) if area_m2 > 0 else 0
 
-    # --- Cálculos de Elevación Mejorados ---
+    # --- Cálculos de Elevación (en la proyección del DEM) ---
     stats = {}
     try:
-        # --- SOLUCIÓN: Leer el valor NoData directamente del archivo DEM ---
         with rasterio.open(dem_path) as src:
             nodata_value = src.nodata
-        # --- FIN DE LA SOLUCIÓN ---
+            dem_crs = src.crs # Obtener el CRS del DEM
 
-        # Usamos el valor NoData leído para asegurar que se ignore correctamente
-        z_stats = zonal_stats(basin_metric, dem_path, stats="min max mean", nodata=nodata_value)
+        # Reproyectar la cuenca al CRS del DEM para el análisis zonal
+        basin_reprojected = basin_gdf.to_crs(dem_crs)
         
-        if z_stats:
+        z_stats = zonal_stats(basin_reprojected, dem_path, stats="min max mean", nodata=nodata_value)
+        
+        if z_stats and z_stats[0].get('min') is not None:
             stats['alt_min'] = z_stats[0].get('min')
             stats['alt_max'] = z_stats[0].get('max')
             stats['alt_prom'] = z_stats[0].get('mean')
+        else:
+            stats['error_dem'] = "No se encontraron datos de elevación válidos en el área de la cuenca."
 
     except Exception as e:
         stats['error_dem'] = f"No se pudieron calcular las estadísticas de elevación: {e}"
