@@ -1953,37 +1953,30 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with compare_tab:
         st.subheader("Comparación de Mapas Anuales")
-
         df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-
         all_years = sorted(df_anual_valid[Config.YEAR_COL].unique())
 
         if len(all_years) > 1:
-
             control_col, map_col1, map_col2 = st.columns([1, 2, 2])
-
             with control_col:
                 st.markdown("##### Controles de Mapa")
-                selected_base_map_config, selected_overlays_config = display_map_controls(st,
-                                                                                           "compare")
-
+                selected_base_map_config, selected_overlays_config = display_map_controls(st, "compare")
                 min_year, max_year = int(all_years[0]), int(all_years[-1])
-
+                
                 st.markdown("**Mapa 1**")
-                year1 = st.selectbox("Seleccione el primer año", options=all_years,
-                                     index=len(all_years) - 1, key="compare_year1")
-
+                year1 = st.selectbox("Seleccione el primer año", options=all_years, index=len(all_years) - 1, key="compare_year1")
+                
                 st.markdown("**Mapa 2**")
-                year2 = st.selectbox("Seleccione el segundo año", options=all_years,
-                                     index=len(all_years) - 2 if len(all_years) > 1 else 0, key="compare_year2")
+                # --- CORRECCIÓN DE SINTAXIS ---
+                # 'index' debe ir antes de 'key'
+                year2 = st.selectbox("Seleccione el segundo año", options=all_years, 
+                                     index=len(all_years) - 2 if len(all_years) > 1 else 0,
+                                     key="compare_year2")
+                # --- FIN DE LA CORRECCIÓN ---
 
-                min_precip, max_precip = int(df_anual_valid[Config.PRECIPITATION_COL].min()), \
-                    int(df_anual_valid[Config.PRECIPITATION_COL].max())
-
+                min_precip, max_precip = int(df_anual_valid[Config.PRECIPITATION_COL].min()), int(df_anual_valid[Config.PRECIPITATION_COL].max())
                 if min_precip >= max_precip: max_precip = min_precip + 1
-
-                color_range = st.slider("Rango de Escala de Color (mm)", min_precip, max_precip,
-                                        (min_precip, max_precip), key="color_compare")
+                color_range = st.slider("Rango de Escala de Color (mm)", min_precip, max_precip, (min_precip, max_precip), key="color_compare")
 
                 colormap = cm.LinearColormap(colors=plt.cm.viridis.colors, vmin=color_range[0],
                                              vmax=color_range[1])
