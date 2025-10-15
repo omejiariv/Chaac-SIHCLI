@@ -167,7 +167,7 @@ def main():
         st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
         st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
-    
+
     # --- Definición de Pestañas ---
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
@@ -176,8 +176,8 @@ def main():
         "Descargas", "Análisis por Cuenca", "Comparación de Periodos",
         "Tabla de Estaciones", "Generar Reporte"
     ]
-    tabs = st.tabs(tab_names)
-
+    tabs = st.tabs(tab_names)    
+    
     stations_for_analysis = selected_stations
     if not stations_for_analysis:
         with tabs[0]:
