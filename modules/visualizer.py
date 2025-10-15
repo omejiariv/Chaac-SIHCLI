@@ -2796,7 +2796,7 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
             st.info("No hay datos para mostrar la síntesis general.")
 
 def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis_mode,
-                             selected_regions, selected_municipios, selected_altitudes, **kwargs):
+                                selected_regions, selected_municipios, selected_altitudes, **kwargs):
 
     st.header("Análisis de Correlación")
 
@@ -2820,7 +2820,8 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
     # AÑADIMOS UNA NUEVA PESTAÑA A LA LISTA
     tab_names = ["Correlación con ENSO (ONI)", "Matriz entre Estaciones", "Comparación 1 a 1", "Correlación con Otros Índices"]
 
-    enso_corr_tab, matrix_corr_tab, station_corr_tab, indices_climaticos_tab = st.tabs(tab_names)
+    enso_corr_tab, matrix_corr_tab, station_corr_tab, indices_climaticos_tab = \
+        st.tabs(tab_names)
 
     with enso_corr_tab:
         if Config.ENSO_ONI_COL not in df_monthly_filtered.columns or \
@@ -2837,7 +2838,7 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
         )
 
         df_corr_analysis = df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL,
-                                                              Config.ENSO_ONI_COL])
+                                                             Config.ENSO_ONI_COL])
 
         if df_corr_analysis.empty:
             st.warning("No hay datos coincidentes entre la precipitación y el ENSO para la selección actual.")
@@ -2852,7 +2853,6 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
             station_to_corr = st.selectbox("Seleccione Estación:",
                                            options=sorted(df_corr_analysis[Config.STATION_NAME_COL].unique()),
                                            key="enso_corr_station")
-
             if station_to_corr:
                 df_plot_corr = df_corr_analysis[df_corr_analysis[Config.STATION_NAME_COL] ==
                                                 station_to_corr].copy()
@@ -2865,10 +2865,10 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
                 precipitation=(Config.PRECIPITATION_COL, 'mean'),
                 anomalia_oni=(Config.ENSO_ONI_COL, 'first')
             ).reset_index()
-
             title_text = "Correlación para el promedio de las estaciones seleccionadas"
 
         if not df_plot_corr.empty and len(df_plot_corr) > 2:
+
             if lag_months > 0:
                 df_plot_corr['anomalia_oni_shifted'] = \
                     df_plot_corr['anomalia_oni'].shift(lag_months)
@@ -2917,16 +2917,15 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
                 )
                 corr_matrix = df_pivot.corr()
 
-                fig_matrix = px.imshow(
-                    corr_matrix,
-                    text_auto=True,
-                    aspect="auto",
-                    color_continuous_scale='RdBu_r',
-                    title="Mapa de Calor de Correlaciones de Precipitación Mensual"
-                )
-
-                fig_matrix.update_layout(height=max(400, len(stations_for_analysis) * 25))
-                st.plotly_chart(fig_matrix, use_container_width=True)
+            fig_matrix = px.imshow(
+                corr_matrix,
+                text_auto=True,
+                aspect="auto",
+                color_continuous_scale='RdBu_r',
+                title="Mapa de Calor de Correlaciones de Precipitación Mensual"
+            )
+            fig_matrix.update_layout(height=max(400, len(stations_for_analysis) * 25))
+            st.plotly_chart(fig_matrix, use_container_width=True)
 
     with station_corr_tab:
         if len(stations_for_analysis) < 2:
@@ -2937,8 +2936,8 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
             col1, col2 = st.columns(2)
             station1_name = col1.selectbox("Estación 1:", options=station_options,
                                            key="corr_station_1")
-            station2_name = col2.selectbox("Estación 2:", options=station_options, index=1 if \
-                                          len(station_options) > 1 else 0, key="corr_station_2")
+            station2_name = col2.selectbox("Estación 2:", options=station_options, index=1 if
+                                           len(station_options) > 1 else 0, key="corr_station_2")
 
             if station1_name and station2_name and station1_name != station2_name:
                 df_station1 = \
@@ -2975,7 +2974,6 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
                                 station2_name: f'Precipitación en {station2_name} (mm)'}
                     )
                     st.plotly_chart(fig_scatter, use_container_width=True)
-
                 else:
                     st.warning("No hay suficientes datos superpuestos para calcular la correlación para las estaciones seleccionadas.")
 
@@ -3008,7 +3006,7 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
 
                 if index_col_name in df_merged_indices.columns:
                     df_merged_indices.dropna(subset=[Config.PRECIPITATION_COL,
-                                                      index_col_name], inplace=True)
+                                                     index_col_name], inplace=True)
                 else:
                     st.error(f"La columna para el índice '{selected_index}' no se encontró en los datos de la estación.")
                     return
@@ -3036,7 +3034,7 @@ def display_correlation_tab(df_monthly_filtered, stations_for_analysis, analysis
                     st.warning("No hay suficientes datos superpuestos entre la estación y el índice para calcular la correlación.")
 
 def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_analysis,
-                      analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
+                        analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Precipitación y el Fenómeno ENSO")
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
@@ -3076,6 +3074,7 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                     enso_filtered = df_enso
                     if not enso_filtered.empty and var_code in enso_filtered.columns and not \
                        enso_filtered[var_code].isnull().all():
+
                         fig_enso_series = px.line(enso_filtered, x=Config.DATE_COL, y=var_code,
                                                   title=f"Serie de Tiempo para {var_name}")
                         st.plotly_chart(fig_enso_series, use_container_width=True)
@@ -3128,6 +3127,8 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                     current_oni = phase_info[Config.ENSO_ONI_COL].iloc[0]
                     st.metric(f"Fase ENSO en {pd.to_datetime(selected_date).strftime('%Y-%m')}",
                               current_phase, f"Anomalía ONI: {current_oni:.2f}°C")
+                else:
+                    st.warning("No hay datos de ENSO para el período seleccionado.")
             else:
                 st.warning("No hay fechas con datos ENSO en el rango seleccionado.")
 
@@ -3153,6 +3154,9 @@ def display_enso_tab(df_enso, df_monthly_filtered, gdf_filtered, stations_for_an
                         m_enso.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
                 folium.LayerControl().add_to(m_enso)
                 folium_static(m_enso, height=700, width=None)
+
+            else:
+                st.info("Seleccione una fecha para visualizar el mapa.")
 
 def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis,
                                      df_anual_melted, df_monthly_filtered, analysis_mode, selected_regions,
