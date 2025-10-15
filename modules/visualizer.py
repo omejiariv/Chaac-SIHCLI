@@ -1461,6 +1461,41 @@ gif_tab, kriging_tab, morph_tab, validation_tab, temporal_tab, race_tab, anim_ta
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
+    with validation_tab:
+        st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
+        if len(stations_for_analysis) < 4:
+            st.warning("Se necesitan al menos 4 estaciones con datos para realizar una validación robusta.")
+        else:
+            df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+            all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
+            if not all_years_int:
+                st.warning("No hay años con datos válidos para la validación.")
+            else:
+                selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1, key="validation_year_select")
+                if st.button(f"Ejecutar Validación para el año {selected_year}", key="run_validation_button"):
+                    with st.spinner("Realizando validación cruzada..."):
+                        gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
+                        validation_results_df = perform_loocv_for_all_methods(selected_year, gdf_metadata, df_anual_non_na)
+                        if not validation_results_df.empty:
+                            st.subheader(f"Resultados de la Validación para el Año {selected_year}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**Error Cuadrático Medio (RMSE)**")
+                                fig_rmse = px.bar(validation_results_df.sort_values("RMSE"), x="Método", y="RMSE", color="Método", text_auto='.2f')
+                                fig_rmse.update_layout(showlegend=False)
+                                st.plotly_chart(fig_rmse, use_container_width=True)
+                            with col2:
+                                st.markdown("**Error Absoluto Medio (MAE)**")
+                                fig_mae = px.bar(validation_results_df.sort_values("MAE"), x="Método", y="MAE", color="Método", text_auto='.2f')
+                                fig_mae.update_layout(showlegend=False)
+                                st.plotly_chart(fig_mae, use_container_width=True)
+                            st.markdown("**Tabla Comparativa de Errores**")
+                            st.dataframe(validation_results_df.style.format({"RMSE": "{:.2f}", "MAE": "{:.2f}"}))
+                            best_rmse = validation_results_df.loc[validation_results_df['RMSE'].idxmin()]
+                            st.success(f"**Mejor método según RMSE:** {best_rmse['Método']} (RMSE: {best_rmse['RMSE']:.2f})")
+                        else:
+                            st.error("No se pudieron calcular los resultados de la validación.")
+
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
@@ -1617,41 +1652,6 @@ gif_tab, kriging_tab, morph_tab, validation_tab, temporal_tab, race_tab, anim_ta
             create_compare_map(data_year2, year2, map_col2, gdf_geometries, df_anual_valid)
         else:
             st.warning("Se necesitan datos de al menos dos años diferentes para generar la Comparación de Mapas.")
-
-    with validation_tab:
-        st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
-        if len(stations_for_analysis) < 4:
-            st.warning("Se necesitan al menos 4 estaciones con datos para realizar una validación robusta.")
-        else:
-            df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-            all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
-            if not all_years_int:
-                st.warning("No hay años con datos válidos para la validación.")
-            else:
-                selected_year = st.selectbox("Seleccione un año para la validación:", options=all_years_int, index=len(all_years_int)-1, key="validation_year_select")
-                if st.button(f"Ejecutar Validación para el año {selected_year}", key="run_validation_button"):
-                    with st.spinner("Realizando validación cruzada..."):
-                        gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
-                        validation_results_df = perform_loocv_for_all_methods(selected_year, gdf_metadata, df_anual_non_na)
-                        if not validation_results_df.empty:
-                            st.subheader(f"Resultados de la Validación para el Año {selected_year}")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown("**Error Cuadrático Medio (RMSE)**")
-                                fig_rmse = px.bar(validation_results_df.sort_values("RMSE"), x="Método", y="RMSE", color="Método", text_auto='.2f')
-                                fig_rmse.update_layout(showlegend=False)
-                                st.plotly_chart(fig_rmse, use_container_width=True)
-                            with col2:
-                                st.markdown("**Error Absoluto Medio (MAE)**")
-                                fig_mae = px.bar(validation_results_df.sort_values("MAE"), x="Método", y="MAE", color="Método", text_auto='.2f')
-                                fig_mae.update_layout(showlegend=False)
-                                st.plotly_chart(fig_mae, use_container_width=True)
-                            st.markdown("**Tabla Comparativa de Errores**")
-                            st.dataframe(validation_results_df.style.format({"RMSE": "{:.2f}", "MAE": "{:.2f}"}))
-                            best_rmse = validation_results_df.loc[validation_results_df['RMSE'].idxmin()]
-                            st.success(f"**Mejor método según RMSE:** {best_rmse['Método']} (RMSE: {best_rmse['RMSE']:.2f})")
-                        else:
-                            st.error("No se pudieron calcular los resultados de la validación.")
 
 # --- NUEVA FUNCIÓN PARA MOSTRAR EL ANÁLISIS DE EVENTOS ---
 def display_event_analysis(index_values, index_type):
