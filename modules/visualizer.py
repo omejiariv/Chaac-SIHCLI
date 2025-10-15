@@ -2304,11 +2304,9 @@ def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
                          use_container_width=True)
 
 def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
-                         stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, selected_municipios,
-                         selected_altitudes, **kwargs):
-
+                      stations_for_analysis, gdf_filtered, analysis_mode, selected_regions, 
+                      selected_municipios, selected_altitudes, **kwargs):
     st.header("Estadísticas de Precipitación")
-
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
