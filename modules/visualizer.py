@@ -2313,6 +2313,8 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
                         if len(precip_series.dropna()) < index_window * 2:
                             st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{index_window}.")
                         else:
+                            # Se asume que calculate_spi está importado
+                            from modules.analysis import calculate_spi
                             index_values = calculate_spi(precip_series, index_window)
 
                     elif index_type == "SPEI":
@@ -2327,6 +2329,8 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
                                len(et_series.dropna()) < index_window * 2:
                                 st.warning(f"No hay suficientes datos de precipitación o ETP para calcular el SPEI-{index_window}.")
                             else:
+                                # Se asume que calculate_spei está importado
+                                from modules.analysis import calculate_spei
                                 index_values = calculate_spei(precip_series, et_series, index_window)
 
             if not index_values.empty and not index_values.isnull().all():
@@ -2351,6 +2355,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
 
                     st.plotly_chart(fig, use_container_width=True)
 
+                    # Se asume que display_event_analysis está definida en otro lugar o se debe incluir aquí
                     display_event_analysis(index_values, index_type)
 
     with frequency_sub_tab:
@@ -2407,6 +2412,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
 
                         fig.update_layout(title="Curva de Períodos de Retorno", xaxis_title="Período de Retorno (años)", yaxis_title="Precipitación Anual (mm)", xaxis_type="log")
                         st.plotly_chart(fig, use_container_width=True)
+                        
 
 def display_anomalies_tab(df_long, df_monthly_filtered, stations_for_analysis,
                            analysis_mode, selected_regions, selected_municipios, selected_altitudes, **kwargs):
