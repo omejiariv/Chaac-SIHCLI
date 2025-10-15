@@ -1332,16 +1332,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
-
         col_controls, col_gif = st.columns([1, 3])
-
         with col_controls:
             if st.button("Reiniciar Animación", key="reset_gif_button"):
                 st.rerun()
-
         with col_gif:
             gif_path = Config.GIF_PATH
-
             if os.path.exists(gif_path):
                 try:
                     with open(gif_path, "rb") as f:
@@ -1524,7 +1520,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         else:
                             st.warning("No hay datos anuales disponibles.")
 
-                    # --- INICIO DE LA CORRECCIÓN DE SANGRÍA ---
                     with col_display:
                         fig_basin = st.session_state.get('fig_basin')
                         error_msg = st.session_state.get('error_msg')
@@ -1576,97 +1571,65 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results.get('alt_max_m') else "N/A")
                                     c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results.get('alt_min_m') else "N/A")
                                     c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results.get('alt_prom_m') else "N/A")
-                                    
                 else:
                     st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
-
             else:
                 st.warning("Los datos de cuencas no están disponibles para este modo.")
-
-        else:  # MODO REGIONAL
-
+        
+        else: # MODO REGIONAL
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-
             if not stations_for_analysis or df_anual_non_na.empty:
                 st.warning("No hay suficientes datos anuales para realizar la interpolación.")
             else:
-                min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), \
-                    int(df_anual_non_na[Config.YEAR_COL].max())
-
+                min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
                 control_col, map_col1, map_col2 = st.columns([1, 2, 2])
-
                 with control_col:
                     st.markdown("#### Controles de los Mapas")
-
                     interpolation_methods = ["Kriging Ordinario", "IDW", "Spline (Thin Plate)"]
-
                     st.markdown("**Mapa 1**")
-                    year1 = st.slider("Seleccione el año", min_year, max_year, max_year,
-                                      key="interp_year1")
-                    method1 = st.selectbox("Método de interpolación",
-                                           options=interpolation_methods, key="interp_method1")
+                    year1 = st.slider("Seleccione el año", min_year, max_year, max_year, key="interp_year1")
+                    method1 = st.selectbox("Método de interpolación", options=interpolation_methods, key="interp_method1")
                     variogram_model1 = None
                     if "Kriging" in method1:
                         variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
-                        variogram_model1 = st.selectbox("Modelo de Variograma para Mapa 1",
-                                                        variogram_options, key="var_model_1")
-
+                        variogram_model1 = st.selectbox("Modelo de Variograma para Mapa 1", variogram_options, key="var_model_1")
                     st.markdown("---")
-
                     st.markdown("**Mapa 2**")
-                    year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if \
-                                      max_year > min_year else max_year, key="interp_year2")
-                    method2 = st.selectbox("Método de interpolación",
-                                           options=interpolation_methods, index=1, key="interp_method2")
+                    year2 = st.slider("Seleccione el año", min_year, max_year, max_year - 1 if max_year > min_year else max_year, key="interp_year2")
+                    method2 = st.selectbox("Método de interpolación", options=interpolation_methods, index=1, key="interp_method2")
                     variogram_model2 = None
                     if "Kriging" in method2:
                         variogram_options = ['linear', 'spherical', 'exponential', 'gaussian']
-                        variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2",
-                                                        variogram_options, key="var_model_2")
-
+                        variogram_model2 = st.selectbox("Modelo de Variograma para Mapa 2", variogram_options, key="var_model_2")
+                
                 gdf_bounds = gdf_filtered.total_bounds.tolist()
-                gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry',
-                                                              errors='ignore'))
-
-                fig1, fig_var1, error1 = create_interpolation_surface(year1, method1,
-                                                                     variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
-
-                fig2, fig_var2, error2 = create_interpolation_surface(year2, method2,
-                                                                     variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
-
+                gdf_metadata = pd.DataFrame(gdf_filtered.drop(columns='geometry', errors='ignore'))
+                fig1, fig_var1, error1 = create_interpolation_surface(year1, method1, variogram_model1, gdf_bounds, gdf_metadata, df_anual_non_na)
+                fig2, fig_var2, error2 = create_interpolation_surface(year2, method2, variogram_model2, gdf_bounds, gdf_metadata, df_anual_non_na)
                 with map_col1:
                     if fig1: st.plotly_chart(fig1, use_container_width=True)
                     else: st.info(error1)
-
                 with map_col2:
                     if fig2: st.plotly_chart(fig2, use_container_width=True)
                     else: st.info(error2)
-
                 st.markdown("---")
                 st.markdown("##### Variogramas de los Mapas")
-
                 col3, col4 = st.columns(2)
-
                 with col3:
                     if fig_var1:
                         buf = io.BytesIO()
                         fig_var1.savefig(buf, format="png")
                         st.image(buf)
-                        st.download_button(label="Descargar Variograma 1 (PNG)",
-                                           data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png",
-                                           mime="image/png")
+                        st.download_button(label="Descargar Variograma 1 (PNG)", data=buf.getvalue(), file_name=f"variograma_1_{year1}_{method1}.png", mime="image/png")
                         plt.close(fig_var1)
                     else:
                         st.info("El variograma no está disponible para este método.")
-
                 with col4:
                     if fig_var2:
                         buf = io.BytesIO()
                         fig_var2.savefig(buf, format="png")
                         st.image(buf)
-                        st.download_button(label="Descargar Variograma 2 (PNG)",
-                                           data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png",
-                                           mime="image/png")
+                        st.download_button(label="Descargar Variograma 2 (PNG)", data=buf.getvalue(), file_name=f"variograma_2_{year2}_{method2}.png", mime="image/png")
                         plt.close(fig_var2)
                     else:
                         st.info("El variograma no está disponible para este método.")
@@ -1674,24 +1637,19 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
         st.info("Esta sección requiere que se haya generado un mapa para una o más cuencas en la pestaña 'Superficies de Interpolación' y que se haya subido un archivo DEM.")
-
-        # Reutilizamos los resultados guardados en el estado de la sesión
+        
         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
         dem_file = st.session_state.get('dem_file')
-
+        
         if unified_basin_gdf is not None and dem_file is not None:
-
             st.markdown(f"### Resultados para: **{st.session_state.get('selected_basins_title', '')}**")
-
-            # Guardar temporalmente el DEM para poder leerlo
+            
             dem_path = os.path.join(os.getcwd(), dem_file.name)
             with open(dem_path, "wb") as f:
                 f.write(dem_file.getbuffer())
 
-            # 1. Mostrar la Morfometría que ya teníamos
             st.markdown("#### Parámetros Morfométricos")
             morph_results = calculate_morphometry(unified_basin_gdf, dem_path)
-
             if morph_results.get("error"):
                 st.error(morph_results["error"])
             else:
@@ -1701,43 +1659,38 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
 
                 c4, c5, c6 = st.columns(3)
-                c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m")
-                c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m")
-                c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m")
+                c4.metric("Altitud Máxima", f"{morph_results.get('alt_max_m'):.0f} m" if morph_results.get('alt_max_m') is not None else "N/A")
+                c5.metric("Altitud Mínima", f"{morph_results.get('alt_min_m'):.0f} m" if morph_results.get('alt_min_m') is not None else "N/A")
+                c6.metric("Altitud Promedio", f"{morph_results.get('alt_prom_m'):.1f} m" if morph_results.get('alt_prom_m') is not None else "N/A")
 
             st.markdown("---")
 
-            #--- 2. Calcular y Mostrar la Curva Hipsométrica
             st.markdown("#### Curva Hipsométrica")
-
             with st.spinner("Calculando curva hipsométrica..."):
-                # Se asume que calculate_hypsometric_curve está en modules.analysis
-                from modules.analysis import calculate_hypsometric_curve
                 hypsometric_data = calculate_hypsometric_curve(unified_basin_gdf, dem_path)
+            
+            if hypsometric_data.get("error"):
+                st.error(hypsometric_data["error"])
+            else:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=hypsometric_data['cumulative_area_percent'],
+                    y=hypsometric_data['elevations'],
+                    mode='lines',
+                    fill='tozeroy'
+                ))
+                fig.update_layout(
+                    title="Curva Hipsométrica de la Cuenca Agregada",
+                    xaxis_title="Área Acumulada sobre la Elevación (%)",
+                    yaxis_title="Elevación (m)",
+                    xaxis=dict(range=[0, 100]),
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("La curva hipsométrica muestra la distribución de la superficie de la cuenca en relación con la altitud.")
 
-                if hypsometric_data.get("error"):
-                    st.error(hypsometric_data["error"])
-                else:
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=hypsometric_data['cumulative_area_percent'],
-                        y=hypsometric_data['elevations'],
-                        mode='lines',
-                        fill='tozeroy'  # Rellena el área bajo la curva
-                    ))
-
-                    fig.update_layout(
-                        title="Curva Hipsométrica de la Cuenca Agregada",
-                        xaxis_title="Área Acumulada sobre la Elevación (%)",
-                        yaxis_title="Elevación (m)",
-                        xaxis=dict(range=[0, 100]),  # Eje X de 0 a 100%
-                        template="plotly_white"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-
-            # Limpiar el archivo DEM temporal
             os.remove(dem_path)
-
+            
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
