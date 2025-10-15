@@ -269,27 +269,39 @@ def main():
         "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
     }
 
-    # --- Renderizado de Pestañas ---
-with tabs[0]: display_welcome_tab()
-with tabs[1]: display_spatial_distribution_tab(**display_args)
-with tabs[2]: display_graphs_tab(**display_args)
-with tabs[3]: display_advanced_maps_tab(**display_args)
-with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-with tabs[5]: display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
-with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
-with tabs[7]: display_correlation_tab(**display_args)
-with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
-with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+    #--- Renderizado de Pestañas ---
+    with tabs[0]:
+        display_welcome_tab()
+    with tabs[1]:
+        display_spatial_distribution_tab(**display_args)
+    with tabs[2]:
+        display_graphs_tab(**display_args)
+    with tabs[3]:
+        display_advanced_maps_tab(**display_args)
+    with tabs[4]:
+        display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[5]:
+        display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[6]:
+        display_stats_tab(df_long=st.session_state.df_long, **display_args)
+    with tabs[7]:
+        display_correlation_tab(**display_args)
+    with tabs[8]:
+        display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+    with tabs[9]:
+        display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
+    
+    # La pestaña 10 ("Pronóstico del Tiempo") está desactivada
+    
+    with tabs[10]:
+        display_downloads_tab(
+            df_anual_melted=df_anual_melted,
+            df_monthly_filtered=df_monthly_filtered,
+            stations_for_analysis=stations_for_analysis,
+            analysis_mode=st.session_state.analysis_mode
+        )
 
-# La pestaña 10 (Pronóstico del Tiempo) está comentada
-# El índice 10 ahora corresponde a Descargas
-with tabs[10]: display_downloads_tab(
-    df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
-    stations_for_analysis=stations_for_analysis,
-    analysis_mode=st.session_state.analysis_mode
-)
-# El índice 11 ahora corresponde a Análisis por Cuenca
-with tabs[11]:
+    with tabs[11]:
         st.header("Análisis Agregado por Cuenca Hidrográfica")
         if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
             BASIN_NAME_COLUMN = 'SUBC_LBL'
@@ -299,7 +311,7 @@ with tabs[11]:
                     basin_names = sorted(relevant_basins_gdf[BASIN_NAME_COLUMN].dropna().unique())
                 else:
                     basin_names = []
-
+                
                 if not basin_names:
                     st.info("Ninguna cuenca contiene estaciones que coincidan con los filtros actuales.")
                 else:
@@ -334,20 +346,15 @@ with tabs[11]:
         else:
             st.warning("Los datos de las subcuencas no están cargados.")
 
-    # --- PESTAÑA: COMPARACIÓN DE PERIODOS (VERSIÓN MEJORADA) ---
-    with tabs[12]: # Ajusta el índice si es necesario
+    with tabs[12]:
         st.header("Comparación de Periodos de Tiempo")
-
-        # --- NIVEL DE ANÁLISIS ---
         analysis_level = st.radio(
             "Seleccione el nivel de análisis para la comparación:",
             ("Promedio Regional (Todas las estaciones seleccionadas)", "Por Cuenca Específica"),
             key="compare_level_radio"
         )
-
         df_to_compare = pd.DataFrame()
 
-        # --- LÓGICA DE FILTRADO ---
         if analysis_level == "Por Cuenca Específica":
             st.markdown("---")
             if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
@@ -358,7 +365,6 @@ with tabs[11]:
                         basin_names = sorted(relevant_basins_gdf[BASIN_NAME_COLUMN].dropna().unique())
                     else:
                         basin_names = []
-
                     if not basin_names:
                         st.warning("Ninguna cuenca contiene estaciones que coincidan con los filtros actuales.", icon="⚠️")
                     else:
@@ -367,32 +373,24 @@ with tabs[11]:
                             options=basin_names,
                             key="compare_basin_selector"
                         )
-                        # Filtramos las estaciones que están dentro de la cuenca seleccionada
                         target_basin_geom = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN] == selected_basin]
                         stations_in_basin = gpd.sjoin(gdf_filtered, target_basin_geom, how="inner", predicate="within")
                         station_names_in_basin = stations_in_basin[Config.STATION_NAME_COL].unique().tolist()
-                        
-                        # Usamos solo los datos de las estaciones de esa cuenca
                         df_to_compare = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL].isin(station_names_in_basin)]
-                        st.info(f"Análisis para **{len(station_names_in_basin)}** estaciones encontradas en la cuenca **{selected_basin}**.", icon="🏞️")
-
+                        st.info(f"Análisis para **{len(station_names_in_basin)}** estaciones encontradas en la cuenca **{selected_basin}**.", icon="ℹ️")
                 else:
                     st.error(f"Error Crítico: No se encontró la columna de nombres '{BASIN_NAME_COLUMN}' en el archivo de subcuencas.")
             else:
                 st.warning("Los datos de las subcuencas no están cargados.", icon="⚠️")
-        
         else: # Promedio Regional
             df_to_compare = df_monthly_filtered
         
         st.markdown("---")
-        
-        # --- LÓGICA DE COMPARACIÓN (SIN CAMBIOS) ---
         if df_to_compare.empty:
-            st.warning("Seleccione una cuenca con estaciones para poder realizar la comparación.", icon="👇")
+            st.warning("Seleccione una opción con estaciones válidas para poder realizar la comparación.", icon="ℹ️")
         else:
             years_with_data = sorted(df_to_compare[Config.YEAR_COL].dropna().unique())
             min_year, max_year = int(years_with_data[0]), int(years_with_data[-1])
-
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("#### Periodo 1")
@@ -402,7 +400,6 @@ with tabs[11]:
                     (min_year, min_year + 10 if min_year + 10 < max_year else max_year),
                     key="periodo1_slider_comp"
                 )
-            
             with col2:
                 st.markdown("#### Periodo 2")
                 periodo2 = st.slider(
@@ -411,44 +408,33 @@ with tabs[11]:
                     (max_year - 10 if max_year - 10 > min_year else min_year, max_year),
                     key="periodo2_slider_comp"
                 )
-
-            df_periodo1 = df_to_compare[
-                (df_to_compare[Config.DATE_COL].dt.year >= periodo1[0]) &
-                (df_to_compare[Config.DATE_COL].dt.year <= periodo1[1])
-            ]
-            df_periodo2 = df_to_compare[
-                (df_to_compare[Config.DATE_COL].dt.year >= periodo2[0]) &
-                (df_to_compare[Config.DATE_COL].dt.year <= periodo2[1])
-            ]
-
+            df_periodo1 = df_to_compare[(df_to_compare[Config.DATE_COL].dt.year >= periodo1[0]) & (df_to_compare[Config.DATE_COL].dt.year <= periodo1[1])]
+            df_periodo2 = df_to_compare[(df_to_compare[Config.DATE_COL].dt.year >= periodo2[0]) & (df_to_compare[Config.DATE_COL].dt.year <= periodo2[1])]
             st.markdown("---")
             st.subheader("Resultados Comparativos")
-
             if df_periodo1.empty or df_periodo2.empty:
-                st.warning("Uno o ambos periodos seleccionados no contienen datos. Por favor, ajuste los rangos.", icon=" ADJUST RANGES")
+                st.warning("Uno o ambos periodos seleccionados no contienen datos. Por favor, ajuste los rangos.")
             else:
                 stats1_mean = df_periodo1[Config.PRECIPITATION_COL].mean()
                 stats2_mean = df_periodo2[Config.PRECIPITATION_COL].mean()
                 delta = ((stats2_mean - stats1_mean) / stats1_mean) * 100 if stats1_mean != 0 else 0
-
                 st.metric(
                     label=f"Precipitación Media Mensual ({periodo1[0]}-{periodo1[1]} vs. {periodo2[0]}-{periodo2[1]})",
                     value=f"{stats2_mean:.1f} mm",
                     delta=f"{delta:.2f}% (respecto a {stats1_mean:.1f} mm del Periodo 1)"
                 )
-                
                 st.markdown("##### Desglose Estadístico Completo")
                 col1_stats, col2_stats = st.columns(2)
                 with col1_stats:
                     st.write(f"**Periodo 1 ({periodo1[0]}-{periodo1[1]})**")
                     st.dataframe(df_periodo1[Config.PRECIPITATION_COL].describe().round(2))
-                
                 with col2_stats:
                     st.write(f"**Periodo 2 ({periodo2[0]}-{periodo2[1]})**")
                     st.dataframe(df_periodo2[Config.PRECIPITATION_COL].describe().round(2))
     
-    with tabs[13]: display_station_table_tab(**display_args)
-
+    with tabs[13]:
+        display_station_table_tab(**display_args)
+    
     with tabs[14]:
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
