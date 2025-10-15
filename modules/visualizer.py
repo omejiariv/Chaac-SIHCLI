@@ -1921,24 +1921,21 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 year1 = st.selectbox("Seleccione el primer año", options=all_years, index=len(all_years) - 1, key="compare_year1")
                 
                 st.markdown("**Mapa 2**")
-                # --- CORRECCIÓN DE SINTAXIS ---
-                # 'index' debe ir antes de 'key' para que sea un argumento posicional válido
+
                 year2 = st.selectbox("Seleccione el segundo año", options=all_years, 
                                      index=len(all_years) - 2 if len(all_years) > 1 else 0,
                                      key="compare_year2")
-                # --- FIN DE LA CORRECCIÓN ---
 
                 min_precip, max_precip = int(df_anual_valid[Config.PRECIPITATION_COL].min()), int(df_anual_valid[Config.PRECIPITATION_COL].max())
                 if min_precip >= max_precip: max_precip = min_precip + 1
                 color_range = st.slider("Rango de Escala de Color (mm)", min_precip, max_precip, (min_precip, max_precip), key="color_compare")
-
+                
                 colormap = cm.LinearColormap(colors=plt.cm.viridis.colors, vmin=color_range[0],
                                              vmax=color_range[1])
 
             def create_compare_map(data, year, col, gdf_stations_info, df_anual_full):
                 col.markdown(f"**Precipitación en {year}**")
 
-                # CORRECCIÓN DE ATTRIBUTEERROR: Extraer solo la clave 'tiles'
                 m = create_folium_map([6.24, -75.58], 6, {'tiles': selected_base_map_config['tiles'], 'attr': selected_base_map_config['attr']},
                                       selected_overlays_config)
 
