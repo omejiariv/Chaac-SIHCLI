@@ -1088,8 +1088,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = ["Animación GIF", "Superficies de Interpolación", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
-    gif_tab, kriging_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
+    tab_names = ["Animación GIF", "Superficies de Interpolación", "Morfometría", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
+gif_tab, kriging_tab, morph_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
@@ -1395,7 +1395,72 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         plt.close(fig_var2)
                     else:
                         st.info("El variograma no está disponible para este método.")
-             
+
+    with morph_tab:
+        st.subheader("Análisis Morfométrico de Cuencas")
+        st.info("Esta sección requiere que se haya generado un mapa para una o más cuencas en la pestaña 'Superficies de Interpolación' y que se haya subido un archivo DEM.")
+        
+        # Reutilizamos los resultados guardados en el estado de la sesión
+        unified_basin_gdf = st.session_state.get('unified_basin_gdf')
+        dem_file = st.session_state.get('dem_file')
+        
+        if unified_basin_gdf is not None and dem_file is not None:
+            st.markdown(f"### Resultados para: **{st.session_state.get('selected_basins_title', '')}**")
+            
+            # Guardar temporalmente el DEM para poder leerlo
+            dem_path = os.path.join(os.getcwd(), dem_file.name)
+            with open(dem_path, "wb") as f:
+                f.write(dem_file.getbuffer())
+
+            # --- 1. Mostrar la Morfometría que ya teníamos ---
+            st.markdown("#### Parámetros Morfométricos")
+            morph_results = calculate_morphometry(unified_basin_gdf, dem_path)
+            if morph_results.get("error"):
+                st.error(morph_results["error"])
+            else:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Área", f"{morph_results['area_km2']:.2f} km²")
+                c2.metric("Perímetro", f"{morph_results['perimetro_km']:.2f} km")
+                c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
+
+                c4, c5, c6 = st.columns(3)
+                c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m")
+                c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m")
+                c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m")
+
+            st.markdown("---")
+
+            # --- 2. Calcular y Mostrar la Curva Hipsométrica ---
+            st.markdown("#### Curva Hipsométrica")
+            with st.spinner("Calculando curva hipsométrica..."):
+                hypsometric_data = calculate_hypsometric_curve(unified_basin_gdf, dem_path)
+            
+            if hypsometric_data.get("error"):
+                st.error(hypsometric_data["error"])
+            else:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=hypsometric_data['cumulative_area_percent'],
+                    y=hypsometric_data['elevations'],
+                    mode='lines',
+                    fill='tozeroy' # Rellena el área bajo la curva
+                ))
+                fig.update_layout(
+                    title="Curva Hipsométrica de la Cuenca Agregada",
+                    xaxis_title="Área Acumulada sobre la Elevación (%)",
+                    yaxis_title="Elevación (m)",
+                    xaxis=dict(range=[0, 100]), # Eje X de 0 a 100%
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("La curva hipsométrica muestra la distribución de la superficie de la cuenca en relación con la altitud.")
+
+            # Limpiar el archivo DEM temporal
+            os.remove(dem_path)
+            
+        else:
+            st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
+
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
         df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
