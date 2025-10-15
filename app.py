@@ -78,10 +78,18 @@ def main():
 
     # --- Inicio de la Ejecución de la App ---
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    # st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; }</style>""", unsafe_allow_html=True)
+    st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; }</style>""", unsafe_allow_html=True)
     Config.initialize_session_state()
 
-    # --- Definición de Pestañas (se crea la estructura visual) ---
+    # --- TÍTULO DE LA APP (SE DIBUJA PRIMERO) ---
+    title_col1, title_col2 = st.columns([0.05, 0.95])
+    with title_col1:
+        if os.path.exists(Config.LOGO_PATH):
+            st.image(Config.LOGO_PATH, width=60)
+    with title_col2:
+        st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
+
+    # --- DEFINICIÓN DE PESTAÑAS (SE DIBUJA SEGUNDO) ---
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
@@ -91,7 +99,7 @@ def main():
     ]
     tabs = st.tabs(tab_names)
 
-    # --- Panel de Control (Sidebar) ---
+    # --- PANEL DE CONTROL Y LÓGICA DE DATOS ---
     st.sidebar.header("Panel de Control")
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
@@ -100,13 +108,14 @@ def main():
             uploaded_file_precip = st.file_uploader("2. Archivo de precipitación (CSV)", type="csv")
             uploaded_zip_shapefile = st.file_uploader("3. Shapefile de municipios (.zip)", type="zip")
             if st.button("Procesar Datos Manuales"):
-                if all([uploaded_file_mapa, uploaded_file_precip]): # Shapefile es opcional
+                if all([uploaded_file_mapa, uploaded_file_precip]):
                     process_and_store_data(uploaded_file_mapa, uploaded_file_precip, uploaded_zip_shapefile)
                 else:
                     st.warning("Por favor, suba al menos los archivos de estaciones y precipitación.")
         else:
             st.info(f"Datos desde: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
             if st.button("Cargar Datos desde GitHub"):
+
                 with st.spinner("Descargando archivos..."):
                     github_files = {
                         'mapa': load_csv_from_url(Config.URL_ESTACIONES_CSV),
