@@ -7,6 +7,7 @@ import requests
 import numpy as np
 from scipy.stats import gamma, norm
 from modules.config import Config
+import rasterio
 from rasterstats import zonal_stats
 
 @st.cache_data
@@ -280,26 +281,39 @@ def calculate_hydrological_balance(mean_precip_mm, basin_geometry_input):
     return results
 
 def calculate_morphometry(basin_gdf, dem_path):
-    """Calcula los parámetros morfométricos de una cuenca."""
+    """
+    Calcula los parámetros morfométricos de una cuenca, leyendo dinámicamente
+    el valor NoData del DEM para cálculos de elevación precisos.
+    """
     if basin_gdf.empty or basin_gdf.iloc[0].geometry is None:
         return {"error": "Geometría de cuenca no válida."}
 
     basin_metric = basin_gdf.to_crs("EPSG:3116")
     geom = basin_metric.iloc[0].geometry
 
+    # --- Cálculos Geométricos (sin cambios) ---
     area_m2 = geom.area
     perimetro_m = geom.length
     indice_forma = perimetro_m / (2 * np.sqrt(np.pi * area_m2)) if area_m2 > 0 else 0
 
+    # --- Cálculos de Elevación Mejorados ---
     stats = {}
     try:
-        z_stats = zonal_stats(basin_metric, dem_path, stats="min max mean", nodata=-9999)
+        # --- SOLUCIÓN: Leer el valor NoData directamente del archivo DEM ---
+        with rasterio.open(dem_path) as src:
+            nodata_value = src.nodata
+        # --- FIN DE LA SOLUCIÓN ---
+
+        # Usamos el valor NoData leído para asegurar que se ignore correctamente
+        z_stats = zonal_stats(basin_metric, dem_path, stats="min max mean", nodata=nodata_value)
+        
         if z_stats:
             stats['alt_min'] = z_stats[0].get('min')
             stats['alt_max'] = z_stats[0].get('max')
             stats['alt_prom'] = z_stats[0].get('mean')
+
     except Exception as e:
-        stats['error_dem'] = f"No se pudo calcular la elevación: {e}"
+        stats['error_dem'] = f"No se pudieron calcular las estadísticas de elevación: {e}"
 
     return {
         "area_km2": area_m2 / 1_000_000,
