@@ -1505,18 +1505,11 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                             name='Estaciones', hoverinfo='text',
                                             hovertext=points_data['hover_text']
                                         ))
-                                        
-                                        # --- BLOQUE CORREGIDO ---
                                         fig_basin.update_layout(
                                             title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
                                             xaxis_title="Coordenada Este (m)",
-                                            yaxis=dict(
-                                                title="Coordenada Norte (m)",
-                                                scaleanchor="x"
-                                            )
+                                            yaxis=dict(title="Coordenada Norte (m)", scaleanchor="x")
                                         )
-                                        # --- FIN DE LA CORRECCIÓN ---
-
                                 except Exception as e:
                                     import traceback
                                     error_msg = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
@@ -1531,56 +1524,44 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         else:
                             st.warning("No hay datos anuales disponibles.")
 
-                     with col_display:
+                    # --- INICIO DE LA CORRECCIÓN DE SANGRÍA ---
+                    with col_display:
                         fig_basin = st.session_state.get('fig_basin')
                         error_msg = st.session_state.get('error_msg')
                         mean_precip = st.session_state.get('mean_precip')
-
+                        
                         if fig_basin:
                             st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
                             st.plotly_chart(fig_basin, use_container_width=True)
-
+                        
                         if error_msg:
                             st.error(error_msg)
-
-                        if (mean_precip is not None and st.session_state.get('run_balance') and
-                                st.session_state.get('unified_basin_gdf') is not None):
-
+                        
+                        if (mean_precip is not None and st.session_state.get('run_balance') and st.session_state.get('unified_basin_gdf') is not None):
                             st.markdown("---")
                             st.subheader("Balance Hídrico Estimado")
-
                             with st.spinner("Calculando balance..."):
-                                balance_results = calculate_hydrological_balance(mean_precip,
-                                                                                 st.session_state.get('unified_basin_gdf'))
-
+                                balance_results = calculate_hydrological_balance(mean_precip, st.session_state.get('unified_basin_gdf'))
                                 if balance_results.get("error"):
                                     st.error(balance_results["error"])
                                 else:
                                     c1, c2, c3, c4 = st.columns(4)
-                                    c1.metric("Precipitación Media (P)",
-                                             f"{balance_results['P_media_anual_mm']:.0f} mm/año")
+                                    c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
                                     c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
-                                    c3.metric("ET Media Estimada (ET)",
-                                             f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
-                                    c4.metric("Escorrentía (Q=P-ET)", f"{balance_results['Q_mm']:.0f} mm/año")
-
-                                    st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de $m^{3}$** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-
+                                    c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
+                                    c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
+                                    st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
+                        
                         dem_file_from_state = st.session_state.get('dem_file')
-
-                        if st.session_state.get('unified_basin_gdf') is not None and \
-                           dem_file_from_state is not None:
-
+                        if st.session_state.get('unified_basin_gdf') is not None and dem_file_from_state is not None:
                             st.markdown("---")
                             st.subheader("Morfometría de la Cuenca")
-
                             with st.spinner("Calculando morfometría..."):
                                 dem_path = os.path.join(os.getcwd(), dem_file_from_state.name)
                                 with open(dem_path, "wb") as f:
                                     f.write(dem_file_from_state.getbuffer())
-
-                                morph_results = \
-                                    calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
+                                
+                                morph_results = calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
                                 os.remove(dem_path)
 
                                 if morph_results.get("error"):
@@ -1592,13 +1573,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
 
                                     c4, c5, c6 = st.columns(3)
-                                    c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if \
-                                              morph_results.get('alt_max_m') else "N/A")
-                                    c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if \
-                                              morph_results.get('alt_min_m') else "N/A")
-                                    c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" \
-                                              if morph_results.get('alt_prom_m') else "N/A")
-
+                                    c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results.get('alt_max_m') else "N/A")
+                                    c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results.get('alt_min_m') else "N/A")
+                                    c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results.get('alt_prom_m') else "N/A")
+                                    
                 else:
                     st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
 
