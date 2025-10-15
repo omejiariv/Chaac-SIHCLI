@@ -492,9 +492,9 @@ def main():
                         report_pdf_bytes = generate_pdf_report(
                             report_title=report_title,
                             sections_to_include=selected_report_sections,
-                            **display_args,
                             summary_data=summary_data,
                             df_anomalies=df_anomalies
+                            **display_args
                         )
                         st.download_button(
                             label="Descargar Reporte PDF",
