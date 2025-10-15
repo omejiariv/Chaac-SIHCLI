@@ -220,7 +220,7 @@ def main():
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
         "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
-        "Pronóstico del Tiempo", "Descargas", "Análisis por Cuenca",
+        # "Pronóstico del Tiempo", "Descargas", "Análisis por Cuenca",
         "Comparación de Periodos",  # <--- AÑADE ESTA NUEVA PESTAÑA
         "Tabla de Estaciones", "Generar Reporte"
     ]
@@ -280,15 +280,15 @@ def main():
     with tabs[7]: display_correlation_tab(**display_args)
     with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
     with tabs[9]: display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
-    with tabs[10]: display_forecast_tab(**display_args)
-    with tabs[11]: display_downloads_tab(
+    # with tabs[10]: display_forecast_tab(**display_args)
+    with tabs[10]: display_downloads_tab(
         df_anual_melted=df_anual_melted, df_monthly_filtered=df_monthly_filtered,
         stations_for_analysis=stations_for_analysis,
         analysis_mode=st.session_state.analysis_mode
     )
 
     # --- PESTAÑA NUEVA: ANÁLISIS POR CUENCA ---
-    with tabs[12]:
+    with tabs[11]:
         st.header("Análisis Agregado por Cuenca Hidrográfica")
         if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
             BASIN_NAME_COLUMN = 'SUBC_LBL'
@@ -334,7 +334,7 @@ def main():
             st.warning("Los datos de las subcuencas no están cargados.")
 
     # --- PESTAÑA: COMPARACIÓN DE PERIODOS (VERSIÓN MEJORADA) ---
-    with tabs[13]: # Ajusta el índice si es necesario
+    with tabs[12]: # Ajusta el índice si es necesario
         st.header("Comparación de Periodos de Tiempo")
 
         # --- NIVEL DE ANÁLISIS ---
@@ -446,9 +446,9 @@ def main():
                     st.write(f"**Periodo 2 ({periodo2[0]}-{periodo2[1]})**")
                     st.dataframe(df_periodo2[Config.PRECIPITATION_COL].describe().round(2))
     
-    with tabs[14]: display_station_table_tab(**display_args)
+    with tabs[13]: display_station_table_tab(**display_args)
 
-    with tabs[15]:
+    with tabs[14]:
         st.header("Generación de Reporte PDF")
         report_title = st.text_input("Título del Reporte:", value="Análisis Hidroclimático")
         report_sections_options = [
