@@ -1990,12 +1990,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         else:
             st.warning("Se necesitan datos de al menos dos años diferentes para generar la Comparación de Mapas.")
 
-def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
-                                 df_anual_melted, gdf_filtered, analysis_mode, selected_regions, selected_municipios,
-                                 selected_altitudes, **kwargs):
-
+def display_drought_analysis_tab(df_long, df_monthly_filtered, stations_for_analysis,
+                                 df_anual_melted, gdf_filtered, analysis_mode, selected_regions,
+                                 selected_municipios, selected_altitudes, **kwargs):
     st.header("Análisis de Extremos Hidrológicos")
-
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -2006,56 +2004,43 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
         selected_municipios=selected_municipios,
         selected_altitudes=selected_altitudes
     )
-
     if not stations_for_analysis:
         st.warning("Seleccione al menos una estación.")
         return
 
-    #--- INICIO DE LA MODIFICACIÓN
-
-    # 1. Mover los controles y la lógica de cálculo fuera y encima de las pestañas
     st.subheader("Configuración del Análisis por Percentiles")
     station_to_analyze_perc = st.selectbox(
         "Seleccione una estación para el análisis de percentiles:",
         options=sorted(stations_for_analysis),
         key="percentile_station_select"
     )
-
     col1, col2 = st.columns(2)
     p_lower = col1.slider("Percentil Inferior (Sequía):", 1, 40, 10, key="p_lower_perc")
     p_upper = col2.slider("Percentil Superior (Húmedo):", 60, 99, 90, key="p_upper_perc")
-
     df_extremes, df_thresholds = pd.DataFrame(), pd.DataFrame()
-
     if station_to_analyze_perc:
-        df_long = st.session_state.get('df_long')
-        if df_long is not None and not df_long.empty:
+        df_long_state = st.session_state.get('df_long')
+        if df_long_state is not None and not df_long_state.empty:
             try:
                 with st.spinner(f"Calculando percentiles P{p_lower} y P{p_upper}..."):
                     df_extremes, df_thresholds = calculate_percentiles_and_extremes(
-                        df_long, station_to_analyze_perc, p_lower, p_upper
+                        df_long_state, station_to_analyze_perc, p_lower, p_upper
                     )
             except Exception as e:
                 st.error(f"Error al calcular el análisis de percentiles: {e}")
 
-    # 2. Crear las nuevas pestañas
-    percentile_series_tab, percentile_thresholds_tab, indices_sub_tab, frequency_sub_tab, = st.tabs([
+    percentile_series_tab, percentile_thresholds_tab, indices_sub_tab, frequency_sub_tab = st.tabs([
         "Serie de Tiempo por Percentiles",
         "Umbrales de Percentil Mensual",
         "Índices de Sequía (SPI/SPEI)",
         "Análisis de Frecuencia de Extremos"
     ])
-
-    #3. Lógica de la primera pestaña (Serie de Tiempo)
+    
     with percentile_series_tab:
         if not df_extremes.empty:
             year_range_val = st.session_state.get('year_range', (2000, 2020))
-            if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and \
-               isinstance(year_range_val[0], int):
-                year_min, year_max = year_range_val
-            else:
-                year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
-
+            year_min, year_max = year_range_val if isinstance(year_range_val, tuple) and len(year_range_val) == 2 else st.session_state.get('year_range_single', (2000, 2020))
+            
             df_plot = df_extremes[
                 (df_extremes[Config.DATE_COL].dt.year >= year_min) &
                 (df_extremes[Config.DATE_COL].dt.year <= year_max) &
@@ -2064,9 +2049,7 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
 
             if not df_plot.empty:
                 st.subheader(f"Serie de Tiempo con Eventos Extremos (P{p_lower} y P{p_upper} Percentiles)")
-
                 color_map = {f'Sequía Extrema (<P{p_lower}%)': 'red', f'Húmedo Extremo (>P{p_upper}%)': 'blue', 'Normal': 'gray'}
-
                 fig_series = px.scatter(
                     df_plot, x=Config.DATE_COL, y=Config.PRECIPITATION_COL,
                     color='event_type', color_discrete_map=color_map,
@@ -2074,180 +2057,121 @@ def display_drought_analysis_tab(df_monthly_filtered, stations_for_analysis,
                     labels={Config.PRECIPITATION_COL: "Precipitación (mm)", Config.DATE_COL: "Fecha"},
                     hover_data={'event_type': True, 'p_lower': ':.0f', 'p_upper': ':.0f'}
                 )
-
-                mean_precip = \
-                    st.session_state.df_long[st.session_state.df_long[Config.STATION_NAME_COL] ==
-                                             station_to_analyze_perc][Config.PRECIPITATION_COL].mean()
-
-                fig_series.add_hline(y=mean_precip, line_dash="dash", line_color="green",
-                                     annotation_text="Media Histórica")
-
+                mean_precip_station = st.session_state.df_long[st.session_state.df_long[Config.STATION_NAME_COL] == station_to_analyze_perc][Config.PRECIPITATION_COL].mean()
+                fig_series.add_hline(y=mean_precip_station, line_dash="dash", line_color="green", annotation_text="Media Histórica")
                 fig_series.update_layout(height=500)
                 st.plotly_chart(fig_series, use_container_width=True)
-
             else:
                 st.warning("No hay datos que coincidan con los filtros de tiempo para la estación seleccionada.")
-
         else:
             st.info("Seleccione una estación para ver el análisis.")
 
-    #4. Lógica de la nueva pestaña (Umbrales)
     with percentile_thresholds_tab:
         if not df_thresholds.empty:
             st.subheader("Umbrales de Percentil Mensual (Climatología Histórica)")
-
-            meses_map_inv = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8:
-                            'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
-
-            df_thresholds['Month_Name'] = \
-                df_thresholds[Config.MONTH_COL].map(meses_map_inv)
-
+            meses_map_inv = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
+            df_thresholds['Month_Name'] = df_thresholds[Config.MONTH_COL].map(meses_map_inv)
             fig_thresh = go.Figure()
-
-            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'],
-                                             y=df_thresholds['p_upper'], mode='lines+markers', name=f'Percentil Superior (P{p_upper}%)', line=dict(color='blue')))
-
-            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'],
-                                             y=df_thresholds['p_lower'], mode='lines+markers', name=f'Percentil Inferior (P{p_lower}%)', line=dict(color='red')))
-
-            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'],
-                                             y=df_thresholds['mean_monthly'], mode='lines', name='Media Mensual',
-                                             line=dict(color='green', dash='dot')))
-
+            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_upper'], mode='lines+markers', name=f'Percentil Superior (P{p_upper}%)', line=dict(color='blue')))
+            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['p_lower'], mode='lines+markers', name=f'Percentil Inferior (P{p_lower}%)', line=dict(color='red')))
+            fig_thresh.add_trace(go.Scatter(x=df_thresholds['Month_Name'], y=df_thresholds['mean_monthly'], mode='lines', name='Media Mensual', line=dict(color='green', dash='dot')))
             fig_thresh.update_layout(title='Umbrales de Precipitación por Mes (Basado en Climatología)', xaxis_title="Mes", yaxis_title="Precipitación (mm)", height=400)
             st.plotly_chart(fig_thresh, use_container_width=True)
-
         else:
             st.info("Seleccione una estación para ver los umbrales.")
 
-    # FIN DE LA MODIFICACIÓN
-
     with indices_sub_tab:
         st.subheader("Análisis con Índices Estandarizados")
-
         col1_idx, col2_idx = st.columns([1, 3])
-
         index_values = pd.Series(dtype=float)
-
+        
         with col1_idx:
             index_type = st.radio("Índice a Calcular:", ("SPI", "SPEI"), key="index_type_radio")
-
-            station_to_analyze_idx = st.selectbox("Estación para análisis:",
-                                                  options=sorted(stations_for_analysis), key="index_station_select")
-
-            index_window = st.select_slider("Escala de tiempo (meses):", options=[3, 6, 9, 12,
-                                                                                  24], value=12, key="index_window_slider")
-
+            station_to_analyze_idx = st.selectbox("Estación para análisis:", options=sorted(stations_for_analysis), key="index_station_select")
+            index_window = st.select_slider("Escala de tiempo (meses):", options=[3, 6, 9, 12, 24], value=12, key="index_window_slider")
+        
         if station_to_analyze_idx:
-            df_station_idx = \
-                df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] ==
-                                    station_to_analyze_idx].copy().set_index(Config.DATE_COL).sort_index()
-
+            df_station_idx = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_idx].copy().set_index(Config.DATE_COL).sort_index()
+            
             with col2_idx:
                 with st.spinner(f"Calculando {index_type}-{index_window}..."):
                     if index_type == "SPI":
                         precip_series = df_station_idx[Config.PRECIPITATION_COL]
-
                         if len(precip_series.dropna()) < index_window * 2:
                             st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{index_window}.")
                         else:
-                            # Se asume que calculate_spi está importado
-                            from modules.analysis import calculate_spi
                             index_values = calculate_spi(precip_series, index_window)
-
                     elif index_type == "SPEI":
-                        if Config.ET_COL not in df_station_idx.columns or \
-                           df_station_idx[Config.ET_COL].isnull().all():
+                        if Config.ET_COL not in df_station_idx.columns or df_station_idx[Config.ET_COL].isnull().all():
                             st.error(f"No hay datos de evapotranspiración ('{Config.ET_COL}') disponibles.")
                         else:
-                            precip_series, et_series = df_station_idx[Config.PRECIPITATION_COL], \
-                                df_station_idx[Config.ET_COL]
-
-                            if len(precip_series.dropna()) < index_window * 2 or \
-                               len(et_series.dropna()) < index_window * 2:
+                            precip_series, et_series = df_station_idx[Config.PRECIPITATION_COL], df_station_idx[Config.ET_COL]
+                            if len(precip_series.dropna()) < index_window * 2 or len(et_series.dropna()) < index_window * 2:
                                 st.warning(f"No hay suficientes datos de precipitación o ETP para calcular el SPEI-{index_window}.")
                             else:
-                                # Se asume que calculate_spei está importado
-                                from modules.analysis import calculate_spei
                                 index_values = calculate_spei(precip_series, et_series, index_window)
 
-            if not index_values.empty and not index_values.isnull().all():
-                with col2_idx:
-
+                if not index_values.empty and not index_values.isnull().all():
                     df_plot = pd.DataFrame({'index_val': index_values}).dropna()
-                    conditions = [(df_plot['index_val'] < -2.0), (df_plot['index_val'] >
-                                 -2.0) & (df_plot['index_val'] <= -1.5), (df_plot['index_val'] > -1.5) & (df_plot['index_val'] <
-                                 =-1.0), (df_plot['index_val'] > -1.0) & (df_plot['index_val'] < 1.0), (df_plot['index_val'] >
-                                 =1.0) & (df_plot['index_val'] < 1.5), (df_plot['index_val'] >= 1.5) & (df_plot['index_val'] <
-                                 2.0), (df_plot['index_val'] >= 2.0)]
-                    colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3',
-                              '#2166ac']
+                    
+                    conditions = [
+                        (df_plot['index_val'] < -2.0),
+                        (df_plot['index_val'] >= -2.0) & (df_plot['index_val'] < -1.5),
+                        (df_plot['index_val'] >= -1.5) & (df_plot['index_val'] < -1.0),
+                        (df_plot['index_val'] >= -1.0) & (df_plot['index_val'] < 1.0),
+                        (df_plot['index_val'] >= 1.0) & (df_plot['index_val'] < 1.5),
+                        (df_plot['index_val'] >= 1.5) & (df_plot['index_val'] < 2.0),
+                        (df_plot['index_val'] >= 2.0)
+                    ]
+                    colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
 
                     df_plot['color'] = np.select(conditions, colors, default='grey')
-
-                    fig = go.Figure(go.Bar(x=df_plot.index, y=df_plot['index_val'],
-                                             marker_color=df_plot['color'], name=index_type))
-
-                    fig.update_layout(title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}", yaxis_title=f"Valor {index_type}", xaxis_title="Fecha",
-                                      height=500)
-
+                    
+                    fig = go.Figure(go.Bar(
+                        x=df_plot.index, 
+                        y=df_plot['index_val'],
+                        marker_color=df_plot['color'], 
+                        name=index_type
+                    ))
+                    fig.update_layout(
+                        title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}",
+                        yaxis_title=f"Valor {index_type}",
+                        xaxis_title="Fecha",
+                        height=500
+                    )
                     st.plotly_chart(fig, use_container_width=True)
-
-                    # Se asume que display_event_analysis está definida en otro lugar o se debe incluir aquí
-                    display_event_analysis(index_values, index_type)
+                    # display_event_analysis(index_values, index_type)
 
     with frequency_sub_tab:
         st.subheader("Análisis de Frecuencia de Precipitaciones Anuales Máximas")
         st.markdown("Este análisis estima la probabilidad de ocurrencia de un evento de precipitación de cierta magnitud utilizando la distribución de Gumbel para calcular los **períodos de retorno**.")
-
         station_to_analyze = st.selectbox("Seleccione una estación para el análisis de frecuencia:", options=sorted(stations_for_analysis), key="freq_station_select")
         if station_to_analyze:
-            station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] ==
-                                            station_to_analyze].copy()
-
+            station_data = df_anual_melted[df_anual_melted[Config.STATION_NAME_COL] == station_to_analyze].copy()
             annual_max_precip = station_data['precipitation'].dropna()
-
             if len(annual_max_precip) < 10:
                 st.warning("Se recomiendan al menos 10 años de datos para un análisis de frecuencia confiable.")
             else:
                 with st.spinner("Calculando períodos de retorno..."):
-
                     params = stats.gumbel_r.fit(annual_max_precip)
-
                     return_periods = np.array([2, 5, 10, 25, 50, 100, 200, 500])
-
                     non_exceed_prob = 1 - 1 / return_periods
-
                     precip_values = stats.gumbel_r.ppf(non_exceed_prob, *params)
-
-                    results_df = pd.DataFrame({"Período de Retorno (años)": return_periods,
-                                                "Precipitación Anual Esperada (mm)": precip_values})
-
+                    results_df = pd.DataFrame({"Período de Retorno (años)": return_periods, "Precipitación Anual Esperada (mm)": precip_values})
                     st.subheader(f"Resultados para la estación: {station_to_analyze}")
-
                     col1, col2 = st.columns([1, 2])
-
                     with col1:
                         st.markdown("#### Tabla de Resultados")
-                        st.dataframe(results_df.style.format({"Precipitación Anual Esperada (mm)":
-                                                             "{:.1f}"}))
-
+                        st.dataframe(results_df.style.format({"Precipitación Anual Esperada (mm)": "{:.1f}"}))
                     with col2:
                         st.markdown("#### Curva de Frecuencia")
                         fig = go.Figure()
-                        fig.add_trace(go.Scatter(x=station_data[Config.YEAR_COL],
-                                                 y=annual_max_precip, mode='markers', name='Máximos Anuales Observados'))
-
-                        x_plot = np.linspace(annual_max_precip.min(), precip_values[1] * 1.1, 100)
+                        fig.add_trace(go.Scatter(x=station_data[Config.YEAR_COL], y=annual_max_precip, mode='markers', name='Máximos Anuales Observados'))
+                        x_plot = np.linspace(annual_max_precip.min(), precip_values[-1] * 1.1, 100)
                         y_plot_prob = stats.gumbel_r.cdf(x_plot, *params)
-
-                        # Evitar división por cero
                         y_plot_prob = np.clip(y_plot_prob, 0, 0.999999)
                         y_plot_return_period = 1 / (1 - y_plot_prob)
-
-                        fig.add_trace(go.Scatter(x=y_plot_return_period, y=x_plot, mode='lines',
-                                                 name='Curva de Gumbel Ajustada', line=dict(color='red')))
-
+                        fig.add_trace(go.Scatter(x=y_plot_return_period, y=x_plot, mode='lines', name='Curva de Gumbel Ajustada', line=dict(color='red')))
                         fig.update_layout(title="Curva de Períodos de Retorno", xaxis_title="Período de Retorno (años)", yaxis_title="Precipitación Anual (mm)", xaxis_type="log")
                         st.plotly_chart(fig, use_container_width=True)
                         
