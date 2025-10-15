@@ -222,7 +222,7 @@ def main():
     df_anual_melted = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL])[Config.PRECIPITATION_COL].sum().reset_index()
 
 
-    st.sidebar.expander("Opciones de Preprocesamiento"):
+    with st.sidebar.expander("Opciones de Preprocesamiento"):
         analysis_mode = st.sidebar.radio(
             "Modo de análisis",
             ("Usar datos originales", "Completar series (interpolación)"),
