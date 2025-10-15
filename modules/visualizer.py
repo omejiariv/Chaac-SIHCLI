@@ -1668,6 +1668,19 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     template="plotly_white"
                 )
                 st.plotly_chart(fig, use_container_width=True)
+                # Prepara los datos para el CSV
+                df_hypsometric = pd.DataFrame({
+                    'Elevacion_m': hypsometric_data['elevations'],
+                    'Porcentaje_Area_Acumulada': hypsometric_data['cumulative_area_percent']
+                })
+                csv_data = df_hypsometric.to_csv(index=False).encode('utf-8')
+
+                st.download_button(
+                    label="📥 Descargar Datos de la Curva (CSV)",
+                    data=csv_data,
+                    file_name=f"curva_hipsométrica_{st.session_state.get('selected_basins_title', 'cuenca')}.csv",
+                    mime='text/csv',
+                )
                 st.caption("La curva hipsométrica muestra la distribución de la superficie de la cuenca en relación con la altitud.")
 
             os.remove(dem_path)
