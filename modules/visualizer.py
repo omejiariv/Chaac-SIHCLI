@@ -472,8 +472,8 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 
     gdf_display = gdf_filtered.copy()
 
-    sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de
-                                             Disponibilidad de Datos"])
+    # CORRECCIÓN DE SYNTAX ERROR: La string literal debe estar completa en una sola línea
+    sub_tab_mapa, sub_tab_grafico = st.tabs(["Mapa Interactivo", "Gráfico de Disponibilidad de Datos"])
 
     with sub_tab_mapa:
         controls_col, map_col = st.columns([1, 3])
