@@ -3128,7 +3128,7 @@ def display_trends_and_forecast_tab(df_full_monthly, stations_for_analysis,
 
     with pronostico_sarima_tab:
         st.subheader("Pronóstico (Modelo SARIMA)")
-        st.info("Los pronósticos se generan utilizando los datos procesados según la opción seleccionada en 'Modo de análisis' en el panel de control. Si el modo 'Completar series' está activo, se usarán los datos interpolados.", icon="  ")
+        st.info("Los pronósticos se generan utilizando los datos procesados...")
         station_to_forecast = st.selectbox("Seleccione una estación:",
                                             options=stations_for_analysis, key="sarima_station_select")
         c1, c2 = st.columns(2)
