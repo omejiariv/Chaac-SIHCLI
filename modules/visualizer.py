@@ -1531,9 +1531,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         else:
                             st.warning("No hay datos anuales disponibles.")
 
-                    with col_display:
-
-                    with col_display:
+                     with col_display:
                         fig_basin = st.session_state.get('fig_basin')
                         error_msg = st.session_state.get('error_msg')
                         mean_precip = st.session_state.get('mean_precip')
