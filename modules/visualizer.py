@@ -1081,6 +1081,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     Muestra la pestaña de Mapas Avanzados en Streamlit.
     """
     st.header("Mapas Avanzados")
+    
+    # Se asume que las funciones display_filter_summary, create_interpolation_surface, 
+    # calculate_hydrological_balance, calculate_morphometry, etc., están importadas 
+    # y disponibles, tal como indica el visualizer.pdf.
 
     # Se asume la función display_filter_summary existe y está importada/disponible
     display_filter_summary(
@@ -1104,7 +1108,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     gif_tab, kriging_tab, morph_tab, validation_tab, temporal_tab, race_tab, anim_tab, \
         compare_tab = st.tabs(tab_names)
 
-    # --- INICIO BLOQUE CON ERROR DE INDENTACIÓN CORREGIDO ---
+    # --- INICIO BLOQUE GIF ---
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
 
@@ -1115,13 +1119,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 st.rerun()
 
         with col_gif:
-            # Reemplace Config.GIF_PATH con la ruta real o asuma que está disponible
-            gif_path = st.session_state.get('GIF_PATH', 'ruta/ficticia/animacion.gif') 
+            # Uso Config.GIF_PATH directamente
+            gif_path = Config.GIF_PATH
             
-            # Nota: El PDF no muestra la importación de Config, por lo que uso una clave de sesión.
-            # Use 'Config.GIF_PATH' si está disponible.
-            # gif_path = Config.GIF_PATH 
-
             if os.path.exists(gif_path):
                 try:
                     with open(gif_path, "rb") as f:
@@ -1148,13 +1148,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
         if analysis_mode_interp == "Por Cuenca Específica":
             if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
-                # Asumo que Config.REGION_COL y Config.STATION_NAME_COL existen
-                Config_PRECIPITATION_COL = 'Valor_Precipitacion'
-                Config_STATION_NAME_COL = 'Estacion_Nombre'
-                Config_YEAR_COL = 'Anio'
-                Config_REGION_COL = 'Region'
-                Config_MUNICIPALITY_COL = 'Municipio'
-                Config_ALTITUDE_COL = 'Altitud'
                 
                 BASIN_NAME_COLUMN = 'SUBC_LBL' 
 
@@ -1165,14 +1158,14 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         st.markdown("#### Controles de Cuenca")
 
                         if not gdf_filtered.empty:
-                            relevant_regions = gdf_filtered[Config_REGION_COL].unique()
-                            if Config_REGION_COL in st.session_state.gdf_subcuencas.columns:
+                            relevant_regions = gdf_filtered[Config.REGION_COL].unique()
+                            if Config.REGION_COL in st.session_state.gdf_subcuencas.columns:
                                 relevant_basins = st.session_state.gdf_subcuencas[
-                                    st.session_state.gdf_subcuencas[Config_REGION_COL].isin(relevant_regions)
+                                    st.session_state.gdf_subcuencas[Config.REGION_COL].isin(relevant_regions)
                                 ]
                                 basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
                             else:
-                                st.warning(f"El archivo de cuencas no tiene columna '{Config_REGION_COL}'.")
+                                st.warning(f"El archivo de cuencas no tiene columna '{Config.REGION_COL}'.")
                                 basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
                         else:
                             basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
@@ -1181,8 +1174,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         
                         buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5)
 
-                        df_anual_non_na = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
-                        years = sorted(df_anual_non_na[Config_YEAR_COL].unique()) if not df_anual_non_na.empty else []
+                        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+                        years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
 
                         if years:
                             selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1)
@@ -1211,22 +1204,22 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                         stations_in_buffer = stations_metric[
                                             stations_metric.intersects(basin_buffer_metric.unary_union)
                                         ]
-                                        station_names = stations_in_buffer[Config_STATION_NAME_COL].unique()
+                                        station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
 
                                         precip_data_year = df_anual_non_na[
-                                            (df_anual_non_na[Config_YEAR_COL] == selected_year) &
-                                            (df_anual_non_na[Config_STATION_NAME_COL].isin(station_names))
+                                            (df_anual_non_na[Config.YEAR_COL] == selected_year) &
+                                            (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))
                                         ]
 
-                                        cols_to_merge = [Config_STATION_NAME_COL, 'geometry',
-                                                         Config_MUNICIPALITY_COL, Config_ALTITUDE_COL]
+                                        cols_to_merge = [Config.STATION_NAME_COL, 'geometry',
+                                                         Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
                                         
                                         points_data = gpd.GeoDataFrame(pd.merge(
                                             stations_in_buffer[cols_to_merge],
-                                            precip_data_year[[Config_STATION_NAME_COL, Config_PRECIPITATION_COL]],
-                                            on=Config_STATION_NAME_COL
-                                        )).dropna(subset=[Config_PRECIPITATION_COL])
-                                        points_data.rename(columns={Config_PRECIPITATION_COL: 'Valor'}, inplace=True)
+                                            precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
+                                            on=Config.STATION_NAME_COL
+                                        )).dropna(subset=[Config.PRECIPITATION_COL])
+                                        points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
 
                                         bounds = basin_buffer_metric.unary_union.bounds
                                         grid_resolution = 500
@@ -1332,9 +1325,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                                 fig_basin = go.Figure(data=map_traces)
 
                                                 points_data['hover_text'] = points_data.apply(
-                                                    lambda row: f"<b>{row[Config_STATION_NAME_COL]}</b><br>"
-                                                                f"Municipio: {row[Config_MUNICIPALITY_COL]}<br>"
-                                                                f"Altitud: {row[Config_ALTITUDE_COL]:.0f} m<br>"
+                                                    lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
+                                                                f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
+                                                                f"Altitud: {row[Config.ALTITUDE_COL]:.0f} m<br>"
                                                                 f"Precipitación: {row['Valor']:.0f} mm",
                                                     axis=1
                                                 )
@@ -1414,7 +1407,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     f.write(dem_file_from_state.getbuffer())
 
                                 # Se asume la función calculate_morphometry existe y está importada/disponible
-                                morph_results = calculate_morphometry(st.session_state.get('unified_basin_gdf'), dem_path)
+                                morph_results = calculate_morphometry(unified_basin_gdf, dem_path)
                                 os.remove(dem_path)
 
                                 if morph_results.get("error"):
@@ -1436,12 +1429,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 st.warning("Los datos de cuencas no están disponibles para este modo.")
 
         else: # MODO REGIONAL
-            df_anual_non_na = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
+            # Uso Config.PRECIPITATION_COL directamente
+            df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
 
             if not stations_for_analysis or df_anual_non_na.empty:
                 st.warning("No hay suficientes datos anuales para realizar la interpolación.")
             else:
-                min_year, max_year = int(df_anual_non_na[Config_YEAR_COL].min()), int(df_anual_non_na[Config_YEAR_COL].max())
+                min_year, max_year = int(df_anual_non_na[Config.YEAR_COL].min()), int(df_anual_non_na[Config.YEAR_COL].max())
                 control_col, map_col1, map_col2 = st.columns([1, 2, 2])
 
                 with control_col:
@@ -1534,9 +1528,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
 
                 c4, c5, c6 = st.columns(3)
-                c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m")
-                c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m")
-                c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m")
+                c4.metric("Altitud Máxima", f"{morph_results['alt_max_m']:.0f} m" if morph_results.get('alt_max_m') else "N/A")
+                c5.metric("Altitud Mínima", f"{morph_results['alt_min_m']:.0f} m" if morph_results.get('alt_min_m') else "N/A")
+                c6.metric("Altitud Promedio", f"{morph_results['alt_prom_m']:.1f} m" if morph_results.get('alt_prom_m') else "N/A")
 
             st.markdown("---")
 
@@ -1581,8 +1575,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         if len(stations_for_analysis) < 4:
             st.warning("Se necesitan al menos 4 estaciones con datos para realizar una validación robusta.")
         else:
-            df_anual_non_na = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
-            all_years_int = sorted(df_anual_non_na[Config_YEAR_COL].unique())
+            df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+            all_years_int = sorted(df_anual_non_na[Config.YEAR_COL].unique())
 
             if not all_years_int:
                 st.warning("No hay años con datos válidos para la validación.")
@@ -1626,10 +1620,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with temporal_tab:
         st.subheader("Explorador Anual de Precipitación")
-        df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
+        df_anual_melted_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
 
         if not df_anual_melted_non_na.empty:
-            all_years_int = sorted(df_anual_melted_non_na[Config_YEAR_COL].unique())
+            all_years_int = sorted(df_anual_melted_non_na[Config.YEAR_COL].unique())
             controls_col, map_col = st.columns([1, 3])
 
             with controls_col:
@@ -1651,34 +1645,34 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
                 if selected_year:
                     st.markdown(f"#### Resumen del Año: {selected_year}")
-                    df_year_filtered = df_anual_melted_non_na[df_anual_melted_non_na[Config_YEAR_COL] == selected_year]
+                    df_year_filtered = df_anual_melted_non_na[df_anual_melted_non_na[Config.YEAR_COL] == selected_year]
                     
                     if not df_year_filtered.empty:
                         num_stations = len(df_year_filtered)
                         st.metric("Estaciones con Datos", num_stations)
                         if num_stations > 1:
-                            st.metric("Promedio Anual", f"{df_year_filtered[Config_PRECIPITATION_COL].mean():.0f} mm")
-                            st.metric("Máximo Anual", f"{df_year_filtered[Config_PRECIPITATION_COL].max():.0f} mm")
+                            st.metric("Promedio Anual", f"{df_year_filtered[Config.PRECIPITATION_COL].mean():.0f} mm")
+                            st.metric("Máximo Anual", f"{df_year_filtered[Config.PRECIPITATION_COL].max():.0f} mm")
                         else:
-                            st.metric("Precipitación Anual", f"{df_year_filtered[Config_PRECIPITATION_COL].iloc[0]:.0f} mm")
+                            st.metric("Precipitación Anual", f"{df_year_filtered[Config.PRECIPITATION_COL].iloc[0]:.0f} mm")
 
             with map_col:
                 if selected_year:
                     # Asumiendo una función de utilería para crear el mapa base
                     m_temporal = folium.Map(location=[4.57, -74.29], zoom_start=5, tiles=selected_base_map_config) 
 
-                    df_year_filtered = df_anual_melted_non_na[df_anual_melted_non_na[Config_YEAR_COL] == selected_year]
+                    df_year_filtered = df_anual_melted_non_na[df_anual_melted_non_na[Config.YEAR_COL] == selected_year]
 
                     if not df_year_filtered.empty:
-                        cols_to_merge = [Config_STATION_NAME_COL, Config_MUNICIPALITY_COL, Config_ALTITUDE_COL, 'geometry']
+                        cols_to_merge = [Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, 'geometry']
                         
                         df_map_data = pd.merge(df_year_filtered,
-                                               gdf_filtered[cols_to_merge].drop_duplicates(subset=[Config_STATION_NAME_COL]),
-                                               on=Config_STATION_NAME_COL, how="inner")
+                                               gdf_filtered[cols_to_merge].drop_duplicates(subset=[Config.STATION_NAME_COL]),
+                                               on=Config.STATION_NAME_COL, how="inner")
 
                         if not df_map_data.empty:
-                            min_val, max_val = df_anual_melted_non_na[Config_PRECIPITATION_COL].min(), \
-                                               df_anual_melted_non_na[Config_PRECIPITATION_COL].max()
+                            min_val, max_val = df_anual_melted_non_na[Config.PRECIPITATION_COL].min(), \
+                                               df_anual_melted_non_na[Config.PRECIPITATION_COL].max()
                             if min_val >= max_val: max_val = min_val + 1
                             
                             colormap = cm.LinearColormap(colors=plt.cm.viridis.colors, vmin=min_val, vmax=max_val)
@@ -1689,9 +1683,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
                                 folium.CircleMarker(
                                     location=[row['geometry'].y, row['geometry'].x], radius=5,
-                                    color=colormap(row[Config_PRECIPITATION_COL]), fill=True,
-                                    fill_color=colormap(row[Config_PRECIPITATION_COL]), fill_opacity=0.8,
-                                    tooltip=row[Config_STATION_NAME_COL], popup=popup_object
+                                    color=colormap(row[Config.PRECIPITATION_COL]), fill=True,
+                                    fill_color=colormap(row[Config.PRECIPITATION_COL]), fill_opacity=0.8,
+                                    tooltip=row[Config.STATION_NAME_COL], popup=popup_object
                                 ).add_to(m_temporal)
 
                             temp_gdf = gpd.GeoDataFrame(df_map_data, geometry='geometry', crs=gdf_filtered.crs)
@@ -1707,14 +1701,14 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     with race_tab:
         st.subheader("Ranking Anual de Precipitación por Estación")
 
-        df_anual_valid = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
+        df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
 
         if not df_anual_valid.empty:
             fig_racing = px.bar(
-                df_anual_valid, x=Config_PRECIPITATION_COL, y=Config_STATION_NAME_COL,
-                animation_frame=Config_YEAR_COL, orientation='h',
-                labels={Config_PRECIPITATION_COL: 'Precipitación Anual (mm)',
-                        Config_STATION_NAME_COL: 'Estación'},
+                df_anual_valid, x=Config.PRECIPITATION_COL, y=Config.STATION_NAME_COL,
+                animation_frame=Config.YEAR_COL, orientation='h',
+                labels={Config.PRECIPITATION_COL: 'Precipitación Anual (mm)',
+                        Config.STATION_NAME_COL: 'Estación'},
                 title="Evolución de Precipitación Anual por Estación"
             )
 
@@ -1729,26 +1723,23 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     with anim_tab:
         st.subheader("Mapa Animado de Precipitación Anual")
 
-        df_anual_valid = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
+        df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
 
         if not df_anual_valid.empty:
             df_anim_merged = pd.merge(
                 df_anual_valid,
-                gdf_filtered.drop_duplicates(subset=[Config_STATION_NAME_COL]),
-                on=Config_STATION_NAME_COL, how="inner"
+                gdf_filtered.drop_duplicates(subset=[Config.STATION_NAME_COL]),
+                on=Config.STATION_NAME_COL, how="inner"
             )
 
             if not df_anim_merged.empty:
-                # Asumiendo que Config.LATITUDE_COL y Config.LONGITUDE_COL existen
-                Config_LATITUDE_COL = 'Latitud'
-                Config_LONGITUDE_COL = 'Longitud'
                 
                 fig_mapa_animado = px.scatter_geo(
                     df_anim_merged,
-                    lat=Config_LATITUDE_COL, lon=Config_LONGITUDE_COL,
-                    color=Config_PRECIPITATION_COL, size=Config_PRECIPITATION_COL,
-                    hover_name=Config_STATION_NAME_COL,
-                    animation_frame=Config_YEAR_COL,
+                    lat=Config.LATITUDE_COL, lon=Config.LONGITUDE_COL,
+                    color=Config.PRECIPITATION_COL, size=Config.PRECIPITATION_COL,
+                    hover_name=Config.STATION_NAME_COL,
+                    animation_frame=Config.YEAR_COL,
                     projection='natural earth',
                     title='Precipitación Anual por Estación'
                 )
@@ -1763,8 +1754,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     with compare_tab:
         st.subheader("Comparación de Mapas Anuales")
 
-        df_anual_valid = df_anual_melted.dropna(subset=[Config_PRECIPITATION_COL])
-        all_years = sorted(df_anual_valid[Config_YEAR_COL].unique())
+        df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+        all_years = sorted(df_anual_valid[Config.YEAR_COL].unique())
 
         if len(all_years) > 1:
             control_col, map_col1, map_col2 = st.columns([1, 2, 2])
@@ -1775,8 +1766,8 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 # Se asume la función display_map_controls existe y está importada/disponible
                 selected_base_map_config, selected_overlays_config = display_map_controls(st, "compare")
 
-                min_precip, max_precip = int(df_anual_valid[Config_PRECIPITATION_COL].min()), \
-                                         int(df_anual_valid[Config_PRECIPITATION_COL].max())
+                min_precip, max_precip = int(df_anual_valid[Config.PRECIPITATION_COL].min()), \
+                                         int(df_anual_valid[Config.PRECIPITATION_COL].max())
                 if min_precip >= max_precip: max_precip = min_precip + 1
                 
                 min_year, max_year = int(all_years[0]), int(all_years[-1])
@@ -1801,20 +1792,20 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 m = folium.Map(location=[6.24, -75.58], zoom_start=6, tiles=selected_base_map_config)
 
                 if not data.empty:
-                    data_with_geom = pd.merge(data, gdf_stations_info, on=Config_STATION_NAME_COL)
+                    data_with_geom = pd.merge(data, gdf_stations_info, on=Config.STATION_NAME_COL)
                     gpd_data = gpd.GeoDataFrame(data_with_geom, geometry='geometry', crs=gdf_stations_info.crs)
 
                     for _, row in gpd_data.iterrows():
-                        if pd.notna(row[Config_PRECIPITATION_COL]):
+                        if pd.notna(row[Config.PRECIPITATION_COL]):
                             # Se asume la función generate_annual_map_popup_html existe
                             popup_object = generate_annual_map_popup_html(row, df_anual_full)
 
                             folium.CircleMarker(
                                 location=[row['geometry'].y, row['geometry'].x], radius=5,
-                                color=colormap(row[Config_PRECIPITATION_COL]),
-                                fill=True, fill_color=colormap(row[Config_PRECIPITATION_COL]),
+                                color=colormap(row[Config.PRECIPITATION_COL]),
+                                fill=True, fill_color=colormap(row[Config.PRECIPITATION_COL]),
                                 fill_opacity=0.8,
-                                tooltip=row[Config_STATION_NAME_COL], popup=popup_object
+                                tooltip=row[Config.STATION_NAME_COL], popup=popup_object
                             ).add_to(m)
 
                     if not gpd_data.empty:
@@ -1828,11 +1819,11 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         folium_static(m, height=450, width=None)
 
             # Preparar información de geometrías de estaciones
-            gdf_geometries = gdf_filtered[[Config_STATION_NAME_COL, Config_MUNICIPALITY_COL, Config_ALTITUDE_COL, 'geometry']].drop_duplicates(subset=[Config_STATION_NAME_COL])
+            gdf_geometries = gdf_filtered[[Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, 'geometry']].drop_duplicates(subset=[Config.STATION_NAME_COL])
 
             # Llamar a la función para cada mapa
-            data_year1 = df_anual_valid[df_anual_valid[Config_YEAR_COL] == year1]
-            data_year2 = df_anual_valid[df_anual_valid[Config_YEAR_COL] == year2]
+            data_year1 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year1]
+            data_year2 = df_anual_valid[df_anual_valid[Config.YEAR_COL] == year2]
             
             create_compare_map(data_year1, year1, map_col1, gdf_geometries, df_anual_valid)
             create_compare_map(data_year2, year2, map_col2, gdf_geometries, df_anual_valid)
