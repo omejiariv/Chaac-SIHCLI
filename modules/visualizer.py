@@ -34,7 +34,7 @@ import pyproj
 from rasterio.warp import reproject, Resampling
 
 #--- Importaciones de Módulos Propios
-from modules.analysis import calculate_morphometry
+from modules.analysis import calculate_morphometry, calculate_hypsometric_curve
 from modules.analysis import (
     calculate_spi,
     calculate_spei,
