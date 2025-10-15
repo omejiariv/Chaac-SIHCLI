@@ -275,7 +275,7 @@ def main():
     with tabs[2]: display_graphs_tab(**display_args)
     with tabs[3]: display_advanced_maps_tab(**display_args)
     with tabs[4]: display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
-    with tabs[5]: display_drought_analysis_tab(**display_args)
+    with tabs[5]: display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[6]: display_stats_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[7]: display_correlation_tab(**display_args)
     with tabs[8]: display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
