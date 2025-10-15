@@ -2075,6 +2075,18 @@ def display_drought_analysis_tab(df_long, df_monthly_filtered, stations_for_anal
 
     with indices_sub_tab:
         st.subheader("Análisis con Índices Estandarizados")
+        
+        # El expander está al mismo nivel que el subheader
+        with st.expander("ℹ️ ¿Cómo interpretar los índices de sequía?"):
+            # El markdown está sangrado un nivel más adentro
+            st.markdown("""
+            El **Índice de Precipitación Estandarizado (SPI)** mide la desviación de la precipitación respecto a su media histórica.
+
+            * **Valores Positivos (azul):** Indican condiciones más húmedas que el promedio.
+            * **Valores Negativos (rojo):** Indican condiciones más secas (sequía).
+            * **Valores cercanos a 0:** Representan condiciones normales.
+            """)
+        
         col1_idx, col2_idx = st.columns([1, 3])
         index_values = pd.Series(dtype=float)
         
