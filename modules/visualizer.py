@@ -2476,29 +2476,25 @@ def display_stats_tab(df_long, df_anual_melted, df_monthly_filtered,
                             df_stations_valid.loc[df_stations_valid[Config.ALTITUDE_COL].idxmin()]
 
                 # --- D. CÁLCULO DE TENDENCIAS (SEN'S SLOPE)
-                trend_results = []
-                from modules.analysis import mk # Asume importación de pymannkendall
-                for station in stations_for_analysis:
-                    station_data = df_anual_valid[df_anual_valid[Config.STATION_NAME_COL] ==
-                                                  station].copy()
+            trend_results = []
+            
+            # --- LÍNEA CORREGIDA ---
+            import pymannkendall as mk # Importar directamente desde la librería
+            # --- FIN DE LA CORRECCIÓN ---
 
-                    if len(station_data) >= 4:
-                        mk_result_table = \
-                            mk.original_test(station_data[Config.PRECIPITATION_COL])
-                        trend_results.append({'slope_sen': mk_result_table.slope, 'p_value':
-                                              mk_result_table.p, Config.STATION_NAME_COL: station})
+            for station in stations_for_analysis:
+                station_data = df_anual_valid[df_anual_valid[Config.STATION_NAME_COL] == station].copy()
+                if len(station_data) >= 4:
+                    mk_result_table = mk.original_test(station_data[Config.PRECIPITATION_COL])
+                    trend_results.append({'slope_sen': mk_result_table.slope, 'p_value': mk_result_table.p, Config.STATION_NAME_COL: station})
 
-                df_trends = pd.DataFrame(trend_results)
-                max_pos_trend_row, min_neg_trend_row = None, None
-
-                if not df_trends.empty:
-                    df_pos_trends = df_trends[df_trends['slope_sen'] > 0]
-                    df_neg_trends = df_trends[df_trends['slope_sen'] < 0]
-
-                    if not df_pos_trends.empty: max_pos_trend_row = \
-                        df_pos_trends.loc[df_pos_trends['slope_sen'].idxmax()]
-                    if not df_neg_trends.empty: min_neg_trend_row = \
-                        df_neg_trends.loc[df_neg_trends['slope_sen'].idxmin()]
+            df_trends = pd.DataFrame(trend_results)
+            max_pos_trend_row, min_neg_trend_row = None, None
+            if not df_trends.empty:
+                df_pos_trends = df_trends[df_trends['slope_sen'] > 0]
+                df_neg_trends = df_trends[df_trends['slope_sen'] < 0]
+                if not df_pos_trends.empty: max_pos_trend_row = df_pos_trends.loc[df_pos_trends['slope_sen'].idxmax()]
+                if not df_neg_trends.empty: min_neg_trend_row = df_neg_trends.loc[df_neg_trends['slope_sen'].idxmin()]
 
                 meses_map = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7:
                              'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
