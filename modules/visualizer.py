@@ -1851,25 +1851,30 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with race_tab:
         st.subheader("Ranking Anual de Precipitación por Estación")
-
         df_anual_valid = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
 
         if not df_anual_valid.empty:
             fig_racing = px.bar(
-                df_anual_valid, x=Config.PRECIPITATION_COL, y=Config.STATION_NAME_COL,
-                animation_frame=Config.YEAR_COL, orientation='h',
-                labels={Config.PRECIPITATION_COL: 'Precipitación Anual (mm)',
-                        Config.STATION_NAME_COL: 'Estación'},
+                df_anual_valid,
+                x=Config.PRECIPITATION_COL,
+                y=Config.STATION_NAME_COL,
+                animation_frame=Config.YEAR_COL,
+                orientation='h',
+                labels={
+                    Config.PRECIPITATION_COL: 'Precipitación Anual (mm)',
+                    Config.STATION_NAME_COL: 'Estación'
+                },
                 title="Evolución de Precipitación Anual por Estación"
             )
 
+            # --- BLOQUE CORREGIDO ---
             fig_racing.update_layout(
                 height=max(600, len(stations_for_analysis) * 35),
-                yaxis_dict(categoryorder='total ascending')
+                yaxis=dict(categoryorder='total ascending')
             )
+            # --- FIN DE LA CORRECCIÓN ---
 
             st.plotly_chart(fig_racing, use_container_width=True)
-
         else:
             st.warning("No hay suficientes datos anuales con los filtros actuales para generar el Gráfico de Carrera.")
 
