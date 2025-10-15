@@ -1967,9 +1967,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 year1 = st.selectbox("Seleccione el primer año", options=all_years, index=len(all_years) - 1, key="compare_year1")
                 
                 st.markdown("**Mapa 2**")
-                # --- CORRECCIÓN DE SINTAXIS ---
-                # 'index' debe ir antes de 'key'
-                year2 = st.selectbox("Seleccione el segundo año", options=all_years, 
+                year2 = st.selectbox("Seleccione el segundo año", options=all_years,
                                      index=len(all_years) - 2 if len(all_years) > 1 else 0,
                                      key="compare_year2")
                 # --- FIN DE LA CORRECCIÓN ---
