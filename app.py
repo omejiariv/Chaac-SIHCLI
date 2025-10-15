@@ -164,11 +164,10 @@ def main():
         meses_numeros = [meses_dict[m] for m in meses_nombres]
 
     with st.sidebar.expander("Opciones de Preprocesamiento"):
-        analysis_mode = st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
-        st.session_state.analysis_mode = analysis_mode
-        st.session_state.exclude_na = st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
-        st.session_state.exclude_zeros = st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
-
+        st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
+        st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
+        st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
+    
     # --- Definición de Pestañas ---
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
