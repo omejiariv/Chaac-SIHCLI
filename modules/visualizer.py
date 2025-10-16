@@ -1307,7 +1307,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = ["Animación GIF", "Superficies de Interpolación", "Morfometría", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
+    tab_names = ["Animación GIF", "Superficies de Interpolación", "Morfometría", "Mapa de Riesgo Climático", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
     gif_tab, kriging_tab, morph_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
@@ -1688,6 +1688,15 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
+    with risk_map_tab:
+        st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
+        st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
+    
+        if st.button("Generar Mapa de Riesgo"):
+            fig_risk = create_climate_risk_map(df_anual_melted, gdf_filtered)
+            if fig_risk:
+                st.plotly_chart(fig_risk, use_container_width=True)
+                                  
     with validation_tab:
         st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
 
