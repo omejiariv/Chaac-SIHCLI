@@ -45,7 +45,8 @@ def create_sidebar(gdf_stations, df_long):
 
     # Aplicamos los filtros para obtener la lista de estaciones disponibles
     gdf_filtered_for_selector = apply_filters_to_stations(
-        gdf_stations, min_data_perc, selected_altitudes,
+        gdf_stations.copy(),
+        min_data_perc, selected_altitudes,
         selected_regions, selected_municipios, selected_celdas
     )
     stations_options = sorted(gdf_filtered_for_selector[Config.STATION_NAME_COL].unique())
