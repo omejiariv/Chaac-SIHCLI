@@ -1744,64 +1744,62 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with risk_map_tab:
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
-        st.info("Este mapa muestra la tendencia de precipitación (Pendiente de Sen) para cada estación con datos suficientes (>10 años). Las estaciones con tendencias a secarse se muestran en rojo y las que tienden a humedecerse en azul.")
+        st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
         
-        # Opciones de visualización en un expander
-        with st.expander("Opciones del Mapa"):
-            map_style = st.selectbox(
-                "Estilo del Mapa Base:",
-                options=["carto-positron", "open-street-map", "stamen-terrain", "white-bg"],
+        with st.expander("Opciones de Visualización del Mapa"):
+            interp_option = st.selectbox(
+                "Método de Interpolación",
+                options=["Spline", "IDW (Lineal)", "Vecino más Cercano"],
                 index=0,
-                key="risk_map_style"
+                key="risk_interp_method"
             )
-            marker_size = st.slider("Tamaño de los Puntos de Estación:", min_value=5, max_value=25, value=10, key="risk_marker_size")
+            method_map = {"Spline": "cubic", "IDW (Lineal)": "linear", "Vecino más Cercano": "nearest"}
+            selected_method = method_map[interp_option]
 
-        if st.button("Generar Mapa de Riesgo Integrado"):
-            with st.spinner("Calculando tendencias y generando mapa..."):
-                # Se reutiliza la función que ya calcula las tendencias y devuelve un GeoDataFrame
-                gdf_trends = calculate_all_station_trends(df_anual_melted, gdf_filtered)
+            grid_res = st.slider(
+                "Resolución de la Grilla (más alto = más suave)",
+                min_value=50,
+                max_value=300,
+                value=150,
+                step=50,
+                key="risk_grid_res"
+            )
+        
+        if st.button("Generar Mapa de Riesgo"):
+            fig_risk = create_climate_risk_map(
+                df_anual_melted, 
+                gdf_filtered,
+                interp_method=selected_method,
+                grid_resolution=grid_res
+            )
+            if fig_risk:
+                st.plotly_chart(fig_risk, use_container_width=True)
 
-                if not gdf_trends.empty:
-                    # --- SOLUCIÓN 2: ENRIQUECER EL POPUP ---
-                    # Creamos el texto enriquecido para el popup
-                    gdf_trends['hover_text'] = gdf_trends.apply(
-                        lambda row: f"<b>Estación: {row[Config.STATION_NAME_COL]}</b><br><br>"
-                                    f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
-                                    f"Altitud: {row[Config.ALTITUDE_COL]:.0f} m<br>"
-                                    f"Tendencia: {row['slope_sen']:.2f} mm/año<br>"
-                                    f"Significancia (p-valor): {row['p_value']:.3f}",
-                        axis=1
-                    )
-
-                    # --- SOLUCIÓN 1 Y 3: MAPA ÚNICO Y PUNTOS VISTOSOS ---
-                    # Usamos scatter_mapbox para tener un mapa base geográfico
-                    fig_risk = px.scatter_mapbox(
-                        gdf_trends,
-                        lat=gdf_trends.geometry.y,
-                        lon=gdf_trends.geometry.x,
+        st.markdown("---")
+        st.subheader("Mapa de Tendencias sobre Mapa Base")
+        if st.checkbox("Mostrar mapa de tendencias con fondo geográfico"):
+            with st.spinner("Generando mapa base..."):
+                gdf_trends_map = calculate_all_station_trends(df_anual_melted, gdf_filtered)
+                if not gdf_trends_map.empty:
+                    fig_mapbox = px.scatter_mapbox(
+                        gdf_trends_map,
+                        lat=gdf_trends_map.geometry.y,
+                        lon=gdf_trends_map.geometry.x,
                         color="slope_sen",
-                        size=np.abs(gdf_trends['slope_sen']), # El tamaño del punto refleja la magnitud de la tendencia
-                        color_continuous_scale=px.colors.diverging.RdBu, # Escala Rojo-Azul
-                        size_max=marker_size * 2, # Aumenta el tamaño máximo para mayor impacto
-                        zoom=6,
-                        mapbox_style=map_style,
+                        size=np.abs(gdf_trends_map['slope_sen']),
+                        color_continuous_scale=px.colors.diverging.RdBu,
+                        size_max=15,
+                        zoom=5,
+                        mapbox_style="carto-positron",
                         hover_name=Config.STATION_NAME_COL,
-                        custom_data=['hover_text'] # Pasamos el texto enriquecido
+                        hover_data={"slope_sen": ":.2f", "p_value": ":.3f"},
+                        title="Tendencias de Precipitación sobre Mapa Base"
                     )
-                    
-                    # Actualizamos el formato del popup para mostrar el texto personalizado
-                    fig_risk.update_traces(hovertemplate="%{customdata[0]}")
-                    
-                    fig_risk.update_layout(
-                        title="Tendencias de Precipitación sobre Mapa Base",
-                        legend_title="Tendencia (mm/año)",
-                        margin={"r":0,"t":40,"l":0,"b":0}
-                    )
-                    
-                    st.plotly_chart(fig_risk, use_container_width=True)
+                    fig_mapbox.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+                    st.plotly_chart(fig_mapbox, use_container_width=True)
                 else:
-                    st.warning("No hay suficientes estaciones con datos de tendencia (>10 años) para generar el mapa.")
-                                  
+                    st.warning("No hay suficientes datos de tendencia para generar el mapa base.")
+
     with validation_tab:
         st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
 
