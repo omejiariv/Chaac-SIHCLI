@@ -1364,15 +1364,13 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    # --- LÍNEAS CORREGIDAS ---
     tab_names = [
         "Animación GIF", "Superficies de Interpolación", "Morfometría", 
         "Mapa de Riesgo Climático", "Validación Cruzada (LOOCV)", 
         "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"
     ]
     gif_tab, kriging_tab, morph_tab, risk_map_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
-    # --- FIN DE LA CORRECCIÓN ---
-
+                                  
     with gif_tab:
         st.subheader("Distribución Espacio-Temporal de la Lluvia en Antioquia")
         col_controls, col_gif = st.columns([1, 3])
