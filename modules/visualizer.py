@@ -1275,6 +1275,7 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         import traceback
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
 
+@st.cache_data
 def create_climate_risk_map(df_anual, gdf_filtered, interp_method='cubic', grid_resolution=150):
     """
     Calcula y visualiza un mapa de riesgo por variabilidad climática con opciones personalizables.
@@ -3519,3 +3520,85 @@ def display_station_table_tab(gdf_filtered, df_anual_melted, df_monthly_filtered
 
             except Exception as e:
                 st.error(f"Ocurrió un error al calcular las estadísticas: {e}")
+
+def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
+    st.header("Pronóstico del Tiempo a 7 Días (Open-Meteo)")
+    
+    if not stations_for_analysis:
+        st.warning("Seleccione al menos una estación para obtener el pronóstico.")
+        return
+
+    station_options = sorted(stations_for_analysis)
+    selected_station = st.selectbox(
+        "Seleccione una estación para el pronóstico:",
+        options=station_options,
+        key="weekly_forecast_station"
+    )
+
+    if selected_station and st.button("Obtener Pronóstico", key="get_forecast_button"):
+        station_info = gdf_filtered[gdf_filtered[Config.STATION_NAME_COL] == selected_station].iloc[0]
+        lat = station_info.geometry.y
+        lon = station_info.geometry.x
+
+        with st.spinner(f"Obteniendo pronóstico para {selected_station} (Lat: {lat:.4f}, Lon: {lon:.4f})..."):
+            forecast_df = get_weather_forecast(lat, lon) # Llama a la función de forecasting.py
+
+            if forecast_df is not None and not forecast_df.empty:
+                st.subheader(f"Pronóstico para los próximos 7 días en {selected_station}")
+                
+                # Formatear y mostrar la tabla de datos
+                display_df = forecast_df.copy()
+                display_df['date'] = display_df['date'].dt.strftime('%A, %d de %B')
+                display_df = display_df.rename(columns={
+                    'date': 'Fecha',
+                    'temp_max (°C)': 'T. Máx (°C)',
+                    'temp_min (°C)': 'T. Mín (°C)',
+                    'precip_sum (mm)': 'Ppt. (mm)'
+                })
+                st.dataframe(display_df.set_index('Fecha'), use_container_width=True)
+
+                # Crear el gráfico de pronóstico
+                fig = go.Figure()
+
+                # Barra de precipitación
+                fig.add_trace(go.Bar(
+                    x=forecast_df['date'],
+                    y=forecast_df['precip_sum (mm)'],
+                    name='Precipitación',
+                    marker_color='blue',
+                    yaxis='y2'
+                ))
+                
+                # Líneas de temperatura
+                fig.add_trace(go.Scatter(
+                    x=forecast_df['date'],
+                    y=forecast_df['temp_max (°C)'],
+                    name='Temp. Máxima',
+                    mode='lines+markers',
+                    line=dict(color='red')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=forecast_df['date'],
+                    y=forecast_df['temp_min (°C)'],
+                    name='Temp. Mínima',
+                    mode='lines+markers',
+                    line=dict(color='lightblue'),
+                    fill='tonexty',
+                    fillcolor='rgba(255, 0, 0, 0.1)'
+                ))
+
+                fig.update_layout(
+                    title_text="Pronóstico de Temperatura y Precipitación",
+                    xaxis_title="Fecha",
+                    yaxis_title="Temperatura (°C)",
+                    yaxis2=dict(
+                        title="Precipitación (mm)",
+                        overlaying='y',
+                        side='right'
+                    ),
+                    legend=dict(x=0.01, y=0.99)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            else:
+                st.error("No se pudieron obtener los datos del pronóstico. Inténtelo de nuevo más tarde.")
