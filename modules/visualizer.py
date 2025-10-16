@@ -1296,17 +1296,16 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
 
 def create_climate_risk_map(df_anual, gdf_filtered):
     """
-    Calcula y visualiza un mapa de riesgo por variabilidad climática basado en tendencias.
+    Calcula y visualiza un mapa de riesgo por variabilidad climática.
     """
     with st.spinner("Calculando tendencias para todas las estaciones..."):
-        # Llama a la función que calcula la tendencia para cada estación
         gdf_trends = calculate_all_station_trends(df_anual, gdf_filtered)
 
     if gdf_trends.empty or len(gdf_trends) < 4:
         st.warning("No hay suficientes estaciones con datos de tendencia (>10 años) para generar un mapa de riesgo.")
         return None
 
-    # Prepara los datos para la interpolación (coordenadas y valores de pendiente)
+    # Prepara datos para la interpolación
     coords = np.array(gdf_trends.geometry.apply(lambda p: (p.x, p.y)).tolist())
     values = gdf_trends['slope_sen'].values
     
@@ -1316,10 +1315,10 @@ def create_climate_risk_map(df_anual, gdf_filtered):
     grid_lat = np.linspace(bounds[1], bounds[3], 200)
     grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-    # Interpola la Pendiente de Sen para crear una superficie continua
+    # Interpola la Pendiente de Sen
     grid_z = griddata(coords, values, (grid_x, grid_y), method='cubic')
     
-    # Rellena los vacíos en los bordes para un mapa completo
+    # Rellena vacíos para un mapa completo
     nan_mask = np.isnan(grid_z)
     if np.any(nan_mask):
         fill_values = griddata(coords, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
@@ -1330,13 +1329,13 @@ def create_climate_risk_map(df_anual, gdf_filtered):
         z=grid_z.T, 
         x=grid_lon,
         y=grid_lat,
-        colorscale='RdBu', # Escala de color Rojo-Azul para tendencias negativas/positivas
+        colorscale='RdBu', # Escala Rojo (negativo/seco) a Azul (positivo/húmedo)
         colorbar=dict(title='Tendencia (mm/año)'),
-        contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='white')),
+        contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='black')),
         line_smoothing=0.85
     ))
 
-    # Añade los puntos de las estaciones con sus datos de tendencia
+    # Añade los puntos de las estaciones
     fig.add_trace(go.Scatter(
         x=coords[:, 0], y=coords[:, 1], mode='markers',
         marker=dict(color='black', size=5, symbol='circle-open'),
