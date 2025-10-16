@@ -59,7 +59,7 @@ def apply_filters_to_stations(df, min_perc, altitudes, regions, municipios, celd
 
 
 def main():
-    # --- Definiciones de Funciones Internas ---
+    #--- Definiciones de Funciones Internas ---
     def process_and_store_data(file_mapa, file_precip, file_shape):
         with st.spinner("Procesando archivos y cargando datos..."):
             gdf_stations, gdf_municipios, df_long, df_enso, gdf_subcuencas = \
@@ -73,17 +73,17 @@ def main():
                     'data_loaded': True
                 })
                 st.success("¡Datos cargados y listos!")
-                time.sleep(1) # Una pequeña pausa para que el usuario vea el mensaje de éxito
+                time.sleep(1) # Pequeña pausa para que el usuario vea el mensaje
             else:
                 st.error("Hubo un error al procesar los archivos.")
                 st.session_state['data_loaded'] = False
 
-    # --- Inicio de la Ejecución de la App ---
+    #--- Inicio de la Ejecución de la App ---
     Config.initialize_session_state()
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
-    st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; }</style>""", unsafe_allow_html=True)
+    st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size: 1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; }</style>""", unsafe_allow_html=True)
 
-    # --- TÍTULO DE LA APP ---
+    #--- TÍTULO DE LA APP ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
@@ -91,7 +91,7 @@ def main():
     with title_col2:
         st.markdown(f'<h1 style="font-size:28px; margin-top:1rem;">{Config.APP_TITLE}</h1>', unsafe_allow_html=True)
 
-    # --- DEFINICIÓN DE PESTAÑAS (SE DIBUJA SEGUNDO) ---
+    #--- DEFINICIÓN DE PESTAÑAS ---
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
@@ -101,8 +101,7 @@ def main():
     ]
     tabs = st.tabs(tab_names)
 
-    # --- PANEL DE CONTROL Y LÓGICA DE DATOS ---
-    st.sidebar.header("Panel de Control")
+    #--- PANEL DE CARGA DE DATOS ---
     with st.sidebar.expander("**Subir/Actualizar Archivos Base**", expanded=not st.session_state.get('data_loaded', False)):
         load_mode = st.radio("Modo de Carga", ("GitHub", "Manual"), key="load_mode", horizontal=True)
         if load_mode == "Manual":
@@ -117,7 +116,6 @@ def main():
         else:
             st.info(f"Datos desde: **{Config.GITHUB_USER}/{Config.GITHUB_REPO}**")
             if st.button("Cargar Datos desde GitHub"):
-
                 with st.spinner("Descargando archivos..."):
                     github_files = {
                         'mapa': load_csv_from_url(Config.URL_ESTACIONES_CSV),
@@ -129,7 +127,7 @@ def main():
                     else:
                         st.error("No se pudieron descargar los archivos desde GitHub.")
 
-    # --- LÓGICA DE CONTROL DE FLUJO ---
+    #--- LÓGICA DE CONTROL DE FLUJO ---
     if not st.session_state.get('data_loaded', False):
         with tabs[0]:
             display_welcome_tab()
@@ -137,26 +135,9 @@ def main():
             if i > 0:
                 with tab:
                     st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
-        st.stop() # Detiene la ejecución aquí si no hay datos
+        st.stop()
 
-    # --- LÓGICA DE LA BARRA LATERAL (AHORA MODULARIZADA) ---
-    sidebar_filters = create_sidebar(st.session_state.gdf_stations, st.session_state.df_long)
-
-    # --- LÍNEA CORREGIDA ---
-    if st.sidebar.button("Limpiar Caché y Reiniciar"):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        requests_cache.clear()
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
-
-    # El bloque duplicado ha sido eliminado. Ahora extraemos los valores directamente.
-    gdf_filtered = sidebar_filters["gdf_filtered"]
-    stations_for_analysis = sidebar_filters["selected_stations"]
-    year_range = sidebar_filters["year_range"]
-    meses_numeros = sidebar_filters["meses_numeros"]
-
+    #--- SECCIÓN DE CONTROL DEL SIDEBAR (UNA VEZ CARGADOS LOS DATOS) ---
     st.sidebar.success("Datos cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar"):
         st.cache_data.clear()
@@ -166,12 +147,16 @@ def main():
             del st.session_state[key]
         st.rerun()
 
-    with st.sidebar.expander("Opciones de Preprocesamiento"):
-        st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
-        st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
-        st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
-
-    stations_for_analysis = selected_stations
+    # Llamada a la función que crea los filtros
+    sidebar_filters = create_sidebar(st.session_state.gdf_stations, st.session_state.df_long)
+    
+    # Extraemos los valores del diccionario retornado
+    gdf_filtered = sidebar_filters["gdf_filtered"]
+    stations_for_analysis = sidebar_filters["selected_stations"]
+    year_range = sidebar_filters["year_range"]
+    meses_numeros = sidebar_filters["meses_numeros"]
+    
+    # Detener si no hay estaciones seleccionadas
     if not stations_for_analysis:
         with tabs[0]:
             display_welcome_tab()
@@ -181,7 +166,7 @@ def main():
                     st.info("Para comenzar, seleccione al menos una estación en el panel de la izquierda.")
         st.stop()
 
-    # --- Procesamiento de Datos Post-Filtros ---
+    #--- Procesamiento de Datos Post-Filtros ---
     df_monthly_filtered = st.session_state.df_long[
         (st.session_state.df_long[Config.STATION_NAME_COL].isin(stations_for_analysis)) &
         (st.session_state.df_long[Config.DATE_COL].dt.year >= year_range[0]) &
@@ -190,12 +175,8 @@ def main():
     ].copy()
 
     if sidebar_filters["analysis_mode"] == "Completar series (interpolación)":
-        bar = st.progress(0, text="Iniciando interpolación...")
-        # Pasamos el DataFrame directamente, la función ahora está cacheada.
-        df_monthly_filtered = complete_series(df_monthly_filtered)
-        bar.progress(100, text="Interpolación completa.")
-        time.sleep(0.5)
-        bar.empty()
+        with st.spinner("Interpolando series, por favor espera..."):
+            df_monthly_filtered = complete_series(df_monthly_filtered)
 
     if sidebar_filters["exclude_na"]:
         df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
@@ -212,10 +193,12 @@ def main():
     display_args = {
         "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
         "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
-        "analysis_mode": st.session_state.get('analysis_mode'), "selected_regions": selected_regions,
-        "selected_municipios": selected_municipios, "selected_altitudes": selected_altitudes
+        "analysis_mode": sidebar_filters["analysis_mode"], 
+        "selected_regions": sidebar_filters["selected_regions"],
+        "selected_municipios": sidebar_filters["selected_municipios"], 
+        "selected_altitudes": sidebar_filters["selected_altitudes"]
     }
-
+    
     #--- Renderizado de Pestañas ---
     with tabs[0]:
         display_welcome_tab()
