@@ -53,6 +53,7 @@ class Config:
     """
 
     # --- Nombres de columnas estándar para evitar errores de tipeo ---
+    # Usar constantes centralizadas aquí previene errores si un nombre de columna cambia en el futuro.
     DATE_COL = 'fecha_mes_año'
     PRECIPITATION_COL = 'precipitation'
     STATION_NAME_COL = 'nom_est'
@@ -61,9 +62,16 @@ class Config:
     LONGITUDE_COL = 'longitud_wgs84'
     MUNICIPALITY_COL = 'municipio'
     REGION_COL = 'depto_region'
+    PERCENTAGE_COL = 'porc_datos'
     YEAR_COL = 'año'
     MONTH_COL = 'mes'
+    ORIGIN_COL = 'origin'
+    CELL_COL = 'celda_xy'
+    ET_COL = 'et_mmy'
+    ELEVATION_COL = 'elevation_dem'
     ENSO_ONI_COL = 'anomalia_oni'
+    SOI_COL = 'soi'
+    IOD_COL = 'iod'
 
     @staticmethod
     def initialize_session_state():
