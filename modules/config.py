@@ -3,55 +3,56 @@
 import os
 import streamlit as st
 import pandas as pd
+import geopandas as gpd # Es buena práctica inicializar con un GeoDataFrame vacío si se espera uno.
 
 class Config:
-    #--- Configuración de la Aplicación
+    """
+    Clase para centralizar toda la configuración de la aplicación Streamlit.
+    Contiene constantes como títulos, URLs, rutas a archivos y nombres de columnas,
+    así como la lógica para inicializar de forma segura el estado de la sesión.
+    """
+    # --- Configuración General de la Aplicación ---
     APP_TITLE = "Sistema de Información de Lluvias y Clima en el norte de la región Andina"
 
-    #--- URLs para carga automática desde GitHub ---
-   
+    # --- Constantes para carga de datos desde GitHub ---
     GITHUB_USER = "omejiariv"
-    GITHUB_REPO = "Chaac-SIHCLI" # Solo el nombre del repositorio
-    BRANCH = "main" 
-    
-    # Construimos las URLs a los archivos RAW en GitHub, añadiendo la carpeta "data"
+    GITHUB_REPO = "Chaac-SIHCLI"
+    BRANCH = "main"
+
+    # --- URLs directas a los archivos RAW en GitHub ---
     URL_ESTACIONES_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.csv"
     URL_PRECIPITACION_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/DatosPptnmes_ENSO.csv"
     URL_SHAPEFILE_ZIP = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.zip"
     URL_SUBCUENCAS_GEOJSON = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/SubcuencasAinfluencia.geojson"
+    DEM_SERVER_URL = "https://tu-bucket.storage.com/srtm_antioquia.tif" # URL de ejemplo para el DEM
 
-    #--- RUTAS ROBUSTAS A LOS ARCHIVOS DEL PROYECTO ---
+    # --- Rutas robustas a los archivos locales del proyecto ---
+    # Se calcula la ruta base del proyecto para que funcione en cualquier sistema operativo.
     _MODULES_DIR = os.path.dirname(__file__)
     _PROJECT_ROOT = os.path.abspath(os.path.join(_MODULES_DIR, '..'))
+    
+    # --- Rutas a los assets (imágenes, logos, etc.) ---
     GIF_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'PPAM.gif')
     LOGO_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'CuencaVerde_Logo.jpg')
-    
-    CHAAC_IMAGE_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'chaac.png') # Asumiremos que guardarás una imagen llamada 'chaac.png' en tu carpeta 'assets'
+    CHAAC_IMAGE_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'chaac.png')
+
+    # --- Textos estáticos para la interfaz de usuario ---
     CHAAC_STORY = """
     ### Chaac, el Señor de la Lluvia
-
-    En la mitología maya, **Chaac** es una de las deidades más importantes y veneradas. No es un solo dios, sino una deidad cuádruple que reside en los cuatro puntos cardinales, cada uno asociado a un color y un destino.
-
-    Representado como un anciano con rasgos de reptil, una nariz larga y curva, y dos colmillos, Chaac blande su hacha de relámpagos para golpear las nubes y producir la lluvia, esencial para la vida y la cosecha del maíz. Su llanto eran las gotas que caían sobre la tierra.
-
-    Esta plataforma lleva su nombre como un homenaje a la vital importancia del agua y la lluvia en nuestra región, buscando, al igual que los mayas, entender sus patrones para anticipar nuestro futuro.
+    En la mitología maya, **Chaac** es una de las deidades más importantes. Reside en los cuatro puntos cardinales y blande su hacha de relámpagos para golpear las nubes y producir la lluvia, esencial para la vida. Esta plataforma lleva su nombre como homenaje a la vital importancia del agua en nuestra región.
     """
-    
     QUOTE_TEXT = '"El futuro, también depende del pasado y de nuestra capacidad presente para anticiparlo"'
     QUOTE_AUTHOR = "omr."
-
     WELCOME_TEXT = """
     Esta plataforma interactiva está diseñada para la visualización y análisis de datos históricos de
     precipitación y su relación con el fenómeno ENSO en el norte de la región Andina.
     #### ¿Cómo empezar?
-    1. **Cargar Archivos:** En el panel de la izquierda, suba los archivos de estaciones, precipitación
-    y el shapefile de municipios.
-    2. **Aplicar Filtros:** Utilice el **Panel de Control** para filtrar las estaciones y seleccionar el
-    período de análisis.
+    1. **Cargar Archivos:** En el panel de la izquierda, suba los archivos requeridos.
+    2. **Aplicar Filtros:** Utilice el **Panel de Control** para filtrar y seleccionar el período de análisis.
     3. **Explorar Análisis:** Navegue a través de las pestañas para visualizar los datos.
     """
-    
-    # --- Nombres de Columnas Estándar
+
+    # --- Nombres de columnas estándar para evitar errores de tipeo ---
     DATE_COL = 'fecha_mes_año'
     PRECIPITATION_COL = 'precipitation'
     STATION_NAME_COL = 'nom_est'
@@ -60,64 +61,57 @@ class Config:
     LONGITUDE_COL = 'longitud_wgs84'
     MUNICIPALITY_COL = 'municipio'
     REGION_COL = 'depto_region'
-    PERCENTAGE_COL = 'porc_datos'
     YEAR_COL = 'año'
     MONTH_COL = 'mes'
-    ORIGIN_COL = 'origin'
-    CELL_COL = 'celda_xy'
-    ET_COL = 'et_mmy'
-    ELEVATION_COL = 'elevation_dem'
     ENSO_ONI_COL = 'anomalia_oni'
-    SOI_COL = 'soi'
-    IOD_COL = 'iod'
-
-    #--- Configuración para DEM
-    DEM_SERVER_URL = "https://tu-bucket.storage.com/srtm_antioquia.tif"
 
     @staticmethod
     def initialize_session_state():
-        # --- Estado existente ---
-        if 'data_loaded' not in st.session_state:
-            st.session_state.data_loaded = False
-        if 'gdf_stations' not in st.session_state:
-            st.session_state.gdf_stations = None
-        if 'df_long' not in st.session_state:
-            st.session_state.df_long = None
-        if 'df_enso' not in st.session_state:
-            st.session_state.df_enso = None
-        if 'gdf_municipios' not in st.session_state:
-            st.session_state.gdf_municipios = None
-        if 'df_monthly_processed' not in st.session_state:
-            st.session_state.df_monthly_processed = pd.DataFrame()
-        if 'meses_numeros' not in st.session_state:
-            st.session_state.meses_numeros = list(range(1, 13))
-        if 'dem_source' not in st.session_state:
-            st.session_state.dem_source = "No usar DEM"
-        if 'dem_raster' not in st.session_state:
-            st.session_state.dem_raster = None
-        if 'sarima_forecast' not in st.session_state:
-            st.session_state.sarima_forecast = None
-        if 'prophet_forecast' not in st.session_state:
-            st.session_state.prophet_forecast = None
-        if 'gif_reload_key' not in st.session_state:
-            st.session_state.gif_reload_key = 0
-        if 'select_all_report_sections_checkbox' not in st.session_state:
-            st.session_state.select_all_report_sections_checkbox = False
-        if 'selected_report_sections_multiselect' not in st.session_state:
-            st.session_state.selected_report_sections_multiselect = []
-        if 'gdf_subcuencas' not in st.session_state:
-            st.session_state.gdf_subcuencas = None
+        """
+        Inicializa todas las claves necesarias en st.session_state de forma centralizada y segura.
+        Este método evita la re-inicialización en cada recarga de la página, previniendo errores
+        y la pérdida de datos durante la interacción del usuario.
         
-        # --- AÑADIR ESTE BLOQUE PARA ESTABILIZAR LOS MAPAS ---
-        if 'fig_basin' not in st.session_state:
-            st.session_state.fig_basin = None
-        if 'mean_precip' not in st.session_state:
-            st.session_state.mean_precip = None
-        if 'error_msg' not in st.session_state:
-            st.session_state.error_msg = None
-        if 'run_balance' not in st.session_state:
-            st.session_state.run_balance = False
-        if 'unified_basin_gdf' not in st.session_state:
-            st.session_state.unified_basin_gdf = None
-        if 'selected_basins_title' not in st.session_state:
-            st.session_state.selected_basins_title = ""
+        **Importante:** Llamar a esta función UNA SOLA VEZ al inicio del script principal de la app.
+        """
+        # Define el estado inicial por defecto para todas las variables de sesión.
+        # Agruparlas en un diccionario hace que el código sea más limpio y fácil de mantener.
+        default_state = {
+            # Banderas de estado
+            'data_loaded': False,
+            'run_balance': False,
+            
+            # DataFrames y GeoDataFrames
+            'gdf_stations': None,
+            'df_long': None,
+            'df_enso': None,
+            'gdf_municipios': None,
+            'gdf_subcuencas': None,
+            'unified_basin_gdf': None,
+            'df_monthly_processed': pd.DataFrame(),
+
+            # Datos para modelos y pronósticos
+            'sarima_forecast': None,
+            'prophet_forecast': None,
+
+            # Variables de la interfaz (widgets y filtros)
+            'meses_numeros': list(range(1, 13)),
+            'select_all_report_sections_checkbox': False,
+            'selected_report_sections_multiselect': [],
+            'selected_basins_title': "",
+
+            # Objetos complejos (figuras, rasters)
+            'dem_source': "No usar DEM",
+            'dem_raster': None,
+            'fig_basin': None,
+            
+            # Variables de control y misceláneos
+            'mean_precip': None,
+            'error_msg': None,
+            'gif_reload_key': 0, # Para forzar la recarga de elementos si es necesario
+        }
+
+        # Itera sobre el diccionario y solo inicializa las claves que no existen.
+        for key, value in default_state.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
