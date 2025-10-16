@@ -79,26 +79,22 @@ def load_shapefile(file_uploader_object):
         st.error(f"Error al procesar el shapefile: {e}")
         return None
 
-# --- INICIO DE LA CORRECCIÓN ---
-# Se elimina el decorador @st.cache_data para resolver el CacheReplayClosureError.
-def complete_series(_df, _progress_bar=None):
-# --- FIN DE LA CORRECCIÓN ---
+
+@st.cache_data
+def complete_series(_df):
+#--- FIN DE LA CORRECCIÓN ---
     """Completa las series de tiempo mensuales para cada estación mediante interpolación."""
     all_completed_dfs = []
     station_list = _df[Config.STATION_NAME_COL].unique()
     
     metadata_cols_to_keep = [
-        col for col in [Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, Config.REGION_COL, Config.CELL_COL] 
+        col for col in [Config.MUNICIPALITY_COL, Config.ALTITUDE_COL, Config.REGION_COL, Config.CELL_COL]
         if col in _df.columns
     ]
 
-    total_stations = len(station_list)
+    # La lógica de la barra de progreso se manejará fuera de la función cacheada si es necesario,
+    # pero para estabilidad y rendimiento, es mejor omitirla aquí.
     for i, station in enumerate(station_list):
-        if _progress_bar:
-            progress_percentage = (i + 1) / total_stations
-            progress_text = f"Interpolando estación: {station} ({i+1}/{total_stations})"
-            _progress_bar.progress(progress_percentage, text=progress_text)
-            
         df_station = _df[_df[Config.STATION_NAME_COL] == station].copy()
         station_metadata = None
         if not df_station.empty and metadata_cols_to_keep:
@@ -106,19 +102,21 @@ def complete_series(_df, _progress_bar=None):
 
         df_station[Config.DATE_COL] = pd.to_datetime(df_station[Config.DATE_COL])
         df_station.set_index(Config.DATE_COL, inplace=True)
-
+        
         if not df_station.index.is_unique:
             df_station = df_station[~df_station.index.duplicated(keep='first')]
-        
+            
         df_station[Config.ORIGIN_COL] = 'Original'
-
+        
         date_range = pd.date_range(start=df_station.index.min(), end=df_station.index.max(), freq='MS')
         df_resampled = df_station.reindex(date_range)
         
-        df_resampled[Config.PRECIPITATION_COL] = df_resampled[Config.PRECIPITATION_COL].interpolate(method='time')
+        df_resampled[Config.PRECIPITATION_COL] = \
+            df_resampled[Config.PRECIPITATION_COL].interpolate(method='time')
+            
         df_resampled[Config.ORIGIN_COL] = df_resampled[Config.ORIGIN_COL].fillna('Completado')
         df_resampled[Config.STATION_NAME_COL] = station
-
+        
         if station_metadata is not None:
             for col_name, value in station_metadata.items():
                 df_resampled[col_name] = value
@@ -129,10 +127,7 @@ def complete_series(_df, _progress_bar=None):
         df_resampled.reset_index(inplace=True)
         df_resampled.rename(columns={'index': Config.DATE_COL}, inplace=True)
         all_completed_dfs.append(df_resampled)
-    
-    if _progress_bar:
-        _progress_bar.empty()
-
+        
     return pd.concat(all_completed_dfs, ignore_index=True) if all_completed_dfs else pd.DataFrame()
 
 
