@@ -77,9 +77,9 @@ def main():
                 st.session_state['data_loaded'] = False
 
     # --- Inicio de la Ejecución de la App ---
+    Config.initialize_session_state()
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; }</style>""", unsafe_allow_html=True)
-    Config.initialize_session_state()
 
     # --- TÍTULO DE LA APP (SE DIBUJA PRIMERO) ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
