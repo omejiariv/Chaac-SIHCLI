@@ -73,7 +73,6 @@ def main():
                     'data_loaded': True
                 })
                 st.success("¡Datos cargados y listos!")
-                # LÍNEA ELIMINADA: Se quita st.rerun() para permitir el flujo natural de Streamlit
                 time.sleep(1) # Una pequeña pausa para que el usuario vea el mensaje de éxito
             else:
                 st.error("Hubo un error al procesar los archivos.")
@@ -84,7 +83,7 @@ def main():
     st.set_page_config(layout="wide", page_title=Config.APP_TITLE)
     st.markdown("""<style>div.block-container{padding-top:1rem;} [data-testid="stMetricValue"] {font-size:1.8rem;} [data-testid="stMetricLabel"] {font-size: 1rem; padding-bottom:5px; }</style>""", unsafe_allow_html=True)
 
-    # --- TÍTULO DE LA APP (SE DIBUJA PRIMERO) ---
+    # --- TÍTULO DE LA APP ---
     title_col1, title_col2 = st.columns([0.05, 0.95])
     with title_col1:
         if os.path.exists(Config.LOGO_PATH):
@@ -141,7 +140,7 @@ def main():
         st.stop() # Detiene la ejecución aquí si no hay datos
 
     # --- LÓGICA DE LA BARRA LATERAL (AHORA MODULARIZADA) ---
-    sidebar_filters = create_sidebar(st.session_state.gdf_stations, st.session_state.df_long) # ✅ Se mantiene esta línea
+    sidebar_filters = create_sidebar(st.session_state.gdf_stations, st.session_state.df_long)
 
     # --- LÍNEA CORREGIDA ---
     if st.sidebar.button("Limpiar Caché y Reiniciar"):
