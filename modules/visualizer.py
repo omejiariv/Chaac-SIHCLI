@@ -1749,63 +1749,63 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
-with risk_map_tab:
-    st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
-    st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
-    
-    with st.expander("Opciones de Visualización del Mapa"):
-        interp_option = st.selectbox(
-            "Método de Interpolación",
-            options=["Spline", "IDW (Lineal)", "Vecino más Cercano"],
-            index=0,
-            key="risk_interp_method"
-        )
-        method_map = {"Spline": "cubic", "IDW (Lineal)": "linear", "Vecino más Cercano": "nearest"}
-        selected_method = method_map[interp_option]
+    with risk_map_tab:
+        st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
+        st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
+        
+        with st.expander("Opciones de Visualización del Mapa"):
+            interp_option = st.selectbox(
+                "Método de Interpolación",
+                options=["Spline", "IDW (Lineal)", "Vecino más Cercano"],
+                index=0,
+                key="risk_interp_method"
+            )
+            method_map = {"Spline": "cubic", "IDW (Lineal)": "linear", "Vecino más Cercano": "nearest"}
+            selected_method = method_map[interp_option]
 
-        grid_res = st.slider(
-            "Resolución de la Grilla (más alto = más suave)",
-            min_value=50,
-            max_value=300,
-            value=150,
-            step=50,
-            key="risk_grid_res"
-        )
-    
-    if st.button("Generar Mapa de Riesgo"):
-        fig_risk = create_climate_risk_map(
-            df_anual_melted, 
-            gdf_filtered,
-            interp_method=selected_method,
-            grid_resolution=grid_res
-        )
-        if fig_risk:
-            st.plotly_chart(fig_risk, use_container_width=True)
+            grid_res = st.slider(
+                "Resolución de la Grilla (más alto = más suave)",
+                min_value=50,
+                max_value=300,
+                value=150,
+                step=50,
+                key="risk_grid_res"
+            )
+        
+        if st.button("Generar Mapa de Riesgo"):
+            fig_risk = create_climate_risk_map(
+                df_anual_melted, 
+                gdf_filtered,
+                interp_method=selected_method,
+                grid_resolution=grid_res
+            )
+            if fig_risk:
+                st.plotly_chart(fig_risk, use_container_width=True)
 
-    st.markdown("---")
-    st.subheader("Mapa de Tendencias sobre Mapa Base")
-    if st.checkbox("Mostrar mapa de tendencias con fondo geográfico"):
-        with st.spinner("Generando mapa base..."):
-            gdf_trends_map = calculate_all_station_trends(df_anual_melted, gdf_filtered)
-            if not gdf_trends_map.empty:
-                fig_mapbox = px.scatter_mapbox(
-                    gdf_trends_map,
-                    lat=gdf_trends_map.geometry.y,
-                    lon=gdf_trends_map.geometry.x,
-                    color="slope_sen",
-                    size=np.abs(gdf_trends_map['slope_sen']),
-                    color_continuous_scale=px.colors.diverging.RdBu,
-                    size_max=15,
-                    zoom=5,
-                    mapbox_style="carto-positron",
-                    hover_name=Config.STATION_NAME_COL,
-                    hover_data={"slope_sen": ":.2f", "p_value": ":.3f"},
-                    title="Tendencias de Precipitación sobre Mapa Base"
-                )
-                fig_mapbox.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
-                st.plotly_chart(fig_mapbox, use_container_width=True)
-            else:
-                st.warning("No hay suficientes datos de tendencia para generar el mapa base.")
+        st.markdown("---")
+        st.subheader("Mapa de Tendencias sobre Mapa Base")
+        if st.checkbox("Mostrar mapa de tendencias con fondo geográfico"):
+            with st.spinner("Generando mapa base..."):
+                gdf_trends_map = calculate_all_station_trends(df_anual_melted, gdf_filtered)
+                if not gdf_trends_map.empty:
+                    fig_mapbox = px.scatter_mapbox(
+                        gdf_trends_map,
+                        lat=gdf_trends_map.geometry.y,
+                        lon=gdf_trends_map.geometry.x,
+                        color="slope_sen",
+                        size=np.abs(gdf_trends_map['slope_sen']),
+                        color_continuous_scale=px.colors.diverging.RdBu,
+                        size_max=15,
+                        zoom=5,
+                        mapbox_style="carto-positron",
+                        hover_name=Config.STATION_NAME_COL,
+                        hover_data={"slope_sen": ":.2f", "p_value": ":.3f"},
+                        title="Tendencias de Precipitación sobre Mapa Base"
+                    )
+                    fig_mapbox.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+                    st.plotly_chart(fig_mapbox, use_container_width=True)
+                else:
+                    st.warning("No hay suficientes datos de tendencia para generar el mapa base.")
 
     with validation_tab:
         st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
