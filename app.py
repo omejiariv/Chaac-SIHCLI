@@ -191,11 +191,13 @@ def main():
     df_anual_melted = annual_agg.rename(columns={'precipitation_sum': Config.PRECIPITATION_COL})
 
     display_args = {
-        "gdf_filtered": gdf_filtered, "stations_for_analysis": stations_for_analysis,
-        "df_anual_melted": df_anual_melted, "df_monthly_filtered": df_monthly_filtered,
-        "analysis_mode": sidebar_filters["analysis_mode"], 
+        "gdf_filtered": gdf_filtered,
+        "stations_for_analysis": stations_for_analysis,
+        "df_anual_melted": df_anual_melted,
+        "df_monthly_filtered": df_monthly_filtered,
+        "analysis_mode": sidebar_filters["analysis_mode"],
         "selected_regions": sidebar_filters["selected_regions"],
-        "selected_municipios": sidebar_filters["selected_municipios"], 
+        "selected_municipios": sidebar_filters["selected_municipios"],
         "selected_altitudes": sidebar_filters["selected_altitudes"]
     }
     
