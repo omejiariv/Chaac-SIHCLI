@@ -1741,7 +1741,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
-with risk_map_tab:
+    with risk_map_tab:
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
         st.info("Este mapa muestra la tendencia de precipitación (Pendiente de Sen) para cada estación con datos suficientes (>10 años). Las estaciones con tendencias a secarse se muestran en rojo y las que tienden a humedecerse en azul.")
         
