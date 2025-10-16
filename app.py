@@ -18,6 +18,7 @@ from modules.visualizer import (
     display_stats_tab, display_correlation_tab, display_enso_tab,
     display_trends_and_forecast_tab, display_downloads_tab, display_station_table_tab,
 )
+from modules.sidebar import create_sidebar
 from modules.reporter import generate_pdf_report
 from modules.analysis import calculate_monthly_anomalies, calculate_basin_stats
 from modules.github_loader import load_csv_from_url, load_zip_from_url
