@@ -1294,9 +1294,9 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         import traceback
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
 
-def create_climate_risk_map(df_anual, gdf_filtered):
+def create_climate_risk_map(df_anual, gdf_filtered, interp_method='cubic', grid_resolution=100):
     """
-    Calcula y visualiza un mapa de riesgo por variabilidad climática.
+    Calcula y visualiza un mapa de riesgo por variabilidad climática con opciones personalizables.
     """
     with st.spinner("Calculando tendencias para todas las estaciones..."):
         gdf_trends = calculate_all_station_trends(df_anual, gdf_filtered)
@@ -1305,43 +1305,38 @@ def create_climate_risk_map(df_anual, gdf_filtered):
         st.warning("No hay suficientes estaciones con datos de tendencia (>10 años) para generar un mapa de riesgo.")
         return None
 
-    # Prepara datos para la interpolación
     coords = np.array(gdf_trends.geometry.apply(lambda p: (p.x, p.y)).tolist())
     values = gdf_trends['slope_sen'].values
     
-    # Crea la grilla de interpolación
     bounds = gdf_filtered.total_bounds
-    grid_lon = np.linspace(bounds[0], bounds[2], 200)
-    grid_lat = np.linspace(bounds[1], bounds[3], 200)
+    grid_lon = np.linspace(bounds[0], bounds[2], grid_resolution)
+    grid_lat = np.linspace(bounds[1], bounds[3], grid_resolution)
     grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-    # Interpola la Pendiente de Sen
-    grid_z = griddata(coords, values, (grid_x, grid_y), method='cubic')
+    grid_z = griddata(coords, values, (grid_x, grid_y), method=interp_method)
     
-    # Rellena vacíos para un mapa completo
     nan_mask = np.isnan(grid_z)
     if np.any(nan_mask):
         fill_values = griddata(coords, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
         grid_z[nan_mask] = fill_values
 
-    # Crea el mapa de contorno con Plotly
     fig = go.Figure(data=go.Contour(
         z=grid_z.T, 
         x=grid_lon,
         y=grid_lat,
-        colorscale='RdBu', # Escala Rojo (negativo/seco) a Azul (positivo/húmedo)
+        colorscale='RdBu', 
         colorbar=dict(title='Tendencia (mm/año)'),
+        # SOLUCIÓN 1 & 2: Muestra etiquetas y suaviza las líneas
         contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='black')),
-        line_smoothing=0.85
+        line_smoothing=0.85 
     ))
 
-    # Añade los puntos de las estaciones
     fig.add_trace(go.Scatter(
         x=coords[:, 0], y=coords[:, 1], mode='markers',
         marker=dict(color='black', size=5, symbol='circle-open'),
         hoverinfo='text',
         hovertext=gdf_trends.apply(lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>Tendencia: {row['slope_sen']:.2f} mm/año<br>p-valor: {row['p_value']:.3f}", axis=1),
-        name='Estaciones con Tendencia'
+        name='Estaciones'
     ))
 
     fig.update_layout(
@@ -1761,10 +1756,62 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
         st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
         
+        with st.expander("Opciones de Visualización del Mapa"):
+            # Selector de método de interpolación
+            interp_option = st.selectbox(
+                "Método de Interpolación",
+                options=["Spline", "IDW (Lineal)", "Vecino más Cercano"],
+                index=0,
+                key="risk_interp_method"
+            )
+            method_map = {"Spline": "cubic", "IDW (Lineal)": "linear", "Vecino más Cercano": "nearest"}
+            selected_method = method_map[interp_option]
+
+            # Controlar tamaño de la grilla
+            grid_res = st.slider(
+                "Resolución de la Grilla (más alto = más suave)",
+                min_value=50,
+                max_value=300,
+                value=150,
+                step=50,
+                key="risk_grid_res"
+            )
+        
         if st.button("Generar Mapa de Riesgo"):
-            fig_risk = create_climate_risk_map(df_anual_melted, gdf_filtered)
+            fig_risk = create_climate_risk_map(
+                df_anual_melted, 
+                gdf_filtered,
+                interp_method=selected_method,
+                grid_resolution=grid_res
+            )
             if fig_risk:
                 st.plotly_chart(fig_risk, use_container_width=True)
+
+        # Mapa con fondo (requiere una función separada)
+        st.markdown("---")
+        st.subheader("Mapa de Tendencias sobre Mapa Base")
+        if st.checkbox("Mostrar mapa de tendencias con fondo geográfico"):
+            with st.spinner("Generando mapa base..."):
+                gdf_trends_map = calculate_all_station_trends(df_anual_melted, gdf_filtered)
+                if not gdf_trends_map.empty:
+                    fig_mapbox = px.scatter_mapbox(
+                        gdf_trends_map,
+                        lat=gdf_trends_map.geometry.y,
+                        lon=gdf_trends_map.geometry.x,
+                        color="slope_sen",
+                        size=np.abs(gdf_trends_map['slope_sen']),
+                        color_continuous_scale=px.colors.diverging.RdBu,
+                        size_max=15,
+                        zoom=5,
+                        mapbox_style="carto-positron",
+                        hover_name=Config.STATION_NAME_COL,
+                        hover_data={"slope_sen": ":.2f", "p_value": ":.3f"},
+                        title="Tendencias de Precipitación sobre Mapa Base"
+                    )
+                    fig_mapbox.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+                    st.plotly_chart(fig_mapbox, use_container_width=True)
+                else:
+                    st.warning("No hay suficientes datos de tendencia para generar el mapa base.")
                                   
     with validation_tab:
         st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
