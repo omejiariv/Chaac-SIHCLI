@@ -139,6 +139,15 @@ def main():
                     st.warning("Para comenzar, cargue los datos usando el panel de la izquierda.")
         st.stop() # Detiene la ejecución aquí si no hay datos
 
+    # --- LÓGICA DE LA BARRA LATERAL (AHORA MODULARIZADA) ---
+    sidebar_filters = create_sidebar(st.session_state.gdf_stations, st.session_state.df_long)
+    
+    # Extraemos los valores del diccionario retornado por la barra lateral
+    gdf_filtered = sidebar_filters["gdf_filtered"]
+    stations_for_analysis = sidebar_filters["selected_stations"]
+    year_range = sidebar_filters["year_range"]
+    meses_numeros = sidebar_filters["meses_numeros"]    
+
     st.sidebar.success("Datos cargados.")
     if st.sidebar.button("Limpiar Caché y Reiniciar"):
         st.cache_data.clear()
@@ -212,14 +221,17 @@ def main():
         (st.session_state.df_long[Config.DATE_COL].dt.month.isin(meses_numeros))
     ].copy()
 
-    if st.session_state.get('analysis_mode') == "Completar series (interpolación)":
+    if sidebar_filters["analysis_mode"] == "Completar series (interpolación)":
         bar = st.progress(0, text="Iniciando interpolación...")
-        df_monthly_filtered = complete_series(df_monthly_filtered, _progress_bar=bar)
+        # Pasamos el DataFrame directamente, la función ahora está cacheada.
+        df_monthly_filtered = complete_series(df_monthly_filtered)
+        bar.progress(100, text="Interpolación completa.")
+        time.sleep(0.5)
         bar.empty()
-    
-    if st.session_state.get('exclude_na', False):
+
+    if sidebar_filters["exclude_na"]:
         df_monthly_filtered.dropna(subset=[Config.PRECIPITATION_COL], inplace=True)
-    if st.session_state.get('exclude_zeros', False):
+    if sidebar_filters["exclude_zeros"]:
         df_monthly_filtered = df_monthly_filtered[df_monthly_filtered[Config.PRECIPITATION_COL] > 0]
 
     annual_agg = df_monthly_filtered.groupby([Config.STATION_NAME_COL, Config.YEAR_COL]).agg(
