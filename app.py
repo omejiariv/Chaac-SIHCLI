@@ -63,6 +63,7 @@ def main():
         with st.spinner("Procesando archivos y cargando datos..."):
             gdf_stations, gdf_municipios, df_long, df_enso, gdf_subcuencas = \
                 load_and_process_all_data(file_mapa, file_precip, file_shape)
+
             if gdf_stations is not None and df_long is not None and gdf_municipios is not None:
                 st.session_state.update({
                     'gdf_stations': gdf_stations, 'gdf_municipios': gdf_municipios,
@@ -71,7 +72,8 @@ def main():
                     'data_loaded': True
                 })
                 st.success("¡Datos cargados y listos!")
-                st.rerun()
+                # LÍNEA ELIMINADA: Se quita st.rerun() para permitir el flujo natural de Streamlit
+                time.sleep(1) # Una pequeña pausa para que el usuario vea el mensaje de éxito
             else:
                 st.error("Hubo un error al procesar los archivos.")
                 st.session_state['data_loaded'] = False
