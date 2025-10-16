@@ -1339,28 +1339,17 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                               df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
                               selected_altitudes, **kwargs):
     st.header("Mapas Avanzados")
-    display_filter_summary(
-        total_stations_count=len(st.session_state.gdf_stations),
-        selected_stations_count=len(stations_for_analysis),
-        year_range=st.session_state.year_range,
-        selected_months_count=len(st.session_state.meses_numeros),
-        analysis_mode=analysis_mode,
-        selected_regions=selected_regions,
-        selected_municipios=selected_municipios,
-        selected_altitudes=selected_altitudes
-    )
-
+    display_filter_summary(total_stations_count=len(st.session_state.gdf_stations),
+                           selected_stations_count=len(stations_for_analysis),
+                           year_range=st.session_state.year_range,
+                           selected_months_count=len(st.session_state.meses_numeros),
+                           analysis_mode=analysis_mode, selected_regions=selected_regions,
+                           selected_municipios=selected_municipios, selected_altitudes=selected_altitudes)
     if not stations_for_analysis:
         st.warning("Por favor, seleccione al menos una estación para ver esta sección.")
         return
 
-    tab_names = [
-        "Animación GIF", "Superficies de Interpolación", "Morfometría", 
-        "Mapa de Riesgo Climático", # <-- Nueva pestaña
-        "Validación Cruzada (LOOCV)", "Visualización Temporal", 
-        "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"
-    ]
-    # 2. Añadimos la variable correspondiente para desempacar
+    tab_names = ["Animación GIF", "Superficies de Interpolación", "Morfometría", "Mapa de Riesgo Climático", "Validación Cruzada (LOOCV)", "Visualización Temporal", "Gráfico de Carrera", "Mapa Animado", "Comparación de Mapas"]
     gif_tab, kriging_tab, morph_tab, risk_map_tab, validation_tab, temporal_tab, race_tab, anim_tab, compare_tab = st.tabs(tab_names)
 
     with gif_tab:
