@@ -226,7 +226,7 @@ def main():
         display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
         
     with tabs[10]:
-    display_weekly_forecast_tab(
+        display_weekly_forecast_tab(
         stations_for_analysis=stations_for_analysis,
         gdf_filtered=gdf_filtered
     )
