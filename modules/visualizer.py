@@ -788,67 +788,67 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
             else:
                 st.warning("No hay datos anuales para mostrar el análisis multianual.")
 
-    with sub_tab_mensual:
-        mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs(["Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"])
-        with mensual_graf_tab:
-            if not df_monthly_rich.empty:
-                controls_col, chart_col = st.columns([1, 4])
-                with controls_col:
-                    st.markdown("##### Opciones del Gráfico")
-                    chart_type = st.radio("Tipo de Gráfico:", ["Líneas y Puntos", "Nube de Puntos", "Gráfico de Cajas (Distribución Mensual)"], key="monthly_chart_type")
-                    color_by_disabled = (chart_type == "Gráfico de Cajas (Distribución Mensual)")
-                    color_by = st.radio("Colorear por:", ["Estación", "Mes"], key="monthly_color_by", disabled=color_by_disabled)
+        with sub_tab_mensual:
+            mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs(["Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"])
+            with mensual_graf_tab:
+                if not df_monthly_rich.empty:
+                    controls_col, chart_col = st.columns([1, 4])
+                    with controls_col:
+                        st.markdown("##### Opciones del Gráfico")
+                        chart_type = st.radio("Tipo de Gráfico:", ["Líneas y Puntos", "Nube de Puntos", "Gráfico de Cajas (Distribución Mensual)"], key="monthly_chart_type")
+                        color_by_disabled = (chart_type == "Gráfico de Cajas (Distribución Mensual)")
+                        color_by = st.radio("Colorear por:", ["Estación", "Mes"], key="monthly_color_by", disabled=color_by_disabled)
                 
-                with chart_col:
-                    if chart_type != "Gráfico de Cajas (Distribución Mensual)":
-                        # --- MEJORA 1: Gráfico Mensual con Plotly ---
-                        render_mode = 'lines+markers' if chart_type == "Líneas y Puntos" else 'markers'
+                    with chart_col:
+                        if chart_type != "Gráfico de Cajas (Distribución Mensual)":
+                            # --- MEJORA 1: Gráfico Mensual con Plotly ---
+                            render_mode = 'lines+markers' if chart_type == "Líneas y Puntos" else 'markers'
                         
-                        fig_mensual = px.scatter(
-                            df_monthly_rich,
-                            x=Config.DATE_COL,
-                            y=Config.PRECIPITATION_COL,
-                            color=Config.STATION_NAME_COL if color_by == "Estación" else df_monthly_rich[Config.DATE_COL].dt.month,
-                            title=f"Serie de Precipitación Mensual ({year_min} - {year_max})",
-                            labels={
-                                Config.DATE_COL: 'Fecha',
-                                Config.PRECIPITATION_COL: 'Precipitación (mm)',
-                                'color': 'Mes' if color_by == 'Mes' else 'Estación'
-                            },
-                            hover_data={
-                                Config.STATION_NAME_COL: True,
-                                Config.MUNICIPALITY_COL: True,
-                                Config.ALTITUDE_COL: True
-                            }
-                        )
-                        if chart_type == "Líneas y Puntos":
-                            fig_mensual.update_traces(mode='lines+markers')
-                        
-                        fig_mensual.update_layout(height=500)
-                        st.plotly_chart(fig_mensual, use_container_width=True)
-                        # --- FIN DE LA MEJORA ---
-
-                        else:
-                            st.subheader("Distribución de la Precipitación Mensual")
-
-                            fig_box_monthly = px.box(
+                            fig_mensual = px.scatter(
                                 df_monthly_rich,
-                                x=Config.MONTH_COL,
+                                x=Config.DATE_COL,
                                 y=Config.PRECIPITATION_COL,
-                                color=Config.STATION_NAME_COL,
-                                title='Distribución de la Precipitación por Mes',
+                                color=Config.STATION_NAME_COL if color_by == "Estación" else df_monthly_rich[Config.DATE_COL].dt.month,
+                                title=f"Serie de Precipitación Mensual ({year_min} - {year_max})",
                                 labels={
-                                    Config.MONTH_COL: 'Mes',
-                                    Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)',
-                                    Config.STATION_NAME_COL: 'Estación'
+                                    Config.DATE_COL: 'Fecha',
+                                    Config.PRECIPITATION_COL: 'Precipitación (mm)',
+                                    'color': 'Mes' if color_by == 'Mes' else 'Estación'
+                                },
+                                hover_data={
+                                    Config.STATION_NAME_COL: True,
+                                    Config.MUNICIPALITY_COL: True,
+                                    Config.ALTITUDE_COL: True
                                 }
                             )
+                            if chart_type == "Líneas y Puntos":
+                                fig_mensual.update_traces(mode='lines+markers')
+                        
+                            fig_mensual.update_layout(height=500)
+                            st.plotly_chart(fig_mensual, use_container_width=True)
+                            # --- FIN DE LA MEJORA ---
 
-                            fig_box_monthly.update_layout(height=500)
-                            st.plotly_chart(fig_box_monthly, use_container_width=True)
+                            else:
+                                st.subheader("Distribución de la Precipitación Mensual")
 
-                else:
-                    st.warning("No hay datos mensuales para mostrar el gráfico.")
+                                fig_box_monthly = px.box(
+                                    df_monthly_rich,
+                                    x=Config.MONTH_COL,
+                                    y=Config.PRECIPITATION_COL,
+                                    color=Config.STATION_NAME_COL,
+                                    title='Distribución de la Precipitación por Mes',
+                                    labels={
+                                        Config.MONTH_COL: 'Mes',
+                                        Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)',
+                                        Config.STATION_NAME_COL: 'Estación'
+                                    }
+                                )
+
+                                fig_box_monthly.update_layout(height=500)
+                                st.plotly_chart(fig_box_monthly, use_container_width=True)
+
+                    else:
+                        st.warning("No hay datos mensuales para mostrar el gráfico.")
 
             with mensual_enso_tab:
                 if 'df_enso' in st.session_state and st.session_state.df_enso is not None:
