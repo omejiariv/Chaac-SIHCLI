@@ -22,7 +22,7 @@ from retry_requests import retry
 def get_weather_forecast(latitude, longitude):
     """
     Obtiene el pronóstico del tiempo para los próximos 7 días desde la API de Open-Meteo.
-    Devuelve un DataFrame de Pandas limpio.
+    Devuelve un DataFrame de Pandas limpio con nombres de columna estandarizados.
     """
     cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
@@ -39,8 +39,12 @@ def get_weather_forecast(latitude, longitude):
     response = responses[0]
     
     daily = response.Daily()
+    
+    # --- SOLUCIÓN AL TypeError: Decodificar la zona horaria ---
+    timezone_str = response.Timezone().decode('utf-8')
+    
     daily_data = {
-        "date": pd.to_datetime(daily.Time(), unit="s", utc=True).tz_convert(response.Timezone()),
+        "date": pd.to_datetime(daily.Time(), unit="s", utc=True).tz_convert(timezone_str),
         "temperature_2m_max": daily.Variables(0).ValuesAsNumpy(),
         "temperature_2m_min": daily.Variables(1).ValuesAsNumpy(),
         "precipitation_sum": daily.Variables(2).ValuesAsNumpy(),
