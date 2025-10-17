@@ -269,6 +269,8 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
     return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
 
+# In modules/interpolation.py
+
 @st.cache_data
 def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
