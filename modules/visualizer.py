@@ -1600,7 +1600,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     else:
                         st.info("El variograma no está disponible para este método.")
 
-with morph_tab:
+    with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
         
         # MEJORA: La clave para el DEM debe ser consistente. Usaremos 'dem_file_for_morph'
@@ -1653,7 +1653,7 @@ with morph_tab:
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
-with risk_map_tab:
+    with risk_map_tab:
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
         st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
         
