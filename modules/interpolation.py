@@ -270,13 +270,12 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
     return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
 
 @st.cache_data
-@st.cache_data
 def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
     Realiza Kriging. Si falla, usa un respaldo de interpolación lineal y relleno
     para asegurar una superficie con gradiente y sin vacíos.
     """
-    # Se utiliza _gdf_points en lugar de gdf_points
+    # Use the underscored variable name throughout the function
     lons = _gdf_points.geometry.x
     lats = _gdf_points.geometry.y
     vals = _gdf_points[value_col].values
@@ -302,7 +301,6 @@ def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
-        # Interpolación de respaldo
         grid_z = griddata(points, vals, (grid_x, grid_y), method='linear')
         nan_mask = np.isnan(grid_z)
         if np.any(nan_mask):
