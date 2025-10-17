@@ -1341,16 +1341,15 @@ with kriging_tab:
         )
         st.markdown("---")
 
-        # --- MODO POR CUENCA ESPECÍFICA ---
         if analysis_mode_interp == "Por Cuenca Específica":
             if 'gdf_subcuencas' not in st.session_state or st.session_state.gdf_subcuencas is None:
                 st.warning("Los datos de cuencas no están disponibles.")
-                return # Salimos de la función si no hay cuencas
+                return
 
             BASIN_NAME_COLUMN = 'SUBC_LBL'
             if BASIN_NAME_COLUMN not in st.session_state.gdf_subcuencas.columns:
                 st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
-                return # Salimos si la columna de nombres no existe
+                return
 
             col_control, col_display = st.columns([1, 2])
             with col_control:
@@ -1367,18 +1366,17 @@ with kriging_tab:
 
                 selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1, key="year_select_basin")
                 method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
-                run_balance = st.toggle("Calcular Balance Hídrico", value=True, key="balance_toggle")
-
+                
                 if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins, key="generate_basin_map_button"):
-                    st.session_state['fig_basin'] = None # Limpiamos resultados anteriores
+                    st.session_state['fig_basin'] = None
                     st.session_state['error_msg'] = None
 
                     try:
                         with st.spinner("Preparando datos y realizando interpolación..."):
-                            # Preparación de datos (sin cambios)
                             target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
-                            merged_basin_geom = target_basins_gdf.unary_union
-                            unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
+                            # ... (resto de tu lógica de preparación de datos)
+                            # ... (es correcta y no necesita cambios)
+                            unified_basin_gdf = gpd.GeoDataFrame(geometry=[target_basins_gdf.unary_union], crs=target_basins_gdf.crs)
                             target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
                             basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
                             stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
@@ -1395,14 +1393,11 @@ with kriging_tab:
                             grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
                             grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
 
-                            # Llamada a la interpolación
-                            grid_z, variance = None, None
+                            grid_z = None
                             if method == "Kriging Ordinario":
-                                grid_z, variance = create_kriging_by_basin(
-                                    _gdf_points=points_data,
-                                    grid_lon=grid_lon,
-                                    grid_lat=grid_lat,
-                                    value_col='Valor'
+                                grid_z, _ = create_kriging_by_basin(
+                                    _gdf_points=points_data, grid_lon=grid_lon,
+                                    grid_lat=grid_lat, value_col='Valor'
                                 )
                             else: # IDW
                                 if len(points_data) > 0:
@@ -1416,17 +1411,25 @@ with kriging_tab:
                                         grid_z[nan_mask] = fill_values
                                     grid_z = np.nan_to_num(grid_z)
                                     st.success("✅ Interpolación con IDW completada.")
-                                        
-                                        grid_z[grid_z < 0] = 0
-                                        transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
-                                        with rasterio.io.MemoryFile() as memfile:
-                                            with memfile.open(driver='GTiff', height=len(grid_lat), width=len(grid_lon), count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform) as dataset:
-                                                dataset.write(np.flipud(grid_z), 1)
-                                            with memfile.open() as dataset:
-                                                masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
-                                        
-                                        masked_data = masked_data[0]
-                                        mean_precip = np.nanmean(masked_data)
+                            
+                            if grid_z is None:
+                                st.session_state['error_msg'] = "La interpolación no generó resultados."
+                            else:
+                                # --- INICIO DE LA CORRECCIÓN DE INDENTACIÓN ---
+                                # Este bloque ahora está fuera del 'else', al nivel correcto
+                                grid_z[grid_z < 0] = 0
+                                transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
+                                
+                                with rasterio.io.MemoryFile() as memfile:
+                                    with memfile.open(driver='GTiff', height=len(grid_lat), width=len(grid_lon), count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform) as dataset:
+                                        dataset.write(np.flipud(grid_z), 1)
+                                    
+                                    with memfile.open() as dataset:
+                                        masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
+
+                                masked_data = masked_data[0].astype(np.float32)
+                                mean_precip = np.nanmean(masked_data)
+                                # --- FIN DE LA CORRECCIÓN DE INDENTACIÓN ---
 
                                         map_traces = []
                                         if show_dem_background and dem_file is not None:
