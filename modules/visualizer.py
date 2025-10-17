@@ -643,7 +643,6 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     year_range_val = st.session_state.get('year_range', (2000, 2020))
     year_min, year_max = year_range_val
 
-    # Preparación de metadatos
     metadata_cols = [Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
     gdf_metadata = gdf_filtered[metadata_cols].drop_duplicates(subset=[Config.STATION_NAME_COL]).copy()
     if Config.ALTITUDE_COL in gdf_metadata.columns:
@@ -657,13 +656,8 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     df_monthly_pre_merge = df_monthly_filtered.drop(columns=cols_to_drop, errors='ignore')
     df_monthly_rich = df_monthly_pre_merge.merge(gdf_metadata, on=Config.STATION_NAME_COL, how='left')
 
-    tab_keys = [
-        "Análisis Anual", "Análisis Mensual", "Comparación Rápida",
-        "Boxplot Anual", "Distribución", "Acumulada",
-        "Relación Altitud", "Serie Regional"
-    ]
-    sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, \
-    sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional = st.tabs(tab_keys)
+    tab_keys = ["Análisis Anual", "Análisis Mensual", "Comparación Rápida", "Boxplot Anual", "Distribución", "Acumulada", "Relación Altitud", "Serie Regional"]
+    sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional = st.tabs(tab_keys)
 
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
