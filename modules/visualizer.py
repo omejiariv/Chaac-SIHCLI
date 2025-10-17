@@ -3472,6 +3472,8 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
         lon = station_info.geometry.x
 
         with st.spinner(f"Obteniendo pronóstico para {selected_station}..."):
+            # Asumimos que 'get_weather_forecast' está en 'modules.forecasting' y funciona
+            from modules.forecasting import get_weather_forecast 
             forecast_df = get_weather_forecast(lat, lon)
             
             if forecast_df is not None and not forecast_df.empty:
@@ -3486,34 +3488,40 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
 
         st.subheader(f"Pronóstico para los próximos 7 días en {station_name}")
         
-        # Crear una copia para mostrar al usuario, con nombres y formatos amigables
+        # --- SOLUCIÓN 1 y 3: Tabla con Fechas Corregidas y Formato Decimal ---
         display_df = forecast_df.copy()
-        display_df['date'] = display_df['date'].dt.strftime('%A, %d de %B')
-        display_df = display_df.rename(columns={
-            'date': 'Fecha',
-            'temperature_2m_max': 'T. Máx (°C)',
-            'temperature_2m_min': 'T. Mín (°C)',
-            'precipitation_sum': 'Ppt. (mm)'
-        })
-        st.dataframe(display_df.set_index('Fecha'), use_container_width=True)
+        # Generamos un rango de fechas limpio para evitar errores de la fuente
+        start_date = pd.to_datetime(display_df['date'].iloc[0])
+        display_df['date_corrected'] = pd.date_range(start=start_date, periods=len(display_df))
+        
+        display_df['Fecha'] = display_df['date_corrected'].dt.strftime('%A, %d de %B')
+        display_df['T. Máx (°C)'] = display_df['temperature_2m_max'].round(1)
+        display_df['T. Mín (°C)'] = display_df['temperature_2m_min'].round(1)
+        display_df['Ppt. (mm)'] = display_df['precipitation_sum'].round(1)
+        
+        st.dataframe(
+            display_df[['Fecha', 'T. Máx (°C)', 'T. Mín (°C)', 'Ppt. (mm)']].set_index('Fecha'),
+            use_container_width=True
+        )
 
-        # --- GRÁFICO CORREGIDO ---
+        # --- SOLUCIÓN 2: Gráfico Corregido con Eje Doble ---
         fig = make_subplots(specs=[[{"secondary_y": True}]])
 
         # Temperaturas (eje Y primario)
         fig.add_trace(go.Scatter(
-            x=forecast_df['date'], y=forecast_df['temperature_2m_max'],
+            x=display_df['date_corrected'], y=display_df['T. Máx (°C)'],
             name='Temp. Máxima', mode='lines+markers', line=dict(color='red')
         ), secondary_y=False)
+        
         fig.add_trace(go.Scatter(
-            x=forecast_df['date'], y=forecast_df['temperature_2m_min'],
+            x=display_df['date_corrected'], y=display_df['T. Mín (°C)'],
             name='Temp. Mínima', mode='lines+markers', line=dict(color='blue'),
             fill='tonexty', fillcolor='rgba(173, 216, 230, 0.2)'
         ), secondary_y=False)
 
         # Precipitación (eje Y secundario)
         fig.add_trace(go.Bar(
-            x=forecast_df['date'], y=forecast_df['precipitation_sum'],
+            x=display_df['date_corrected'], y=display_df['Ppt. (mm)'],
             name='Precipitación', marker_color='lightblue', opacity=0.7
         ), secondary_y=True)
 
@@ -3522,7 +3530,7 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
             xaxis_title="Fecha",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-        fig.update_yaxes(title_text="Temperatura (°C)", secondary_y=False)
+        fig.update_yaxes(title_text="Temperatura (°C)", secondary_y=False, range=[display_df['T. Mín (°C)'].min() - 2, display_df['T. Máx (°C)'].max() + 2])
         fig.update_yaxes(title_text="Precipitación (mm)", secondary_y=True, showgrid=False)
         
         st.plotly_chart(fig, use_container_width=True)
