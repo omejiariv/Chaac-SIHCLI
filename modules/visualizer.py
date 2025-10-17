@@ -1341,76 +1341,81 @@ with kriging_tab:
         )
         st.markdown("---")
 
-        # --- MODO POR CUENCA ESPECÍFICA (EL QUE FALLA) ---
+        # --- MODO POR CUENCA ESPECÍFICA ---
         if analysis_mode_interp == "Por Cuenca Específica":
-            if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
-                BASIN_NAME_COLUMN = 'SUBC_LBL'
-                if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
-                    col_control, col_display = st.columns([1, 2])
-                    with col_control:
-                        st.markdown("#### Controles de Cuenca")
-                        
-                        # Lógica para filtrar cuencas (con manejo de error si falta la columna)
-                        if Config.REGION_COL in st.session_state.gdf_subcuencas.columns:
-                            relevant_regions = gdf_filtered[Config.REGION_COL].unique()
-                            relevant_basins = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[Config.REGION_COL].isin(relevant_regions)]
-                            basin_names = sorted(relevant_basins[BASIN_NAME_COLUMN].dropna().unique())
-                        else:
-                            st.warning(f"El archivo de cuencas no tiene columna '{Config.REGION_COL}'. Mostrando todas las cuencas.")
-                            basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+            if 'gdf_subcuencas' not in st.session_state or st.session_state.gdf_subcuencas is None:
+                st.warning("Los datos de cuencas no están disponibles.")
+                return # Salimos de la función si no hay cuencas
 
-                        selected_basins = st.multiselect("Seleccione una o más subcuencas:", options=basin_names)
-                        buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5)
-                        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-                        years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
-                        
-                        if years:
-                            selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1 if years else 0)
-                            # SE RESTAURA LA OPCIÓN "IDW"
-                            method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
-                            run_balance = st.toggle("Calcular Balance Hídrico", value=True)
+            BASIN_NAME_COLUMN = 'SUBC_LBL'
+            if BASIN_NAME_COLUMN not in st.session_state.gdf_subcuencas.columns:
+                st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
+                return # Salimos si la columna de nombres no existe
+
+            col_control, col_display = st.columns([1, 2])
+            with col_control:
+                st.markdown("#### Controles de Cuenca")
+                basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+                selected_basins = st.multiselect("Seleccione una o más subcuencas:", options=basin_names, key="basin_multiselect")
+                buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5, key="buffer_slider")
+                df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+                years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
+
+                if not years:
+                    st.warning("No hay datos anuales disponibles para la interpolación.")
+                    return
+
+                selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1, key="year_select_basin")
+                method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
+                run_balance = st.toggle("Calcular Balance Hídrico", value=True, key="balance_toggle")
+
+                if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins, key="generate_basin_map_button"):
+                    st.session_state['fig_basin'] = None # Limpiamos resultados anteriores
+                    st.session_state['error_msg'] = None
+
+                    try:
+                        with st.spinner("Preparando datos y realizando interpolación..."):
+                            # Preparación de datos (sin cambios)
+                            target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
+                            merged_basin_geom = target_basins_gdf.unary_union
+                            unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
+                            target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
+                            basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
+                            stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
+                            stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
+                            station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
+                            precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
                             
-                            if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins):
-                                with st.spinner("Preparando datos y realizando interpolación..."):
-                                    target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
-                                    merged_basin_geom = target_basins_gdf.unary_union
-                                    unified_basin_gdf = gpd.GeoDataFrame(geometry=[merged_basin_geom], crs=target_basins_gdf.crs)
-                                    target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
-                                    basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
-                                    stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
-                                    stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
-                                    station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
-                                    precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
-                                    
-                                    cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
-                                    points_data = gpd.GeoDataFrame(pd.merge(stations_in_buffer[cols_to_merge], precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]], on=Config.STATION_NAME_COL)).dropna(subset=[Config.PRECIPITATION_COL])
-                                    points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
-                                    
-                                    bounds = basin_buffer_metric.unary_union.bounds
-                                    grid_resolution = 500
-                                    grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
-                                    grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
+                            cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
+                            points_data = gpd.GeoDataFrame(pd.merge(stations_in_buffer[cols_to_merge], precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]], on=Config.STATION_NAME_COL)).dropna(subset=[Config.PRECIPITATION_COL])
+                            points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
+                            
+                            bounds = basin_buffer_metric.unary_union.bounds
+                            grid_resolution = 500
+                            grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
+                            grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
 
-                                    # LLAMADA A LA FUNCIÓN DE INTERPOLACIÓN
-                                    if method == "Kriging Ordinario":
-                                        # Llamamos a la función cachead a en interpolation.py
-                                        grid_z, variance = create_kriging_by_basin(
-                                            _gdf_points=points_data, # Pasamos el argumento con el guion bajo
-                                            grid_lon=grid_lon,
-                                            grid_lat=grid_lat,
-                                            value_col='Valor'
-                                        )
-                                    else: # IDW
-                                        points = np.column_stack((points_data.geometry.x, points_data.geometry.y))
-                                        values = points_data['Valor'].values
-                                        grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
-                                        grid_z = griddata(points, values, (grid_x, grid_y), method='linear')
-                                        nan_mask = np.isnan(grid_z)
-                                        if np.any(nan_mask):
-                                            fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
-                                            grid_z[nan_mask] = fill_values
-                                        grid_z = np.nan_to_num(grid_z)
-                                        st.success("✅ Interpolación con IDW completada.")
+                            # Llamada a la interpolación
+                            grid_z, variance = None, None
+                            if method == "Kriging Ordinario":
+                                grid_z, variance = create_kriging_by_basin(
+                                    _gdf_points=points_data,
+                                    grid_lon=grid_lon,
+                                    grid_lat=grid_lat,
+                                    value_col='Valor'
+                                )
+                            else: # IDW
+                                if len(points_data) > 0:
+                                    points = np.column_stack((points_data.geometry.x, points_data.geometry.y))
+                                    values = points_data['Valor'].values
+                                    grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+                                    grid_z = griddata(points, values, (grid_x, grid_y), method='linear')
+                                    nan_mask = np.isnan(grid_z)
+                                    if np.any(nan_mask):
+                                        fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
+                                        grid_z[nan_mask] = fill_values
+                                    grid_z = np.nan_to_num(grid_z)
+                                    st.success("✅ Interpolación con IDW completada.")
                                         
                                         grid_z[grid_z < 0] = 0
                                         transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
