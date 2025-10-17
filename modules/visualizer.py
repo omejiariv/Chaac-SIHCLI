@@ -1410,7 +1410,7 @@ with kriging_tab:
                                             fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
                                             grid_z[nan_mask] = fill_values
                                         grid_z = np.nan_to_num(grid_z)
-                                            st.success("✅ Interpolación con IDW completada.")
+                                        st.success("✅ Interpolación con IDW completada.")
                                         
                                         grid_z[grid_z < 0] = 0
                                         transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
