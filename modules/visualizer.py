@@ -624,9 +624,7 @@ def display_spatial_distribution_tab(gdf_filtered, stations_for_analysis, df_anu
 def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analysis,
                        gdf_filtered, analysis_mode, selected_regions, selected_municipios,
                        selected_altitudes, **kwargs):
-
     st.header("Visualizaciones de Precipitación")
-
     display_filter_summary(
         total_stations_count=len(st.session_state.gdf_stations),
         selected_stations_count=len(stations_for_analysis),
@@ -643,59 +641,35 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         return
 
     year_range_val = st.session_state.get('year_range', (2000, 2020))
+    year_min, year_max = year_range_val
 
-    if isinstance(year_range_val, tuple) and len(year_range_val) == 2 and \
-       isinstance(year_range_val[0], int):
-        year_min, year_max = year_range_val
-    else:
-        year_min, year_max = st.session_state.get('year_range_single', (2000, 2020))
-
-    metadata_cols = [Config.STATION_NAME_COL, Config.MUNICIPALITY_COL,
-                     Config.ALTITUDE_COL]
-
-    gdf_metadata = \
-        gdf_filtered[metadata_cols].drop_duplicates(subset=[Config.STATION_NAME_COL]).copy()
-
+    # Preparación de metadatos
+    metadata_cols = [Config.STATION_NAME_COL, Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
+    gdf_metadata = gdf_filtered[metadata_cols].drop_duplicates(subset=[Config.STATION_NAME_COL]).copy()
     if Config.ALTITUDE_COL in gdf_metadata.columns:
-        gdf_metadata[Config.ALTITUDE_COL] = \
-            pd.to_numeric(gdf_metadata[Config.ALTITUDE_COL], errors='coerce').fillna(-
-                                                                                      9999).astype(int).astype(str)
-
+        gdf_metadata[Config.ALTITUDE_COL] = pd.to_numeric(gdf_metadata[Config.ALTITUDE_COL], errors='coerce').fillna(-9999).astype(int).astype(str)
     if Config.MUNICIPALITY_COL in gdf_metadata.columns:
-        gdf_metadata[Config.MUNICIPALITY_COL] = \
-            gdf_metadata[Config.MUNICIPALITY_COL].astype(str).str.strip().replace('nan', 'Sin Dato')
-
-    cols_to_drop = [col for col in [Config.MUNICIPALITY_COL, Config.ALTITUDE_COL] if col !=
-                    Config.STATION_NAME_COL]
-
+        gdf_metadata[Config.MUNICIPALITY_COL] = gdf_metadata[Config.MUNICIPALITY_COL].astype(str).str.strip().replace('nan', 'Sin Dato')
+    
+    cols_to_drop = [col for col in [Config.MUNICIPALITY_COL, Config.ALTITUDE_COL] if col != Config.STATION_NAME_COL]
     df_anual_pre_merge = df_anual_melted.drop(columns=cols_to_drop, errors='ignore')
-    df_anual_rich = df_anual_pre_merge.merge(gdf_metadata,
-                                             on=Config.STATION_NAME_COL, how='left')
-
-    df_monthly_pre_merge = df_monthly_filtered.drop(columns=cols_to_drop,
-                                                    errors='ignore')
-
-    df_monthly_rich = df_monthly_pre_merge.merge(gdf_metadata,
-                                                 on=Config.STATION_NAME_COL, how='left')
+    df_anual_rich = df_anual_pre_merge.merge(gdf_metadata, on=Config.STATION_NAME_COL, how='left')
+    df_monthly_pre_merge = df_monthly_filtered.drop(columns=cols_to_drop, errors='ignore')
+    df_monthly_rich = df_monthly_pre_merge.merge(gdf_metadata, on=Config.STATION_NAME_COL, how='left')
 
     tab_keys = [
         "Análisis Anual", "Análisis Mensual", "Comparación Rápida",
         "Boxplot Anual", "Distribución", "Acumulada",
-        "Relación Altitud", "Serie Regional", "Descargar Datos"
+        "Relación Altitud", "Serie Regional"
     ]
-
     sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, \
-        sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional, \
-        sub_tab_descarga = st.tabs(tab_keys)
+    sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional = st.tabs(tab_keys)
 
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
         with anual_graf_tab:
             if not df_anual_rich.empty:
                 st.subheader("Precipitación Anual (mm)")
-                st.info("Solo se muestran los años con 10 o más meses de datos válidos.")
-                
-                # --- MEJORA 1: Gráfico Anual con Plotly ---
                 fig_anual = px.line(
                     df_anual_rich.dropna(subset=[Config.PRECIPITATION_COL]),
                     x=Config.YEAR_COL,
@@ -703,21 +677,14 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                     color=Config.STATION_NAME_COL,
                     markers=True,
                     title=f'Precipitación Anual por Estación ({year_min} - {year_max})',
-                    labels={
-                        Config.YEAR_COL: 'Año',
-                        Config.PRECIPITATION_COL: 'Precipitación (mm)'
-                    },
-                    hover_data={
-                        Config.MUNICIPALITY_COL: True,
-                        Config.ALTITUDE_COL: True
-                    }
+                    labels={Config.YEAR_COL: 'Año', Config.PRECIPITATION_COL: 'Precipitación (mm)'},
+                    hover_data=[Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
                 )
                 fig_anual.update_layout(height=500)
                 st.plotly_chart(fig_anual, use_container_width=True)
-                # --- FIN DE LA MEJORA ---
             else:
                 st.warning("No hay datos anuales para mostrar la serie.")
-                
+        
         with anual_analisis_tab:
             if not df_anual_rich.empty:
                 st.subheader("Precipitación Media Multianual")
@@ -788,69 +755,65 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
             else:
                 st.warning("No hay datos anuales para mostrar el análisis multianual.")
 
-        with sub_tab_mensual:
-            mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs(["Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"])
-            with mensual_graf_tab:
-                if not df_monthly_rich.empty:
-                    controls_col, chart_col = st.columns([1, 4])
-                    with controls_col:
-                        st.markdown("##### Opciones del Gráfico")
-                        chart_type = st.radio("Tipo de Gráfico:", ["Líneas y Puntos", "Nube de Puntos", "Gráfico de Cajas (Distribución Mensual)"], key="monthly_chart_type")
-                        color_by_disabled = (chart_type == "Gráfico de Cajas (Distribución Mensual)")
-                        color_by = st.radio("Colorear por:", ["Estación", "Mes"], key="monthly_color_by", disabled=color_by_disabled)
+    with sub_tab_mensual:
+        mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs([
+            "Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"
+        ])
+        with mensual_graf_tab:
+            if not df_monthly_rich.empty:
+                controls_col, chart_col = st.columns([1, 4])
+                with controls_col:
+                    st.markdown("##### Opciones del Gráfico")
+                    chart_type = st.radio("Tipo de Gráfico:", ["Líneas y Puntos", "Nube de Puntos", "Gráfico de Cajas (Distribución Mensual)"], key="monthly_chart_type")
+                    color_by_disabled = (chart_type == "Gráfico de Cajas (Distribución Mensual)")
+                    color_by = st.radio("Colorear por:", ["Estación", "Mes"], key="monthly_color_by", disabled=color_by_disabled)
                 
-                    with chart_col:
-                        if chart_type != "Gráfico de Cajas (Distribución Mensual)":
-                            # --- MEJORA 1: Gráfico Mensual con Plotly ---
-                            render_mode = 'lines+markers' if chart_type == "Líneas y Puntos" else 'markers'
+                with chart_col:
+                    if chart_type != "Gráfico de Cajas (Distribución Mensual)":
+                        fig_mensual = px.scatter(
+                            df_monthly_rich,
+                            x=Config.DATE_COL,
+                            y=Config.PRECIPITATION_COL,
+                            color=Config.STATION_NAME_COL if color_by == "Estación" else df_monthly_rich[Config.DATE_COL].dt.month,
+                            title=f"Serie de Precipitación Mensual ({year_min} - {year_max})",
+                            labels={
+                                Config.DATE_COL: 'Fecha',
+                                Config.PRECIPITATION_COL: 'Precipitación (mm)',
+                                'color': 'Mes' if color_by == 'Mes' else 'Estación'
+                            },
+                            hover_data={
+                                Config.STATION_NAME_COL: True,
+                                Config.MUNICIPALITY_COL: True,
+                                Config.ALTITUDE_COL: True
+                            }
+                        )
                         
-                            fig_mensual = px.scatter(
-                                df_monthly_rich,
-                                x=Config.DATE_COL,
-                                y=Config.PRECIPITATION_COL,
-                                color=Config.STATION_NAME_COL if color_by == "Estación" else df_monthly_rich[Config.DATE_COL].dt.month,
-                                title=f"Serie de Precipitación Mensual ({year_min} - {year_max})",
-                                labels={
-                                    Config.DATE_COL: 'Fecha',
-                                    Config.PRECIPITATION_COL: 'Precipitación (mm)',
-                                    'color': 'Mes' if color_by == 'Mes' else 'Estación'
-                                },
-                                hover_data={
-                                    Config.STATION_NAME_COL: True,
-                                    Config.MUNICIPALITY_COL: True,
-                                    Config.ALTITUDE_COL: True
-                                }
-                            )
-                            if chart_type == "Líneas y Puntos":
-                                fig_mensual.update_traces(mode='lines+markers')
+                        if chart_type == "Líneas y Puntos":
+                            fig_mensual.update_traces(mode='lines+markers')
                         
-                            fig_mensual.update_layout(height=500)
-                            st.plotly_chart(fig_mensual, use_container_width=True)
-                            # --- FIN DE LA MEJORA ---
-
-                            else:
-                                st.subheader("Distribución de la Precipitación Mensual")
-
-                                fig_box_monthly = px.box(
-                                    df_monthly_rich,
-                                    x=Config.MONTH_COL,
-                                    y=Config.PRECIPITATION_COL,
-                                    color=Config.STATION_NAME_COL,
-                                    title='Distribución de la Precipitación por Mes',
-                                    labels={
-                                        Config.MONTH_COL: 'Mes',
-                                        Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)',
-                                        Config.STATION_NAME_COL: 'Estación'
-                                    }
-                                )
-
-                                fig_box_monthly.update_layout(height=500)
-                                st.plotly_chart(fig_box_monthly, use_container_width=True)
-
+                        fig_mensual.update_layout(height=500)
+                        st.plotly_chart(fig_mensual, use_container_width=True)
+                    
                     else:
-                        st.warning("No hay datos mensuales para mostrar el gráfico.")
+                        st.subheader("Distribución de la Precipitación Mensual")
+                        fig_box_monthly = px.box(
+                            df_monthly_rich,
+                            x=Config.MONTH_COL,
+                            y=Config.PRECIPITATION_COL,
+                            color=Config.STATION_NAME_COL,
+                            title='Distribución de la Precipitación por Mes',
+                            labels={
+                                Config.MONTH_COL: 'Mes',
+                                Config.PRECIPITATION_COL: 'Precipitación Mensual (mm)',
+                                Config.STATION_NAME_COL: 'Estación'
+                            }
+                        )
+                        fig_box_monthly.update_layout(height=500)
+                        st.plotly_chart(fig_box_monthly, use_container_width=True)
+            else:
+                st.warning("No hay datos mensuales para mostrar el gráfico.")
 
-            with mensual_enso_tab:
+        with mensual_enso_tab:
                 if 'df_enso' in st.session_state and st.session_state.df_enso is not None:
                     enso_filtered = st.session_state.df_enso[
                         (st.session_state.df_enso[Config.DATE_COL].dt.year >= year_min) &
