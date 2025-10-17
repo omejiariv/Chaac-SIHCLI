@@ -1664,6 +1664,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
     with risk_map_tab:
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
         st.info("Este mapa interpola la Pendiente de Sen de todas las estaciones con datos suficientes (>10 años) para visualizar las zonas con tendencia a secarse o a humedecerse.")
+        
         with st.expander("Opciones de Visualización del Mapa"):
             interp_option = st.selectbox(
                 "Método de Interpolación",
@@ -1673,6 +1674,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             )
             method_map = {"Spline": "cubic", "IDW (Lineal)": "linear", "Vecino más Cercano": "nearest"}
             selected_method = method_map[interp_option]
+
             grid_res = st.slider(
                 "Resolución de la Grilla (más alto = más suave)",
                 min_value=50,
@@ -1681,6 +1683,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 step=50,
                 key="risk_grid_res"
             )
+        
         if st.button("Generar Mapa de Riesgo"):
             fig_risk = create_climate_risk_map(
                 df_anual_melted, 
@@ -1690,6 +1693,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             )
             if fig_risk:
                 st.plotly_chart(fig_risk, use_container_width=True)
+
         st.markdown("---")
         st.subheader("Mapa de Tendencias sobre Mapa Base")
         if st.checkbox("Mostrar mapa de tendencias con fondo geográfico"):
