@@ -289,13 +289,15 @@ def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
         return np.zeros((ny, nx)), np.zeros((ny, nx))
 
     try:
-        st.write("Intentando interpolación con Kriging Ordinario...")
+        # This message can be removed if it's too verbose
+        # st.write("Intentando interpolación con Kriging Ordinario...")
         bin_center, gamma = gs.vario_estimate((lons, lats), vals)
         model = gs.Spherical(dim=2)
         model.fit_variogram(bin_center, gamma, nugget=True)
         kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_val=vals)
         grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
-        st.success("Interpolación con Kriging completada con éxito.")
+        # This message can be removed if it's too verbose
+        # st.success("Interpolación con Kriging completada con éxito.")
     except RuntimeError as e:
         st.warning(f"El Kriging falló: '{e}'. Usando interpolación de respaldo.")
         points = np.column_stack((lons, lats))
