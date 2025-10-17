@@ -2176,37 +2176,38 @@ def display_drought_analysis_tab(df_long, df_monthly_filtered, stations_for_anal
 
     with indices_sub_tab:
         st.subheader("Análisis con Índices Estandarizados")
-        
-        # El expander está al mismo nivel que el subheader
-        with st.expander("ℹ️ ¿Cómo interpretar los índices de sequía?"):
-            # El markdown está sangrado un nivel más adentro
+
+        with st.expander("¿Cómo interpretar los índices de sequía?"):
             st.markdown("""
             El **Índice de Precipitación Estandarizado (SPI)** mide la desviación de la precipitación respecto a su media histórica.
-
             * **Valores Positivos (azul):** Indican condiciones más húmedas que el promedio.
             * **Valores Negativos (rojo):** Indican condiciones más secas (sequía).
             * **Valores cercanos a 0:** Representan condiciones normales.
             """)
-        
+
         col1_idx, col2_idx = st.columns([1, 3])
         index_values = pd.Series(dtype=float)
-        
+
         with col1_idx:
             index_type = st.radio("Índice a Calcular:", ("SPI", "SPEI"), key="index_type_radio")
             station_to_analyze_idx = st.selectbox("Estación para análisis:", options=sorted(stations_for_analysis), key="index_station_select")
             index_window = st.select_slider("Escala de tiempo (meses):", options=[3, 6, 9, 12, 24], value=12, key="index_window_slider")
-        
+
+        df_station_idx = pd.DataFrame()
         if station_to_analyze_idx:
             df_station_idx = df_monthly_filtered[df_monthly_filtered[Config.STATION_NAME_COL] == station_to_analyze_idx].copy().set_index(Config.DATE_COL).sort_index()
-            
-            with col2_idx:
+
+        with col2_idx:
+            if not df_station_idx.empty:
                 with st.spinner(f"Calculando {index_type}-{index_window}..."):
+                    
                     if index_type == "SPI":
                         precip_series = df_station_idx[Config.PRECIPITATION_COL]
                         if len(precip_series.dropna()) < index_window * 2:
                             st.warning(f"No hay suficientes datos ({len(precip_series.dropna())} meses) para calcular el SPI-{index_window}.")
                         else:
                             index_values = calculate_spi(precip_series, index_window)
+                    
                     elif index_type == "SPEI":
                         if Config.ET_COL not in df_station_idx.columns or df_station_idx[Config.ET_COL].isnull().all():
                             st.error(f"No hay datos de evapotranspiración ('{Config.ET_COL}') disponibles.")
@@ -2217,36 +2218,36 @@ def display_drought_analysis_tab(df_long, df_monthly_filtered, stations_for_anal
                             else:
                                 index_values = calculate_spei(precip_series, et_series, index_window)
 
-                if not index_values.empty and not index_values.isnull().all():
-                    df_plot = pd.DataFrame({'index_val': index_values}).dropna()
-                    
-                    conditions = [
-                        (df_plot['index_val'] < -2.0),
-                        (df_plot['index_val'] >= -2.0) & (df_plot['index_val'] < -1.5),
-                        (df_plot['index_val'] >= -1.5) & (df_plot['index_val'] < -1.0),
-                        (df_plot['index_val'] >= -1.0) & (df_plot['index_val'] < 1.0),
-                        (df_plot['index_val'] >= 1.0) & (df_plot['index_val'] < 1.5),
-                        (df_plot['index_val'] >= 1.5) & (df_plot['index_val'] < 2.0),
-                        (df_plot['index_val'] >= 2.0)
-                    ]
-                    colors = ['#b2182b', '#ef8a62', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac']
-
-                    df_plot['color'] = np.select(conditions, colors, default='grey')
-                    
-                    fig = go.Figure(go.Bar(
-                        x=df_plot.index, 
-                        y=df_plot['index_val'],
-                        marker_color=df_plot['color'], 
-                        name=index_type
-                    ))
-                    fig.update_layout(
-                        title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}",
-                        yaxis_title=f"Valor {index_type}",
-                        xaxis_title="Fecha",
-                        height=500
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    # display_event_analysis(index_values, index_type)
+        if not index_values.empty and not index_values.isnull().all():
+            df_plot = pd.DataFrame({'index_val': index_values}).dropna()
+            
+            conditions = [
+                (df_plot['index_val'] < -2.0),
+                (df_plot['index_val'] >= -2.0) & (df_plot['index_val'] < -1.5),
+                (df_plot['index_val'] >= -1.5) & (df_plot['index_val'] < -1.0),
+                (df_plot['index_val'] >= -1.0) & (df_plot['index_val'] < 1.0),
+                (df_plot['index_val'] >= 1.0) & (df_plot['index_val'] < 1.5),
+                (df_plot['index_val'] >= 1.5) & (df_plot['index_val'] < 2.0),
+                (df_plot['index_val'] >= 2.0)
+            ]
+            colors = ['#b2182b', '#ef8a62', '#fddbc7', 'lightgrey', '#92c5de', '#4393c3', '#2166ac']
+            df_plot['color'] = np.select(conditions, colors, default='grey')
+            
+            fig = go.Figure(go.Bar(
+                x=df_plot.index, 
+                y=df_plot['index_val'],
+                marker_color=df_plot['color'], 
+                name=index_type
+            ))
+            fig.update_layout(
+                title=f"Índice {index_type}-{index_window} para {station_to_analyze_idx}",
+                yaxis_title=f"Valor {index_type}",
+                xaxis_title="Fecha",
+                height=500
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # display_event_analysis(index_values, index_type)
 
     with frequency_sub_tab:
         st.subheader("Análisis de Frecuencia de Precipitaciones Anuales Máximas")
