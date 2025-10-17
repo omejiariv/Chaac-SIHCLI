@@ -1612,7 +1612,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     else:
                         st.info("El variograma no está disponible para este método.")
 
-with morph_tab:
+    with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
         dem_file_uploader = st.session_state.get('dem_file_for_morph')
