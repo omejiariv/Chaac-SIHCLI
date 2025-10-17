@@ -1338,7 +1338,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 # CORRECCIÓN: El f-string para el mensaje de error estaba mal formateado.
                 st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
 
-    with kriging_tab:
+with kriging_tab:
         st.subheader("Superficies de Interpolación de Precipitación Anual")
         analysis_mode_interp = st.radio(
             "Seleccione el modo de interpolación:",
@@ -1349,12 +1349,11 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
         if analysis_mode_interp == "Por Cuenca Específica":
             if 'gdf_subcuencas' not in st.session_state or st.session_state.gdf_subcuencas is None:
-                st.warning("Los datos de cuencas no están disponibles.")
+                st.warning("Los datos de cuencas no están disponibles. Por favor, cárguelos en la sección de configuración.")
                 return
 
             BASIN_NAME_COLUMN = 'SUBC_LBL'
             if BASIN_NAME_COLUMN not in st.session_state.gdf_subcuencas.columns:
-                # CORRECCIÓN: El f-string no evaluaba la variable.
                 st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
                 return
 
@@ -1372,13 +1371,22 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     st.warning("No hay datos anuales disponibles para la interpolación.")
                     return
 
-                # CORRECCIÓN: Faltaba el argumento 'options='.
                 selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1, key="year_select_basin")
                 method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
+                
+                # RECUPERADO: Funcionalidad para cargar el archivo DEM
+                st.markdown("---")
+                st.markdown("#### Fondo Topográfico (Opcional)")
+                dem_file = st.file_uploader("Cargar Modelo de Elevación Digital (DEM) en formato .tif", type=['tif', 'tiff'])
+                show_dem_background = st.checkbox("Mostrar fondo DEM", value=True, key="show_dem_check")
 
+
+                # MEJORA: Se limpia el estado antes de generar un nuevo mapa para evitar mostrar resultados antiguos si ocurre un error.
                 if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins, key="generate_basin_map_button"):
                     st.session_state['fig_basin'] = None
                     st.session_state['error_msg'] = None
+                    st.session_state['mean_precip'] = None
+                    
                     try:
                         with st.spinner("Preparando datos y realizando interpolación..."):
                             target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
@@ -1391,7 +1399,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                             precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
 
                             cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
-                            # CORRECCIÓN: Se limpió la sintaxis de pd.merge y se aseguró que el merge se hace entre dos DataFrames.
                             points_data = gpd.GeoDataFrame(
                                 pd.merge(
                                     stations_in_buffer[cols_to_merge],
@@ -1399,76 +1406,94 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     on=Config.STATION_NAME_COL
                                 )
                             ).dropna(subset=[Config.PRECIPITATION_COL])
-                            # CORRECCIÓN: La renombrada de columna tenía un paréntesis extra.
                             points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
 
                             bounds = basin_buffer_metric.unary_union.bounds
                             grid_resolution = 500
-                            grid_lon = np.arange(bounds[0], bounds[2], grid_resolution)
-                            grid_lat = np.arange(bounds[1], bounds[3], grid_resolution)
+                            grid_lon, grid_lat = np.arange(bounds[0], bounds[2], grid_resolution), np.arange(bounds[1], bounds[3], grid_resolution)
                             grid_z = None
 
                             if method == "Kriging Ordinario":
-                                # CORRECCIÓN: Sintaxis de la llamada a función estaba corrupta.
                                 grid_z, _ = create_kriging_by_basin(
                                     gdf_points=points_data, grid_lon=grid_lon,
                                     grid_lat=grid_lat, value_col='Valor'
                                 )
                             else:  # IDW
-                                if len(points_data) > 0:
+                                if len(points_data) > 2: # MEJORA: IDW necesita al menos 3 puntos para una interpolación 2D.
                                     points = np.column_stack((points_data.geometry.x, points_data.geometry.y))
                                     values = points_data['Valor'].values
                                     grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
-                                    # CORRECCIÓN: Sintaxis corrupta en la asignación.
                                     grid_z = griddata(points, values, (grid_x, grid_y), method='linear')
                                     nan_mask = np.isnan(grid_z)
                                     if np.any(nan_mask):
                                         fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
                                         grid_z[nan_mask] = fill_values
-                                    # CORRECCIÓN: 'n1' era un error de tipeo por 'np'.
                                     grid_z = np.nan_to_num(grid_z)
                                     st.success("Interpolación con IDW completada.")
+                                else:
+                                    st.session_state['error_msg'] = "Se necesitan al menos 3 estaciones dentro del buffer para la interpolación IDW."
+                                    grid_z = None
 
-                            if grid_z is None:
+                            if grid_z is None and not st.session_state.get('error_msg'):
                                 st.session_state['error_msg'] = "La interpolación no generó resultados."
-                            else:
-                                # CORRECCIÓN: Lógica para corregir valores negativos, sintaxis estaba corrupta.
+                            elif grid_z is not None:
                                 grid_z[grid_z < 0] = 0
                                 transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
 
                                 with rasterio.io.MemoryFile() as memfile:
-                                    # CORRECCIÓN: Se corrigió el argumento 'driver'.
                                     with memfile.open(driver='GTiff', height=len(grid_lat), width=len(grid_lon), count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform) as dataset:
                                         dataset.write(np.flipud(grid_z), 1)
                                     with memfile.open() as dataset:
                                         masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
-                                        # CORRECCIÓN: Faltaba el signo de igualdad.
                                         masked_data = masked_data[0].astype(np.float32)
                                         mean_precip = np.nanmean(masked_data)
 
                                 map_traces = []
-                                # # --- Lógica para fondo DEM (asumiendo que show_dem_background y dem_file existen) ---
-                                # if show_dem_background and dem_file is not None:
-                                #     # (El código para DEM parece correcto, no se modifica)
+                                
+                                # RECUPERADO: Lógica completa para procesar y mostrar el DEM
+                                dem_trace = None
+                                if show_dem_background and dem_file is not None:
+                                    with st.spinner("Procesando y reproyectando DEM..."):
+                                        try:
+                                            with rasterio.open(dem_file) as dem_src:
+                                                dem_reprojected, dem_transform = reproject(
+                                                    source=rasterio.band(dem_src, 1),
+                                                    destination=np.empty_like(masked_data, dtype=np.float32),
+                                                    src_transform=dem_src.transform,
+                                                    src_crs=dem_src.crs,
+                                                    dst_transform=masked_transform,
+                                                    dst_crs="EPSG:3116",
+                                                    resampling=Resampling.bilinear
+                                                )
+                                            
+                                            x_coords = np.arange(masked_transform.c, masked_transform.c + masked_data.shape[1] * masked_transform.a, masked_transform.a)
+                                            y_coords = np.arange(masked_transform.f, masked_transform.f + masked_data.shape[0] * masked_transform.e, masked_transform.e)
 
-                                # CORRECCIÓN: Se corrigió el valor de 'z' y la sintaxis del diccionario de contornos.
+                                            dem_trace = go.Heatmap(
+                                                z=dem_reprojected,
+                                                x=x_coords,
+                                                y=y_coords,
+                                                colorscale='gray', showscale=False, name='Elevación'
+                                            )
+                                            map_traces.append(dem_trace)
+                                        except Exception as e:
+                                            st.warning(f"No se pudo procesar el DEM: {e}")
+
                                 precip_trace = go.Contour(
                                     z=masked_data,
-                                    x=np.arange(masked_transform[2], masked_transform[2] + masked_data.shape[1] * masked_transform[0], masked_transform[0]),
-                                    y=np.arange(masked_transform[5], masked_transform[5] + masked_data.shape[0] * masked_transform[4], masked_transform[4]),
+                                    x=x_coords,
+                                    y=y_coords,
                                     colorscale='viridis',
-                                    contours=dict(coloring='heatmap', showlabels=True, showlines=True, labelfont=dict(size=10, color='white')),
-                                    line=dict(color='black', width=0.5), # CORRECCIÓN: line_color y line_width son propiedades de 'line'
+                                    contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='white')),
+                                    line=dict(color='black', width=0.5),
                                     colorbar=dict(title='Precipitación (mm)'),
-                                    # opacity=0.7 if show_dem_background and dem_file is not None else 1.0,
+                                    opacity=0.7 if dem_trace is not None else 1.0, # MEJORA: Opacidad se ajusta si el DEM existe
                                     name='Precipitación'
                                 )
                                 map_traces.append(precip_trace)
 
-                                # CORRECCIÓN: Faltaba el signo de igualdad.
                                 fig_basin = go.Figure(data=map_traces)
 
-                                # CORRECCIÓN: El f-string para el hover text tenía llaves faltantes.
                                 points_data['hover_text'] = points_data.apply(
                                     lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>"
                                                 f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
@@ -1485,15 +1510,15 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 fig_basin.update_layout(
                                     title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
                                     xaxis_title="Coordenada Este (m)",
-                                    # CORRECCIÓN: Se corrigió la sintaxis del diccionario y el parámetro 'scaleanchor'.
-                                    yaxis=dict(title="Coordenada Norte (m)", scaleanchor='x')
+                                    yaxis=dict(title="Coordenada Norte (m)", scaleanchor='x', scaleratio=1)
                                 )
-                                # CORRECCIÓN: La asignación a session_state debe ocurrir si no hay error.
+                                
+                                # MEJORA: Guardamos los resultados en st.session_state al final y solo si todo fue exitoso.
                                 st.session_state['fig_basin'] = fig_basin
                                 st.session_state['mean_precip'] = mean_precip
                                 st.session_state['unified_basin_gdf'] = unified_basin_gdf
                                 st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-
+                                st.session_state['dem_file'] = dem_file # Guardamos para morfometría
 
                     except Exception as e:
                         error_msg = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
