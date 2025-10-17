@@ -1595,22 +1595,23 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     else:
                         st.info("El variograma no está disponible para este método.")
 
-    with morph_tab:
+with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
-        st.info("Esta sección requiere que se haya generado un mapa para una o más cuencas en la pestaña 'Superficies de Interpolación' y que se haya subido un archivo DEM.")
         
+        # MEJORA: La clave para el DEM debe ser consistente. Usaremos 'dem_file_for_morph'
+        # como lo definimos en la pestaña anterior para evitar errores.
         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
-        dem_file = st.session_state.get('dem_file')
+        dem_file_uploader = st.session_state.get('dem_file_for_morph')
         
-        if unified_basin_gdf is not None and dem_file is not None:
+        if unified_basin_gdf is not None and dem_file_uploader is not None:
             st.markdown(f"### Resultados para: **{st.session_state.get('selected_basins_title', '')}**")
             
-            dem_path = os.path.join(os.getcwd(), dem_file.name)
-            with open(dem_path, "wb") as f:
-                f.write(dem_file.getbuffer())
-
+            # --- Parámetros Morfométricos ---
             st.markdown("#### Parámetros Morfométricos")
-            morph_results = calculate_morphometry(unified_basin_gdf, dem_path)
+            with st.spinner("Calculando parámetros morfométricos..."):
+                # MEJORA: Pasamos el objeto del uploader directamente. La función en utils se encarga del archivo.
+                morph_results = calculate_morphometry(unified_basin_gdf, dem_file_uploader)
+            
             if morph_results.get("error"):
                 st.error(morph_results["error"])
             else:
@@ -1626,35 +1627,14 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
             st.markdown("---")
 
+            # --- Curva Hipsométrica ---
             st.markdown("#### Curva Hipsométrica")
             with st.spinner("Calculando curva hipsométrica..."):
-                hypsometric_data = calculate_hypsometric_curve(unified_basin_gdf, dem_path)
+                # MEJORA: La función ahora devuelve la figura y los datos para descargar.
+                fig, csv_data = create_hypsometric_figure_and_data(unified_basin_gdf, dem_file_uploader)
             
-            if hypsometric_data.get("error"):
-                st.error(hypsometric_data["error"])
-            else:
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=hypsometric_data['cumulative_area_percent'],
-                    y=hypsometric_data['elevations'],
-                    mode='lines',
-                    fill='tozeroy'
-                ))
-                fig.update_layout(
-                    title="Curva Hipsométrica de la Cuenca Agregada",
-                    xaxis_title="Área Acumulada sobre la Elevación (%)",
-                    yaxis_title="Elevación (m)",
-                    xaxis=dict(range=[0, 100]),
-                    template="plotly_white"
-                )
+            if fig:
                 st.plotly_chart(fig, use_container_width=True)
-                # Prepara los datos para el CSV
-                df_hypsometric = pd.DataFrame({
-                    'Elevacion_m': hypsometric_data['elevations'],
-                    'Porcentaje_Area_Acumulada': hypsometric_data['cumulative_area_percent']
-                })
-                csv_data = df_hypsometric.to_csv(index=False).encode('utf-8')
-
                 st.download_button(
                     label="📥 Descargar Datos de la Curva (CSV)",
                     data=csv_data,
@@ -1662,9 +1642,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     mime='text/csv',
                 )
                 st.caption("La curva hipsométrica muestra la distribución de la superficie de la cuenca en relación con la altitud.")
+            else:
+                 st.error("No se pudo generar la curva hipsométrica. Verifique que el DEM cubra el área de la cuenca.")
 
-            os.remove(dem_path)
-            
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
