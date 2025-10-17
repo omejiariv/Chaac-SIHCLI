@@ -6,12 +6,6 @@ import plotly.graph_objects as go
 import folium 
 import pandas as pd
 import numpy as np
-import geopandas as gpd
-import os
-import rasterio
-from rasterio.mask import mask
-from pykrige.ok import OrdinaryKriging
-import warnings
 
 # --- NUEVA FUNCIÓN PARA CORRECCIÓN NUMÉRICA ---
 @st.cache_data
