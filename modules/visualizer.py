@@ -656,8 +656,14 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     df_monthly_pre_merge = df_monthly_filtered.drop(columns=cols_to_drop, errors='ignore')
     df_monthly_rich = df_monthly_pre_merge.merge(gdf_metadata, on=Config.STATION_NAME_COL, how='left')
 
-    tab_keys = ["Análisis Anual", "Análisis Mensual", "Comparación Rápida", "Boxplot Anual", "Distribución", "Acumulada", "Relación Altitud", "Serie Regional"]
-    sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional = st.tabs(tab_keys)
+    tab_keys = [
+        "Análisis Anual", "Análisis Mensual", "Comparación Rápida",
+        "Boxplot Anual", "Distribución", "Acumulada",
+        "Relación Altitud", "Serie Regional", "Descargar Datos" # <-- Se añade la pestaña que faltaba
+    ]
+    sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, \
+    sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional, \
+    sub_tab_descarga = st.tabs(tab_keys) # <-- Se añade la variable que faltaba
 
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
