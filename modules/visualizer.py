@@ -759,6 +759,7 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
         mensual_graf_tab, mensual_enso_tab, mensual_datos_tab = st.tabs([
             "Gráfico de Serie Mensual", "Análisis ENSO en el Período", "Tabla de Datos"
         ])
+
         with mensual_graf_tab:
             if not df_monthly_rich.empty:
                 controls_col, chart_col = st.columns([1, 4])
@@ -814,35 +815,28 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
                 st.warning("No hay datos mensuales para mostrar el gráfico.")
 
         with mensual_enso_tab:
-                if 'df_enso' in st.session_state and st.session_state.df_enso is not None:
-                    enso_filtered = st.session_state.df_enso[
-                        (st.session_state.df_enso[Config.DATE_COL].dt.year >= year_min) &
-                        (st.session_state.df_enso[Config.DATE_COL].dt.year <= year_max) &
-                        (st.session_state.df_enso[Config.DATE_COL].dt.month.isin(st.session_state.meses_numeros))
-                    ]
+            if 'df_enso' in st.session_state and st.session_state.df_enso is not None:
+                enso_filtered = st.session_state.df_enso[
+                    (st.session_state.df_enso[Config.DATE_COL].dt.year >= year_min) &
+                    (st.session_state.df_enso[Config.DATE_COL].dt.year <= year_max) &
+                    (st.session_state.df_enso[Config.DATE_COL].dt.month.isin(st.session_state.meses_numeros))
+                ]
+                fig_enso_mensual = create_enso_chart(enso_filtered)
+                st.plotly_chart(fig_enso_mensual, use_container_width=True, key="enso_chart_mensual")
+            else:
+                st.info("No hay datos ENSO disponibles para este análisis.")
 
-                    fig_enso_mensual = create_enso_chart(enso_filtered)
-
-                    st.plotly_chart(fig_enso_mensual, use_container_width=True,
-                                    key="enso_chart_mensual")
-
-                else:
-                    st.info("No hay datos ENSO disponibles para este análisis.")
-
-            with mensual_datos_tab:
-                st.subheader("Datos de Precipitación Mensual Detallados")
-
-                if not df_monthly_rich.empty:
-                    df_values = df_monthly_rich.pivot_table(
-                        index=Config.DATE_COL,
-                        columns=Config.STATION_NAME_COL,
-                        values=Config.PRECIPITATION_COL
-                    ).round(1)
-
-                    st.dataframe(df_values, use_container_width=True)
-
-                else:
-                    st.info("No hay datos mensuales detallados.")
+        with mensual_datos_tab:
+            st.subheader("Datos de Precipitación Mensual Detallados")
+            if not df_monthly_rich.empty:
+                df_values = df_monthly_rich.pivot_table(
+                    index=Config.DATE_COL,
+                    columns=Config.STATION_NAME_COL,
+                    values=Config.PRECIPITATION_COL
+                ).round(1)
+                st.dataframe(df_values, use_container_width=True)
+            else:
+                st.info("No hay datos mensuales detallados.")
 
         with sub_tab_comparacion:
             st.subheader("Comparación de Precipitación Mensual entre Estaciones")
