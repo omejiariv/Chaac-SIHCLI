@@ -270,15 +270,17 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
     return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
 
 @st.cache_data
-def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
+@st.cache_data
+def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
     Realiza Kriging. Si falla, usa un respaldo de interpolación lineal y relleno
     para asegurar una superficie con gradiente y sin vacíos.
     """
-    lons = gdf_points.geometry.x
-    lats = gdf_points.geometry.y
-    vals = gdf_points[value_col].values
-    
+    # Se utiliza _gdf_points en lugar de gdf_points
+    lons = _gdf_points.geometry.x
+    lats = _gdf_points.geometry.y
+    vals = _gdf_points[value_col].values
+
     valid_indices = ~np.isnan(vals)
     lons, lats, vals = lons[valid_indices], lats[valid_indices], vals[valid_indices]
 
@@ -288,31 +290,26 @@ def create_kriging_by_basin(gdf_points, grid_lon, grid_lat, value_col='Valor'):
         return np.zeros((ny, nx)), np.zeros((ny, nx))
 
     try:
-        st.write("🛰️ Intentando interpolación con Kriging Ordinario...")
+        st.write("Intentando interpolación con Kriging Ordinario...")
         bin_center, gamma = gs.vario_estimate((lons, lats), vals)
         model = gs.Spherical(dim=2)
         model.fit_variogram(bin_center, gamma, nugget=True)
         kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_val=vals)
         grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
-        st.success("✅ Interpolación con Kriging completada con éxito.")
-
+        st.success("Interpolación con Kriging completada con éxito.")
     except RuntimeError as e:
-        st.warning(f"⚠️ El Kriging falló: '{e}'. Usando interpolación de respaldo.")
+        st.warning(f"El Kriging falló: '{e}'. Usando interpolación de respaldo.")
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
-        # --- SOLUCIÓN MEJORADA PARA SUPERFICIE CON GRADIENTE ---
-        # Paso 1: Interpolar con un método que cree gradientes (lineal).
+        # Interpolación de respaldo
         grid_z = griddata(points, vals, (grid_x, grid_y), method='linear')
-        
-        # Paso 2: Rellenar los vacíos (NaNs) en los bordes con el vecino más cercano.
         nan_mask = np.isnan(grid_z)
         if np.any(nan_mask):
             fill_values = griddata(points, vals, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
             grid_z[nan_mask] = fill_values
-        # --- FIN DE LA SOLUCIÓN ---
         
         grid_z = np.nan_to_num(grid_z)
         variance = np.zeros_like(grid_z)
-
+        
     return grid_z, variance
