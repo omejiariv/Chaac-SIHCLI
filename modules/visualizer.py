@@ -1290,6 +1290,51 @@ def create_climate_risk_map(df_anual, gdf_filtered):
         yaxis_title="Latitud"
     )
     return fig
+
+def create_hypsometric_figure_and_data(basin_gdf, dem_file_uploader):
+    """
+    Calcula los datos de la curva hipsométrica y genera la figura de Plotly.
+    También prepara los datos para la descarga en formato CSV.
+    """
+    if basin_gdf is None or dem_file_uploader is None:
+        return None, None
+
+    # Guardar temporalmente el DEM para poder leerlo
+    dem_path = os.path.join(os.getcwd(), dem_file_uploader.name)
+    with open(dem_path, "wb") as f:
+        f.write(dem_file_uploader.getbuffer())
+
+    hypsometric_data = calculate_hypsometric_curve(basin_gdf, dem_path)
+    os.remove(dem_path) # Limpiar el archivo temporal
+
+    if hypsometric_data.get("error"):
+        st.error(hypsometric_data["error"])
+        return None, None
+
+    # Crear la figura
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=hypsometric_data['cumulative_area_percent'],
+        y=hypsometric_data['elevations'],
+        mode='lines',
+        fill='tozeroy' # Rellena el área bajo la curva
+    ))
+    fig.update_layout(
+        title="Curva Hipsométrica de la Cuenca Agregada",
+        xaxis_title="Área Acumulada sobre la Elevación (%)",
+        yaxis_title="Elevación (m)",
+        xaxis=dict(range=[0, 100]), # Eje X de 0 a 100%
+        template="plotly_white"
+    )
+    
+    # Preparar los datos para el CSV
+    df_hypsometric = pd.DataFrame({
+        'Elevacion_m': hypsometric_data['elevations'],
+        'Porcentaje_Area_Acumulada': hypsometric_data['cumulative_area_percent']
+    })
+    csv_data = df_hypsometric.to_csv(index=False).encode('utf-8')
+    
+    return fig, csv_data
     
 def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melted,
                               df_monthly_filtered, analysis_mode, selected_regions, selected_municipios,
