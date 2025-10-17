@@ -659,11 +659,11 @@ def display_graphs_tab(df_anual_melted, df_monthly_filtered, stations_for_analys
     tab_keys = [
         "Análisis Anual", "Análisis Mensual", "Comparación Rápida",
         "Boxplot Anual", "Distribución", "Acumulada",
-        "Relación Altitud", "Serie Regional", "Descargar Datos" # <-- Se añade la pestaña que faltaba
+        "Relación Altitud", "Serie Regional", "Descargar Datos"
     ]
     sub_tab_anual, sub_tab_mensual, sub_tab_comparacion, sub_tab_boxplot, \
     sub_tab_distribucion, sub_tab_acumulada, sub_tab_altitud, sub_tab_regional, \
-    sub_tab_descarga = st.tabs(tab_keys) # <-- Se añade la variable que faltaba
+    sub_tab_descarga = st.tabs(tab_keys)
 
     with sub_tab_anual:
         anual_graf_tab, anual_analisis_tab = st.tabs(["Gráfico de Serie Anual", "Análisis Multianual"])
