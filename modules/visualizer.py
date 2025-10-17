@@ -1387,145 +1387,143 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
         analysis_mode_interp = st.radio(
             "Seleccione el modo de interpolación:",
             ("Regional (Toda la selección)", "Por Cuenca Específica"),
-            key="interp_mode_radio", horizontal=True
+            key="interp_mode_radio", horizontal=True,
+            help="El modo 'Por Cuenca' permite un análisis detallado con buffer y DEM."
         )
         st.markdown("---")
-
         if analysis_mode_interp == "Por Cuenca Específica":
-            if 'gdf_subcuencas' in st.session_state and st.session_state.gdf_subcuencas is not None:
-                BASIN_NAME_COLUMN = 'SUBC_LBL'
-                if BASIN_NAME_COLUMN in st.session_state.gdf_subcuencas.columns:
-                    col_control, col_display = st.columns([1, 2])
-                    with col_control:
-                        st.markdown("#### Controles de Cuenca")
-                        basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
-                        selected_basins = st.multiselect("Seleccione una o más subcuencas:", options=basin_names, key="basin_multiselect")
-                        buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5, key="buffer_slider")
-                        df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
-                        years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
-                        
-                        if years:
-                            selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1, key="year_select_basin")
-                            method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
-                            run_balance = st.toggle("Calcular Balance Hídrico", value=True)
-                            show_dem_background = st.toggle("Visualizar DEM de fondo", value=False)
-                            st.markdown("---")
-                            st.markdown("#### Fondo Topográfico (Opcional)")
-                            dem_file = st.file_uploader("Cargar Modelo de Elevación Digital (DEM) en formato .tif", type=['tif', 'tiff'])
-
-                            if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins, key="generate_basin_map_button"):
-                                st.session_state['fig_basin'] = None
-                                st.session_state['error_msg'] = None
-                                st.session_state['mean_precip'] = None
-                                try:
-                                    with st.spinner("Preparando datos y realizando interpolación..."):
-                                        target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
-                                        unified_basin_gdf = gpd.GeoDataFrame(geometry=[target_basins_gdf.unary_union], crs=target_basins_gdf.crs)
-                                        target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
-                                        basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
-                                        stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
-                                        stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
-                                        station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
-                                        precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
-                                        cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
-                                        points_data = gpd.GeoDataFrame(pd.merge(
-                                            stations_in_buffer[cols_to_merge],
-                                            precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
-                                            on=Config.STATION_NAME_COL
-                                        )).dropna(subset=[Config.PRECIPITATION_COL])
-                                        points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
-                                        
-                                        bounds = basin_buffer_metric.unary_union.bounds
-                                        grid_resolution = 500
-                                        grid_lon, grid_lat = np.arange(bounds[0], bounds[2], grid_resolution), np.arange(bounds[1], bounds[3], grid_resolution)
-                                        grid_z = None
-                                        
-                                        if method == "Kriging Ordinario":
-                                            grid_z, _ = create_kriging_by_basin(gdf_points=points_data, grid_lon=grid_lon, grid_lat=grid_lat, value_col='Valor')
-                                        else:
-                                            if len(points_data) > 2:
-                                                points = np.column_stack((points_data.geometry.x, points_data.geometry.y))
-                                                values = points_data['Valor'].values
-                                                grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
-                                                grid_z = griddata(points, values, (grid_x, grid_y), method='linear')
-                                                nan_mask = np.isnan(grid_z)
-                                                if np.any(nan_mask):
-                                                    fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
-                                                    grid_z[nan_mask] = fill_values
-                                                grid_z = np.nan_to_num(grid_z)
-                                            else:
-                                                st.session_state['error_msg'] = "Se necesitan al menos 3 estaciones para la interpolación IDW."
-                                                grid_z = None
-
-                                        if grid_z is not None:
-                                            grid_z[grid_z < 0] = 0
-                                            transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
-                                            with rasterio.io.MemoryFile() as memfile:
-                                                with memfile.open(driver='GTiff', height=len(grid_lat), width=len(grid_lon), count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform) as dataset:
-                                                    dataset.write(np.flipud(grid_z), 1)
-                                                with memfile.open() as dataset:
-                                                    masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
-                                            masked_data = masked_data[0].astype(np.float32)
-                                            mean_precip = np.nanmean(masked_data)
-                                            
-                                            map_traces = []
-                                            dem_trace = None
-                                            if show_dem_background and dem_file is not None:
-                                                with st.spinner("Procesando y reproyectando DEM..."):
-                                                    try:
-                                                        with rasterio.open(dem_file) as dem_src:
-                                                            dem_reprojected, _ = reproject(
-                                                                source=rasterio.band(dem_src, 1),
-                                                                destination=np.empty_like(masked_data, dtype=np.float32),
-                                                                src_transform=dem_src.transform, src_crs=dem_src.crs,
-                                                                dst_transform=masked_transform, dst_crs="EPSG:3116",
-                                                                resampling=Resampling.bilinear
-                                                            )
-                                                            x_coords = np.arange(masked_transform.c, masked_transform.c + masked_data.shape[1] * masked_transform.a, masked_transform.a)
-                                                            y_coords = np.arange(masked_transform.f, masked_transform.f + masked_data.shape[0] * masked_transform.e, masked_transform.e)
-                                                            dem_trace = go.Heatmap(z=dem_reprojected, x=x_coords, y=y_coords, colorscale='gray', showscale=False, name='Elevación')
-                                                            map_traces.append(dem_trace)
-                                                    except Exception as e:
-                                                        st.warning(f"No se pudo procesar el DEM: {e}")
-                                            
-                                            precip_trace = go.Contour(
-                                                z=masked_data, x=x_coords, y=y_coords, colorscale='viridis',
-                                                contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='white')),
-                                                line=dict(color='black', width=0.5), colorbar=dict(title='Precipitación (mm)'),
-                                                opacity=0.7 if dem_trace is not None else 1.0, name='Precipitación'
-                                            )
-                                            map_traces.append(precip_trace)
-                                            fig_basin = go.Figure(data=map_traces)
-
-                                            points_data['hover_text'] = points_data.apply(lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>Municipio: {row[Config.MUNICIPALITY_COL]}<br>Altitud: {row[Config.ALTITUDE_COL]:.0f} m<br>Precipitación: {row['Valor']:.0f} mm", axis=1)
-                                            fig_basin.add_trace(go.Scatter(
-                                                x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
-                                                marker=dict(color='black', size=5, symbol='circle-open'),
-                                                name='Estaciones', hoverinfo='text', hovertext=points_data['hover_text']
-                                            ))
-                                            fig_basin.update_layout(
-                                                title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
-                                                xaxis_title="Coordenada Este (m)", yaxis=dict(title="Coordenada Norte (m)", scaleanchor='x', scaleratio=1)
-                                            )
-                                            st.session_state['fig_basin'] = fig_basin
-                                            st.session_state['mean_precip'] = mean_precip
-                                            st.session_state['unified_basin_gdf'] = unified_basin_gdf
-                                            st.session_state['selected_basins_title'] = ", ".join(selected_basins)
-                                            st.session_state['dem_file_for_morph'] = dem_file
-                                except Exception as e:
-                                    st.session_state['error_msg'] = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
-                    
+            if 'gdf_subcuencas' not in st.session_state or st.session_state.gdf_subcuencas is None:
+                st.warning("Los datos de cuencas no están disponibles. Por favor, cárguelos en la sección de configuración.")
+                return
+            BASIN_NAME_COLUMN = 'SUBC_LBL'
+            if BASIN_NAME_COLUMN not in st.session_state.gdf_subcuencas.columns:
+                st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
+                return
+            col_control, col_display = st.columns([1, 2])
+            with col_control:
+                st.markdown("#### Controles de Cuenca")
+                basin_names = sorted(st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].dropna().unique())
+                selected_basins = st.multiselect("Seleccione una o más subcuencas:", options=basin_names, key="basin_multiselect")
+                buffer_km = st.slider("Buffer de influencia (km):", 0, 50, 10, 5, key="buffer_slider")
+                df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
+                years = sorted(df_anual_non_na[Config.YEAR_COL].unique()) if not df_anual_non_na.empty else []
+                if not years:
+                    st.warning("No hay datos anuales disponibles para la interpolación.")
+                    return
+                selected_year = st.selectbox("Seleccione un año:", options=years, index=len(years) - 1, key="year_select_basin")
+                method = st.selectbox("Método de interpolación:", options=["Kriging Ordinario", "IDW"], key="interp_method_basin")
+                st.markdown("---")
+                st.markdown("#### Fondo Topográfico (Opcional)")
+                dem_file = st.file_uploader("Cargar Modelo de Elevación Digital (DEM) en formato .tif", type=['tif', 'tiff'])
+                show_dem_background = st.checkbox("Mostrar fondo DEM", value=True, key="show_dem_check")
+                if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins, key="generate_basin_map_button"):
+                    st.session_state['fig_basin'] = None
+                    st.session_state['error_msg'] = None
+                    st.session_state['mean_precip'] = None
+                    try:
+                        with st.spinner("Preparando datos y realizando interpolación..."):
+                            target_basins_gdf = st.session_state.gdf_subcuencas[st.session_state.gdf_subcuencas[BASIN_NAME_COLUMN].isin(selected_basins)]
+                            unified_basin_gdf = gpd.GeoDataFrame(geometry=[target_basins_gdf.unary_union], crs=target_basins_gdf.crs)
+                            target_basin_metric = unified_basin_gdf.to_crs("EPSG:3116")
+                            basin_buffer_metric = target_basin_metric.buffer(buffer_km * 1000)
+                            stations_metric = st.session_state.gdf_stations.to_crs("EPSG:3116")
+                            stations_in_buffer = stations_metric[stations_metric.intersects(basin_buffer_metric.unary_union)]
+                            station_names = stations_in_buffer[Config.STATION_NAME_COL].unique()
+                            precip_data_year = df_anual_non_na[(df_anual_non_na[Config.YEAR_COL] == selected_year) & (df_anual_non_na[Config.STATION_NAME_COL].isin(station_names))]
+                            cols_to_merge = [Config.STATION_NAME_COL, 'geometry', Config.MUNICIPALITY_COL, Config.ALTITUDE_COL]
+                            points_data = gpd.GeoDataFrame(pd.merge(
+                                stations_in_buffer[cols_to_merge],
+                                precip_data_year[[Config.STATION_NAME_COL, Config.PRECIPITATION_COL]],
+                                on=Config.STATION_NAME_COL
+                            )).dropna(subset=[Config.PRECIPITATION_COL])
+                            points_data.rename(columns={Config.PRECIPITATION_COL: 'Valor'}, inplace=True)
+                            bounds = basin_buffer_metric.unary_union.bounds
+                            grid_resolution = 500
+                            grid_lon, grid_lat = np.arange(bounds[0], bounds[2], grid_resolution), np.arange(bounds[1], bounds[3], grid_resolution)
+                            grid_z = None
+                            if method == "Kriging Ordinario":
+                                grid_z, _ = create_kriging_by_basin(gdf_points=points_data, grid_lon=grid_lon, grid_lat=grid_lat, value_col='Valor')
+                            else:
+                                if len(points_data) > 2:
+                                    points = np.column_stack((points_data.geometry.x, points_data.geometry.y))
+                                    values = points_data['Valor'].values
+                                    grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
+                                    grid_z = griddata(points, values, (grid_x, grid_y), method='linear')
+                                    nan_mask = np.isnan(grid_z)
+                                    if np.any(nan_mask):
+                                        fill_values = griddata(points, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
+                                        grid_z[nan_mask] = fill_values
+                                    grid_z = np.nan_to_num(grid_z)
+                                else:
+                                    st.session_state['error_msg'] = "Se necesitan al menos 3 estaciones para la interpolación IDW."
+                                    grid_z = None
+                            
+                            if grid_z is None and not st.session_state.get('error_msg'):
+                                st.session_state['error_msg'] = "La interpolación no generó resultados."
+                            elif grid_z is not None:
+                                grid_z[grid_z < 0] = 0
+                                transform = from_origin(grid_lon[0], grid_lat[-1], grid_resolution, grid_resolution)
+                                with rasterio.io.MemoryFile() as memfile:
+                                    with memfile.open(driver='GTiff', height=len(grid_lat), width=len(grid_lon), count=1, dtype=str(grid_z.dtype), crs="EPSG:3116", transform=transform) as dataset:
+                                        dataset.write(np.flipud(grid_z), 1)
+                                    with memfile.open() as dataset:
+                                        masked_data, masked_transform = mask(dataset, target_basin_metric.geometry, crop=True, nodata=np.nan)
+                                masked_data = masked_data[0].astype(np.float32)
+                                mean_precip = np.nanmean(masked_data)
+                                map_traces = []
+                                dem_trace = None
+                                if show_dem_background and dem_file is not None:
+                                    with st.spinner("Procesando y reproyectando DEM..."):
+                                        try:
+                                            with rasterio.open(dem_file) as dem_src:
+                                                dem_reprojected, _ = reproject(
+                                                    source=rasterio.band(dem_src, 1),
+                                                    destination=np.empty_like(masked_data, dtype=np.float32),
+                                                    src_transform=dem_src.transform, src_crs=dem_src.crs,
+                                                    dst_transform=masked_transform, dst_crs="EPSG:3116",
+                                                    resampling=Resampling.bilinear
+                                                )
+                                                x_coords = np.arange(masked_transform.c, masked_transform.c + masked_data.shape[1] * masked_transform.a, masked_transform.a)
+                                                y_coords = np.arange(masked_transform.f, masked_transform.f + masked_data.shape[0] * masked_transform.e, masked_transform.e)
+                                                dem_trace = go.Heatmap(z=dem_reprojected, x=x_coords, y=y_coords, colorscale='gray', showscale=False, name='Elevación')
+                                                map_traces.append(dem_trace)
+                                        except Exception as e:
+                                            st.warning(f"No se pudo procesar el DEM: {e}")
+                                
+                                precip_trace = go.Contour(
+                                    z=masked_data, x=x_coords, y=y_coords, colorscale='viridis',
+                                    contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='white')),
+                                    line=dict(color='black', width=0.5), colorbar=dict(title='Precipitación (mm)'),
+                                    opacity=0.7 if dem_trace is not None else 1.0, name='Precipitación'
+                                )
+                                map_traces.append(precip_trace)
+                                fig_basin = go.Figure(data=map_traces)
+                                points_data['hover_text'] = points_data.apply(lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>Municipio: {row[Config.MUNICIPALITY_COL]}<br>Altitud: {row[Config.ALTITUDE_COL]:.0f} m<br>Precipitación: {row['Valor']:.0f} mm", axis=1)
+                                fig_basin.add_trace(go.Scatter(
+                                    x=points_data.geometry.x, y=points_data.geometry.y, mode='markers',
+                                    marker=dict(color='black', size=5, symbol='circle-open'),
+                                    name='Estaciones', hoverinfo='text', hovertext=points_data['hover_text']
+                                ))
+                                fig_basin.update_layout(
+                                    title=f"Precipitación Interpolada ({method}) para Cuenca(s) ({selected_year})",
+                                    xaxis_title="Coordenada Este (m)", yaxis=dict(title="Coordenada Norte (m)", scaleanchor='x', scaleratio=1)
+                                )
+                                st.session_state['fig_basin'] = fig_basin
+                                st.session_state['mean_precip'] = mean_precip
+                                st.session_state['unified_basin_gdf'] = unified_basin_gdf
+                                st.session_state['selected_basins_title'] = ", ".join(selected_basins)
+                                st.session_state['dem_file_for_morph'] = dem_file
+                    except Exception as e:
+                        st.session_state['error_msg'] = f"Ocurrió un error crítico: {e}\n\n{traceback.format_exc()}"
                     with col_display:
                         if st.session_state.get('error_msg'):
                             st.error(st.session_state.get('error_msg'))
                         if st.session_state.get('fig_basin'):
                             st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
                             st.plotly_chart(st.session_state.get('fig_basin'), use_container_width=True)
-
                         mean_precip = st.session_state.get('mean_precip')
                         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
                         dem_file_for_morph = st.session_state.get('dem_file_for_morph')
-
                         if mean_precip is not None and unified_basin_gdf is not None:
                             st.markdown("---")
                             st.subheader("Balance Hídrico Estimado")
@@ -1540,7 +1538,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
                                     c4.metric("Escorrentía (Q=P-ET)", f"{balance_results['Q_mm']:.0f} mm/año")
                                     st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-                        
                         if unified_basin_gdf is not None and dem_file_for_morph is not None:
                             st.markdown("---")
                             st.subheader("Morfometría de la Cuenca")
@@ -1557,10 +1554,6 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                     c4.metric("Altitud Máxima", f"{morph_results.get('alt_max_m', 'N/A'):.0f} m")
                                     c5.metric("Altitud Mínima", f"{morph_results.get('alt_min_m', 'N/A'):.0f} m")
                                     c6.metric("Altitud Promedio", f"{morph_results.get('alt_prom_m', 'N/A'):.1f} m")
-                else:
-                    st.error(f"La columna '{BASIN_NAME_COLUMN}' no se encontró en los datos de cuencas.")
-            else:
-                st.warning("Los datos de cuencas no están disponibles para este modo.")
         else: # MODO REGIONAL
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             if not stations_for_analysis or df_anual_non_na.empty:
@@ -1619,7 +1612,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     else:
                         st.info("El variograma no está disponible para este método.")
 
-    with morph_tab:
+with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
         dem_file_uploader = st.session_state.get('dem_file_for_morph')
