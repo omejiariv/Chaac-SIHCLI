@@ -3472,65 +3472,57 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
         lon = station_info.geometry.x
 
         with st.spinner(f"Obteniendo pronóstico para {selected_station}..."):
-            # Se asume que 'get_weather_forecast' está en 'modules.forecasting'
-            from modules.forecasting import get_weather_forecast 
             forecast_df = get_weather_forecast(lat, lon)
-
+            
             if forecast_df is not None and not forecast_df.empty:
-                st.subheader(f"Pronóstico para los próximos 7 días en {selected_station}")
-                
-                # Formatear y mostrar la tabla de datos
-                display_df = forecast_df.copy()
-                display_df['date'] = display_df['date'].dt.strftime('%A, %d de %B')
-                display_df = display_df.rename(columns={
-                    'date': 'Fecha',
-                    'temperature_2m_max': 'T. Máx (°C)',
-                    'temperature_2m_min': 'T. Mín (°C)',
-                    'precipitation_sum': 'Ppt. (mm)'
-                })
-                st.dataframe(display_df.set_index('Fecha'), use_container_width=True)
-
-                # Crear el gráfico de pronóstico
-                fig = go.Figure()
-
-                # Barra de precipitación (eje secundario)
-                fig.add_trace(go.Bar(
-                    x=forecast_df['date'],
-                    y=forecast_df['precipitation_sum'],
-                    name='Precipitación',
-                    marker_color='lightblue',
-                    yaxis='y2'
-                ))
-                
-                # Líneas de temperatura (eje primario)
-                fig.add_trace(go.Scatter(
-                    x=forecast_df['date'],
-                    y=forecast_df['temperature_2m_max'],
-                    name='Temp. Máxima',
-                    mode='lines+markers',
-                    line=dict(color='red')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=forecast_df['date'],
-                    y=forecast_df['temperature_2m_min'],
-                    name='Temp. Mínima',
-                    mode='lines+markers',
-                    line=dict(color='blue'),
-                    fill='tonexty',
-                    fillcolor='rgba(173, 216, 230, 0.2)' # Relleno azul claro
-                ))
-                
-                fig.update_layout(
-                    title_text="Pronóstico de Temperatura y Precipitación",
-                    xaxis_title="Fecha",
-                    yaxis_title="Temperatura (°C)",
-                    yaxis2=dict(
-                        title="Precipitación (mm)",
-                        overlaying='y',
-                        side='right'
-                    ),
-                    legend=dict(x=0.01, y=0.99)
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                st.session_state['forecast_df'] = forecast_df
+                st.session_state['forecast_station_name'] = selected_station
             else:
                 st.error("No se pudieron obtener los datos del pronóstico. Inténtelo de nuevo más tarde.")
+
+    if 'forecast_df' in st.session_state and st.session_state.forecast_df is not None:
+        forecast_df = st.session_state['forecast_df']
+        station_name = st.session_state['forecast_station_name']
+
+        st.subheader(f"Pronóstico para los próximos 7 días en {station_name}")
+        
+        # --- TABLA CORREGIDA PARA VISUALIZACIÓN ---
+        display_df = forecast_df.copy()
+        display_df['date'] = display_df['date'].dt.strftime('%A, %d de %B')
+        display_df = display_df.rename(columns={
+            'date': 'Fecha',
+            'temperature_2m_max': 'T. Máx (°C)',
+            'temperature_2m_min': 'T. Mín (°C)',
+            'precipitation_sum': 'Ppt. (mm)'
+        })
+        st.dataframe(display_df.set_index('Fecha'), use_container_width=True)
+
+        # --- GRÁFICO INTERACTIVO Y CORREGIDO ---
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+        # Temperaturas en el eje Y primario
+        fig.add_trace(go.Scatter(
+            x=forecast_df['date'], y=forecast_df['temperature_2m_max'],
+            name='Temp. Máxima', mode='lines+markers', line=dict(color='red')
+        ), secondary_y=False)
+        fig.add_trace(go.Scatter(
+            x=forecast_df['date'], y=forecast_df['temperature_2m_min'],
+            name='Temp. Mínima', mode='lines+markers', line=dict(color='blue'),
+            fill='tonexty', fillcolor='rgba(173, 216, 230, 0.2)'
+        ), secondary_y=False)
+
+        # Precipitación en el eje Y secundario
+        fig.add_trace(go.Bar(
+            x=forecast_df['date'], y=forecast_df['precipitation_sum'],
+            name='Precipitación', marker_color='lightblue', opacity=0.7
+        ), secondary_y=True)
+
+        fig.update_layout(
+            title_text=f"Pronóstico de Temperatura y Precipitación para {station_name}",
+            xaxis_title="Fecha",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        fig.update_yaxes(title_text="Temperatura (°C)", secondary_y=False)
+        fig.update_yaxes(title_text="Precipitación (mm)", secondary_y=True, showgrid=False)
+        
+        st.plotly_chart(fig, use_container_width=True)
