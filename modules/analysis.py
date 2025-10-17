@@ -331,27 +331,13 @@ def calculate_morphometry(basin_gdf, dem_path):
 
 def calculate_hypsometric_curve(basin_gdf, dem_path):
     """
-    Calcula los datos para la curva hipsométrica de una cuenca.
-
-    Extrae todos los valores de elevación del DEM dentro de la geometría de la cuenca
-    y calcula el área acumulada por encima de cada nivel de elevación.
-
-    Args:
-        basin_gdf (GeoDataFrame): GeoDataFrame con la geometría de la cuenca.
-        dem_path (str): Ruta al archivo del Modelo de Elevación Digital (DEM).
-
-    Returns:
-        dict: Un diccionario con 'elevations' y 'cumulative_area_percent',
-              o un error si el cálculo falla.
+    Calcula los datos para la curva hipsométrica, ajusta un polinomio de grado 3
+    y devuelve los datos, la ecuación y el R².
     """
     try:
         with rasterio.open(dem_path) as src:
             dem_crs = src.crs
-            # Reproyectar la cuenca al CRS del DEM
             basin_reprojected = basin_gdf.to_crs(dem_crs)
-            
-            # Usar rasterstats para extraer TODOS los valores de píxeles, no solo estadísticas
-            # El argumento 'raster_out=True' devuelve un array de numpy enmascarado
             zonal_result = zonal_stats(
                 basin_reprojected,
                 dem_path,
@@ -359,28 +345,43 @@ def calculate_hypsometric_curve(basin_gdf, dem_path):
                 raster_out=True,
                 nodata=src.nodata
             )
-            
-            # Extraer los valores de elevación válidos del array enmascarado
             elevations = zonal_result[0]['mini_raster_array'].compressed()
-            
             if elevations.size == 0:
                 return {"error": "No se encontraron valores de elevación en la cuenca."}
 
-        # Ordenar las elevaciones de menor a mayor
         elevations_sorted = np.sort(elevations)
         total_pixels = len(elevations_sorted)
-        
-        # Calcular el porcentaje de área acumulada que está POR ENCIMA de una elevación dada
-        # (1 - [posición / total]) * 100
         cumulative_area_percent = (1 - np.arange(total_pixels) / total_pixels) * 100
 
-        # Para el gráfico, necesitamos las elevaciones en el eje Y y el área en el eje X
-        # Devolvemos las elevaciones ordenadas y el área acumulada correspondiente
+        # --- AJUSTE DE CURVA POLINOMIAL ---
+        # Normalizamos el eje X (área) a un rango de [0, 1] para mejorar la estabilidad numérica del ajuste
+        x_norm = cumulative_area_percent / 100.0
+        # Ajustamos un polinomio de grado 3
+        coeffs = np.polyfit(x_norm, elevations_sorted, 3)
+        p = np.poly1d(coeffs)
+        
+        # Generamos los puntos de la curva ajustada para graficar
+        x_fit = np.linspace(0, 100, 200)
+        y_fit = p(x_fit / 100.0)
+        
+        # Calculamos el R² (coeficiente de determinación) para ver qué tan bueno es el ajuste
+        y_predicted = p(x_norm)
+        ss_res = np.sum((elevations_sorted - y_predicted) ** 2)
+        ss_tot = np.sum((elevations_sorted - np.mean(elevations_sorted)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot)
+        
+        # Formateamos la ecuación para mostrarla
+        equation = f"y = {coeffs[0]:.2f}x³ + {coeffs[1]:.2f}x² + {coeffs[2]:.2f}x + {coeffs[3]:.0f}"
+        # --- FIN DEL AJUSTE ---
+
         return {
             "elevations": elevations_sorted,
-            "cumulative_area_percent": cumulative_area_percent
+            "cumulative_area_percent": cumulative_area_percent,
+            "fit_x": x_fit,
+            "fit_y": y_fit,
+            "equation": equation,
+            "r_squared": r_squared
         }
-
     except Exception as e:
         return {"error": f"Error al calcular la curva hipsométrica: {e}"}
 
