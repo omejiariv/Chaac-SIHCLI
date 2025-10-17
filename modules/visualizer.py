@@ -1233,48 +1233,55 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
 
 @st.cache_data
-def create_climate_risk_map(df_anual, gdf_filtered, interp_method='cubic', grid_resolution=150):
+def create_climate_risk_map(df_anual, gdf_filtered):
     """
-    Calcula y visualiza un mapa de riesgo por variabilidad climática con opciones personalizables.
+    Calcula y visualiza un mapa de riesgo por variabilidad climática basado en tendencias.
     """
     with st.spinner("Calculando tendencias para todas las estaciones..."):
+        # Llama a la función que calcula la tendencia para cada estación
         gdf_trends = calculate_all_station_trends(df_anual, gdf_filtered)
 
     if gdf_trends.empty or len(gdf_trends) < 4:
         st.warning("No hay suficientes estaciones con datos de tendencia (>10 años) para generar un mapa de riesgo.")
         return None
 
+    # Prepara los datos para la interpolación (coordenadas y valores de pendiente)
     coords = np.array(gdf_trends.geometry.apply(lambda p: (p.x, p.y)).tolist())
     values = gdf_trends['slope_sen'].values
     
+    # Crea la grilla de interpolación
     bounds = gdf_filtered.total_bounds
-    grid_lon = np.linspace(bounds[0], bounds[2], grid_resolution)
-    grid_lat = np.linspace(bounds[1], bounds[3], grid_resolution)
+    grid_lon = np.linspace(bounds[0], bounds[2], 200)
+    grid_lat = np.linspace(bounds[1], bounds[3], 200)
     grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
 
-    grid_z = griddata(coords, values, (grid_x, grid_y), method=interp_method)
+    # Interpola la Pendiente de Sen para crear una superficie continua
+    grid_z = griddata(coords, values, (grid_x, grid_y), method='cubic')
     
+    # Rellena los vacíos en los bordes para un mapa completo
     nan_mask = np.isnan(grid_z)
     if np.any(nan_mask):
         fill_values = griddata(coords, values, (grid_x[nan_mask], grid_y[nan_mask]), method='nearest')
         grid_z[nan_mask] = fill_values
 
+    # Crea el mapa de contorno con Plotly
     fig = go.Figure(data=go.Contour(
         z=grid_z.T, 
         x=grid_lon,
         y=grid_lat,
-        colorscale='RdBu', 
+        colorscale='RdBu', # Escala de color Rojo-Azul para tendencias negativas/positivas
         colorbar=dict(title='Tendencia (mm/año)'),
         contours=dict(coloring='heatmap', showlabels=True, labelfont=dict(size=10, color='black')),
-        line_smoothing=0.85 
+        line_smoothing=0.85
     ))
 
+    # Añade los puntos de las estaciones con sus datos de tendencia
     fig.add_trace(go.Scatter(
         x=coords[:, 0], y=coords[:, 1], mode='markers',
         marker=dict(color='black', size=5, symbol='circle-open'),
         hoverinfo='text',
         hovertext=gdf_trends.apply(lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>Tendencia: {row['slope_sen']:.2f} mm/año<br>p-valor: {row['p_value']:.3f}", axis=1),
-        name='Estaciones'
+        name='Estaciones con Tendencia'
     ))
 
     fig.update_layout(
