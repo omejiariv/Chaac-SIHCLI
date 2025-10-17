@@ -3486,7 +3486,7 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
 
         st.subheader(f"Pronóstico para los próximos 7 días en {station_name}")
         
-        # --- TABLA CORREGIDA PARA VISUALIZACIÓN ---
+        # Crear una copia para mostrar al usuario, con nombres y formatos amigables
         display_df = forecast_df.copy()
         display_df['date'] = display_df['date'].dt.strftime('%A, %d de %B')
         display_df = display_df.rename(columns={
@@ -3497,10 +3497,10 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
         })
         st.dataframe(display_df.set_index('Fecha'), use_container_width=True)
 
-        # --- GRÁFICO INTERACTIVO Y CORREGIDO ---
+        # --- GRÁFICO CORREGIDO ---
         fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-        # Temperaturas en el eje Y primario
+        # Temperaturas (eje Y primario)
         fig.add_trace(go.Scatter(
             x=forecast_df['date'], y=forecast_df['temperature_2m_max'],
             name='Temp. Máxima', mode='lines+markers', line=dict(color='red')
@@ -3511,7 +3511,7 @@ def display_weekly_forecast_tab(stations_for_analysis, gdf_filtered):
             fill='tonexty', fillcolor='rgba(173, 216, 230, 0.2)'
         ), secondary_y=False)
 
-        # Precipitación en el eje Y secundario
+        # Precipitación (eje Y secundario)
         fig.add_trace(go.Bar(
             x=forecast_df['date'], y=forecast_df['precipitation_sum'],
             name='Precipitación', marker_color='lightblue', opacity=0.7
