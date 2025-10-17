@@ -273,33 +273,35 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
 # En modules/interpolation.py
 
+# In modules/interpolation.py
+
 @st.cache_data
 def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
     """
     Realiza Kriging. Si falla, usa un respaldo de interpolación lineal y relleno
     para asegurar una superficie con gradiente y sin vacíos.
     """
-    # Se usa la variable con guion bajo en todo el cuerpo de la función
+    # Use the underscored variable name throughout the function
     lons = _gdf_points.geometry.x
     lats = _gdf_points.geometry.y
     vals = _gdf_points[value_col].values
-    
+
     valid_indices = ~np.isnan(vals)
     lons, lats, vals = lons[valid_indices], lats[valid_indices], vals[valid_indices]
 
     if len(vals) < 3:
-        # Devuelve None en lugar de un error para que la app no se detenga
-        return None, None
-    
+        st.error("Se necesitan al menos 3 puntos con datos para realizar la interpolación.")
+        ny, nx = len(grid_lat), len(grid_lon)
+        return np.zeros((ny, nx)), np.zeros((ny, nx))
+
     try:
         bin_center, gamma = gs.vario_estimate((lons, lats), vals)
         model = gs.Spherical(dim=2)
         model.fit_variogram(bin_center, gamma, nugget=True)
         kriging = gs.krige.Ordinary(model, cond_pos=(lons, lats), cond_val=vals)
         grid_z, variance = kriging.structured([grid_lon, grid_lat], return_var=True)
-
-    except Exception:
-        # Si el Kriging falla, usa un respaldo silencioso para no detener la app
+    except RuntimeError as e:
+        st.warning(f"El Kriging falló: '{e}'. Usando interpolación de respaldo.")
         points = np.column_stack((lons, lats))
         grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
         
@@ -311,5 +313,5 @@ def create_kriging_by_basin(_gdf_points, grid_lon, grid_lat, value_col='Valor'):
         
         grid_z = np.nan_to_num(grid_z)
         variance = np.zeros_like(grid_z)
-
+        
     return grid_z, variance
