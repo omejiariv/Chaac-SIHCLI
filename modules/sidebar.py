@@ -89,6 +89,14 @@ def create_sidebar(gdf_stations, df_long):
         analysis_mode = st.radio("Modo de análisis", ("Usar datos originales", "Completar series (interpolación)"), key="analysis_mode")
         exclude_na = st.checkbox("Excluir datos nulos (NaN)", key='exclude_na')
         exclude_zeros = st.checkbox("Excluir valores cero (0)", key='exclude_zeros')
+        
+        st.markdown("---")
+        # --- BLOQUE AÑADIDO (Petición 2) ---
+        st.markdown("##### Modelo de Elevación (Opcional)")
+        dem_file = st.file_uploader("Sube tu archivo DEM (.tif) para análisis morfométrico", type=["tif", "tiff"], key="dem_uploader_sidebar")
+        if dem_file:
+            st.session_state['dem_file'] = dem_file
+        # --- FIN DEL BLOQUE AÑADIDO ---
 
     return {
         "gdf_filtered": gdf_filtered_for_selector,
