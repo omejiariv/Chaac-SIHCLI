@@ -1382,7 +1382,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
             else:
                 st.error(f"No se pudo encontrar el archivo GIF en la ruta especificada: {gif_path}")
 
-with kriging_tab:
+    with kriging_tab:
         st.subheader("Superficies de Interpolación de Precipitación Anual")
         analysis_mode_interp = st.radio(
             "Seleccione el modo de interpolación:",
