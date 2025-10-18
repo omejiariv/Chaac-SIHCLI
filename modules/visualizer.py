@@ -1748,7 +1748,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 key="risk_map_style"
             )
             marker_size = st.slider("Tamaño de los Puntos de Estación:", 5, 25, 10, key="risk_marker_size")
-            show_trend_surface = st.toggle("Mostrar superficie de tendencia interpolada", value=False)
+            show_trend_surface = st.toggle("Mostrar superficie de tendencia interpolada", value=True)
 
         if st.button("Generar Mapa de Riesgo Integrado"):
             with st.spinner("Calculando tendencias y generando mapa..."):
@@ -1764,6 +1764,9 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         axis=1
                     )
                     
+                    # --- INICIO DE LA CORRECCIÓN: USAR DENSITYMAPBOX ---
+                    
+                    # 1. Crear la figura base (los puntos de las estaciones)
                     fig_risk = px.scatter_mapbox(
                         gdf_trends,
                         lat=gdf_trends.geometry.y,
@@ -1784,23 +1787,22 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         margin={"r":0,"t":40,"l":0,"b":0}
                     )
 
+                    # 2. Añadir la superficie de calor (Densitymapbox) si está activada
                     if show_trend_surface:
                         if len(gdf_trends) < 4:
                             st.warning("Se necesitan al menos 4 estaciones para generar la superficie de tendencia.")
                         else:
-                            coords = np.array(gdf_trends.geometry.apply(lambda p: (p.x, p.y)).tolist())
-                            values = gdf_trends['slope_sen'].values
-                            bounds = gdf_filtered.total_bounds
-                            grid_lon = np.linspace(bounds[0], bounds[2], 150)
-                            grid_lat = np.linspace(bounds[1], bounds[3], 150)
-                            grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
-                            grid_z = griddata(coords, values, (grid_x, grid_y), method='cubic')
-                            
-                            fig_risk.add_trace(go.Contour(
-                                z=grid_z.T, x=grid_lon, y=grid_lat,
-                                colorscale='RdBu', contours=dict(coloring='heatmap'),
-                                hoverinfo='none', opacity=0.5, showscale=False
+                            fig_risk.add_trace(go.Densitymapbox(
+                                lat=gdf_trends.geometry.y,
+                                lon=gdf_trends.geometry.x,
+                                z=gdf_trends['slope_sen'], # Usar la pendiente como el valor 'z'
+                                radius=30, # Radio de influencia de cada punto
+                                colorscale='RdBu',
+                                opacitity=0.5,
+                                showscale=False,
+                                hoverinfo='none'
                             ))
+                    # --- FIN DE LA CORRECCIÓN ---
                     
                     st.plotly_chart(fig_risk, use_container_width=True)
                 else:
