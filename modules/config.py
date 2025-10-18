@@ -3,7 +3,7 @@
 import os
 import streamlit as st
 import pandas as pd
-import geopandas as gpd # Es buena práctica inicializar con un GeoDataFrame vacío si se espera uno.
+import geopandas as gpd
 
 class Config:
     """
