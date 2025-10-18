@@ -1807,7 +1807,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                                 z=gdf_trends['slope_sen'], # Usar la pendiente como el valor 'z'
                                 radius=30, # Radio de influencia de cada punto
                                 colorscale='RdBu',
-                                opacitity=0.5,
+                                opacity=0.5,
                                 showscale=False,
                                 hoverinfo='none'
                             ))
