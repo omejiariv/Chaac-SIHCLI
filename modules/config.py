@@ -73,53 +73,36 @@ class Config:
     SOI_COL = 'soi'
     IOD_COL = 'iod'
 
-    @staticmethod
-    def initialize_session_state():
-        """
-        Inicializa todas las claves necesarias en st.session_state de forma centralizada y segura.
-        Este método evita la re-inicialización en cada recarga de la página, previniendo errores
-        y la pérdida de datos durante la interacción del usuario.
-        
-        **Importante:** Llamar a esta función UNA SOLA VEZ al inicio del script principal de la app.
-        """
-        # Define el estado inicial por defecto para todas las variables de sesión.
-        # Agruparlas en un diccionario hace que el código sea más limpio y fácil de mantener.
-        default_state = {
-            # Banderas de estado
-            'data_loaded': False,
-            'run_balance': False,
-            
-            # DataFrames y GeoDataFrames
-            'gdf_stations': None,
-            'df_long': None,
-            'df_enso': None,
-            'gdf_municipios': None,
-            'gdf_subcuencas': None,
-            'unified_basin_gdf': None,
-            'df_monthly_processed': pd.DataFrame(),
-
-            # Datos para modelos y pronósticos
-            'sarima_forecast': None,
-            'prophet_forecast': None,
-
-            # Variables de la interfaz (widgets y filtros)
-            'meses_numeros': list(range(1, 13)),
-            'select_all_report_sections_checkbox': False,
-            'selected_report_sections_multiselect': [],
-            'selected_basins_title': "",
-
-            # Objetos complejos (figuras, rasters)
-            'dem_source': "No usar DEM",
-            'dem_raster': None,
-            'fig_basin': None,
-            
-            # Variables de control y misceláneos
-            'mean_precip': None,
-            'error_msg': None,
-            'gif_reload_key': 0, # Para forzar la recarga de elementos si es necesario
-        }
-
-        # Itera sobre el diccionario y solo inicializa las claves que no existen.
-        for key, value in default_state.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
+@staticmethod
+def initialize_session_state():
+    """
+    Inicializa todas las claves necesarias en st.session_state de forma centralizada y segura.
+    """
+    default_state = {
+        'data_loaded': False,
+        'gdf_stations': None,
+        'df_long': None,
+        'df_enso': None,
+        'gdf_municipios': None,
+        'gdf_subcuencas': None,
+        'unified_basin_gdf': None,
+        'df_monthly_processed': pd.DataFrame(),
+        'sarima_forecast': None,
+        'prophet_forecast': None,
+        'meses_numeros': list(range(1, 13)),
+        'select_all_report_sections_checkbox': False,
+        'selected_report_sections_multiselect': [],
+        'selected_basins_title': "",
+        'dem_source': "No usar DEM",
+        'dem_raster': None,
+        'fig_basin': None,
+        'mean_precip': None,
+        'error_msg': None,
+        'run_balance': False,
+        'gif_reload_key': 0,
+        'dem_file': None  # <-- LÍNEA AÑADIDA
+    }
+    
+    for key, value in default_state.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
