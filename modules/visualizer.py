@@ -1556,6 +1556,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 error_msg = st.session_state.get('error_msg')
                 mean_precip = st.session_state.get('mean_precip')
                 
+                # --- CORRECCIÓN DE LÓGICA ---
+                # 1. Obtenemos TODOS los resultados de la sesión primero
+                unified_basin_gdf = st.session_state.get('unified_basin_gdf')
+                morph_results = st.session_state.get('morph_results')
+                run_balance = st.session_state.get('run_balance')
+                
                 if error_msg:
                     st.error(error_msg)
                 
@@ -1563,17 +1569,17 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     st.subheader(f"Resultados para: {st.session_state.get('selected_basins_title', '')}")
                     st.plotly_chart(fig_basin, use_container_width=True)
 
-                unified_basin_gdf = st.session_state.get('unified_basin_gdf')
-                morph_results = st.session_state.get('morph_results')
-                run_balance = st.session_state.get('run_balance')
-
+                # 2. Mostramos el Balance Hídrico
                 if mean_precip is not None and unified_basin_gdf is not None and run_balance:
                     st.markdown("---")
                     st.subheader("Balance Hídrico Estimado")
                     
+                    # 3. Extraemos la altitud promedio de los resultados de morfometría
+                    # Si no hay morfometría (ej. no se cargó el DEM), alt_prom será None
                     alt_prom = morph_results.get('alt_prom_m') if morph_results else None
                     
                     with st.spinner("Calculando balance..."):
+                        # 4. Llamamos a la función con los TRES argumentos correctos
                         balance_results = calculate_hydrological_balance(mean_precip, alt_prom, unified_basin_gdf)
                         
                         if balance_results.get("error"):
@@ -1581,11 +1587,12 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         else:
                             c1, c2, c3, c4 = st.columns(4)
                             c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
-                            c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m" if balance_results['Altitud_media_m'] else "N/A")
-                            c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año" if balance_results['ET_media_anual_mm'] else "N/A")
-                            c4.metric("Escorrentía (Q=P-ET)", f"{balance_results['Q_mm']:.0f} mm/año" if balance_results['Q_mm'] else "N/A")
+                            c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m" if balance_results['Altitud_media_m'] is not None else "N/A")
+                            c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año" if balance_results['ET_media_anual_mm'] is not None else "N/A")
+                            c4.metric("Escorrentía (Q=P-ET)", f"{balance_results['Q_mm']:.0f} mm/año" if balance_results['Q_mm'] is not None else "N/A")
                             st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
-
+                
+                # 5. Mostramos la Morfometría (AHORA esta sección está después del balance)
                 if morph_results:
                     st.markdown("---")
                     st.subheader("Morfometría de la Cuenca")
@@ -1600,8 +1607,10 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                         c4.metric("Altitud Máxima", f"{morph_results.get('alt_max_m', 'N/A'):.0f} m")
                         c5.metric("Altitud Mínima", f"{morph_results.get('alt_min_m', 'N/A'):.0f} m")
                         c6.metric("Altitud Promedio", f"{morph_results.get('alt_prom_m', 'N/A'):.1f} m")
-                elif dem_file is None:
-                    st.info("Para ver la morfometría y el balance hídrico completo, suba un archivo DEM en el panel lateral.")
+                
+                elif st.session_state.get('dem_file') is None and run_balance:
+                    st.info("Para ver el Balance Hídrico completo y la Morfometría, suba un archivo DEM en el panel lateral.")
+                    
         else: # MODO REGIONAL
             df_anual_non_na = df_anual_melted.dropna(subset=[Config.PRECIPITATION_COL])
             if not stations_for_analysis or df_anual_non_na.empty:
