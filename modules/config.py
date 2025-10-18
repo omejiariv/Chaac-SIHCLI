@@ -1,5 +1,4 @@
 # modules/config.py
-
 import os
 import streamlit as st
 import pandas as pd
@@ -11,23 +10,23 @@ class Config:
     Contiene constantes como títulos, URLs, rutas a archivos y nombres de columnas,
     así como la lógica para inicializar de forma segura el estado de la sesión.
     """
-    # --- Configuración General de la Aplicación ---
+    
+    # --- Configuración General de la Aplicación
     APP_TITLE = "Sistema de Información de Lluvias y Clima en el norte de la región Andina"
 
-    # --- Constantes para carga de datos desde GitHub ---
+    # --- Constantes para carga de datos desde GitHub
     GITHUB_USER = "omejiariv"
     GITHUB_REPO = "Chaac-SIHCLI"
     BRANCH = "main"
-
-    # --- URLs directas a los archivos RAW en GitHub ---
+    
+    # --- URLs directas a los archivos RAW en GitHub
     URL_ESTACIONES_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.csv"
     URL_PRECIPITACION_CSV = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/DatosPptnmes_ENSO.csv"
     URL_SHAPEFILE_ZIP = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/mapaCVENSO.zip"
     URL_SUBCUENCAS_GEOJSON = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/data/SubcuencasAinfluencia.geojson"
     DEM_SERVER_URL = "https://tu-bucket.storage.com/srtm_antioquia.tif" # URL de ejemplo para el DEM
 
-    # --- Rutas robustas a los archivos locales del proyecto ---
-    # Se calcula la ruta base del proyecto para que funcione en cualquier sistema operativo.
+    # --- Rutas robustas a los archivos locales del proyecto
     _MODULES_DIR = os.path.dirname(__file__)
     _PROJECT_ROOT = os.path.abspath(os.path.join(_MODULES_DIR, '..'))
     
@@ -36,10 +35,14 @@ class Config:
     LOGO_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'CuencaVerde_Logo.jpg')
     CHAAC_IMAGE_PATH = os.path.join(_PROJECT_ROOT, 'assets', 'chaac.png')
 
-    # --- Textos estáticos para la interfaz de usuario ---
+    # --- Textos estáticos para la interfaz de usuario
     CHAAC_STORY = """
     ### Chaac, el Señor de la Lluvia
-    En la mitología maya, **Chaac** es una de las deidades más importantes. Reside en los cuatro puntos cardinales y blande su hacha de relámpagos para golpear las nubes y producir la lluvia, esencial para la vida. Esta plataforma lleva su nombre como homenaje a la vital importancia del agua en nuestra región.
+    En la mitología maya, **Chaac** es una de las deidades más importantes.
+    Reside en los cuatro puntos cardinales y blande su hacha de relámpagos
+    para golpear las nubes y producir la lluvia, esencial para la vida.
+    Esta plataforma lleva su nombre como homenaje a la vital importancia del agua en
+    nuestra región.
     """
     QUOTE_TEXT = '"El futuro, también depende del pasado y de nuestra capacidad presente para anticiparlo"'
     QUOTE_AUTHOR = "omr."
@@ -52,8 +55,7 @@ class Config:
     3. **Explorar Análisis:** Navegue a través de las pestañas para visualizar los datos.
     """
 
-    # --- Nombres de columnas estándar para evitar errores de tipeo ---
-    # Usar constantes centralizadas aquí previene errores si un nombre de columna cambia en el futuro.
+    # --- Nombres de columnas estándar ---
     DATE_COL = 'fecha_mes_año'
     PRECIPITATION_COL = 'precipitation'
     STATION_NAME_COL = 'nom_est'
@@ -73,36 +75,39 @@ class Config:
     SOI_COL = 'soi'
     IOD_COL = 'iod'
 
-@staticmethod
-def initialize_session_state():
-    """
-    Inicializa todas las claves necesarias en st.session_state de forma centralizada y segura.
-    """
-    default_state = {
-        'data_loaded': False,
-        'gdf_stations': None,
-        'df_long': None,
-        'df_enso': None,
-        'gdf_municipios': None,
-        'gdf_subcuencas': None,
-        'unified_basin_gdf': None,
-        'df_monthly_processed': pd.DataFrame(),
-        'sarima_forecast': None,
-        'prophet_forecast': None,
-        'meses_numeros': list(range(1, 13)),
-        'select_all_report_sections_checkbox': False,
-        'selected_report_sections_multiselect': [],
-        'selected_basins_title': "",
-        'dem_source': "No usar DEM",
-        'dem_raster': None,
-        'fig_basin': None,
-        'mean_precip': None,
-        'error_msg': None,
-        'run_balance': False,
-        'gif_reload_key': 0,
-        'dem_file': None  # <-- LÍNEA AÑADIDA
-    }
-    
-    for key, value in default_state.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    # --- CORRECCIÓN DE SANGRÍA ---
+    # Esta función AHORA ESTÁ DENTRO de la clase Config
+    @staticmethod
+    def initialize_session_state():
+        """
+        Inicializa todas las claves necesarias en st.session_state de forma centralizada y segura.
+        """
+        default_state = {
+            'data_loaded': False,
+            'gdf_stations': None,
+            'df_long': None,
+            'df_enso': None,
+            'gdf_municipios': None,
+            'gdf_subcuencas': None,
+            'unified_basin_gdf': None,
+            'df_monthly_processed': pd.DataFrame(),
+            'sarima_forecast': None,
+            'prophet_forecast': None,
+            'meses_numeros': list(range(1, 13)),
+            'select_all_report_sections_checkbox': False,
+            'selected_report_sections_multiselect': [],
+            'selected_basins_title': "",
+            'dem_source': "No usar DEM",
+            'dem_raster': None,
+            'fig_basin': None,
+            'mean_precip': None,
+            'error_msg': None,
+            'run_balance': False,
+            'gif_reload_key': 0,
+            'dem_file': None,
+            'morph_results': None
+        }
+        
+        for key, value in default_state.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
