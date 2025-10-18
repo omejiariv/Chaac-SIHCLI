@@ -1640,18 +1640,14 @@ with kriging_tab:
 
     with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
-        st.info("Esta sección requiere que se haya generado un mapa para una cuenca en la pestaña 'Superficies de Interpolación' y que se haya subido un archivo DEM.")
-        
         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
-        dem_file_uploader = st.session_state.get('dem_file') # Usamos la clave correcta del uploader
-        
-        if unified_basin_gdf is not None and dem_file_uploader is not None:
+        dem_file_from_sidebar = st.session_state.get('dem_file') # <-- Lee el DEM desde el panel lateral
+
+        if unified_basin_gdf is not None and dem_file_from_sidebar is not None:
             st.markdown(f"### Resultados para: **{st.session_state.get('selected_basins_title', '')}**")
             
-            # Guardar temporalmente el DEM para poder leerlo
-            dem_path = os.path.join(os.getcwd(), dem_file_uploader.name)
-            with open(dem_path, "wb") as f:
-                f.write(dem_file_uploader.getbuffer())
+            dem_path = os.path.join(os.getcwd(), dem_file_from_sidebar.name)
+            with open(dem_path, "wb") as f: f.write(dem_file_from_sidebar.getbuffer())
 
             # --- 1. Mostrar la Morfometría ---
             st.markdown("#### Parámetros Morfométricos")
@@ -1741,10 +1737,9 @@ with kriging_tab:
                 col2.metric("Coeficiente de Determinación (R²)", f"{hypsometric_data['r_squared']:.4f}")
                 st.caption("El R² indica qué tan bien la ecuación polinomial representa la forma de la curva (un valor cercano a 1 es un ajuste perfecto).")
 
-            os.remove(dem_path) # Limpiar archivo temporal
-            
+            os.remove(dem_path) # Limpiar
         else:
-            st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
+            st.warning("Primero, genere un mapa para una cuenca en la pestaña 'Superficies de Interpolación' y suba un archivo DEM en el panel lateral.")
 
     with risk_map_tab:
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
