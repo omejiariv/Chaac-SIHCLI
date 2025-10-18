@@ -1614,14 +1614,23 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with morph_tab:
         st.subheader("Análisis Morfométrico de Cuencas")
+        st.info("Esta sección requiere que se haya generado un mapa para una cuenca en la pestaña 'Superficies de Interpolación' y que se haya subido un archivo DEM.")
+        
         unified_basin_gdf = st.session_state.get('unified_basin_gdf')
-        dem_file_uploader = st.session_state.get('dem_file_for_morph')
-
+        dem_file_uploader = st.session_state.get('dem_file') # Usamos la clave correcta del uploader
+        
         if unified_basin_gdf is not None and dem_file_uploader is not None:
             st.markdown(f"### Resultados para: **{st.session_state.get('selected_basins_title', '')}**")
+            
+            # Guardar temporalmente el DEM para poder leerlo
+            dem_path = os.path.join(os.getcwd(), dem_file_uploader.name)
+            with open(dem_path, "wb") as f:
+                f.write(dem_file_uploader.getbuffer())
+
+            # --- 1. Mostrar la Morfometría ---
             st.markdown("#### Parámetros Morfométricos")
             with st.spinner("Calculando parámetros morfométricos..."):
-                morph_results = calculate_morphometry(unified_basin_gdf, dem_file_uploader)
+                morph_results = calculate_morphometry(unified_basin_gdf, dem_path)
             
             if morph_results.get("error"):
                 st.error(morph_results["error"])
@@ -1630,27 +1639,84 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                 c1.metric("Área", f"{morph_results['area_km2']:.2f} km²")
                 c2.metric("Perímetro", f"{morph_results['perimetro_km']:.2f} km")
                 c3.metric("Índice de Forma", f"{morph_results['indice_forma']:.2f}")
+                
                 c4, c5, c6 = st.columns(3)
-                c4.metric("Altitud Máxima", f"{morph_results.get('alt_max_m', 'N/A'):.0f} m")
-                c5.metric("Altitud Mínima", f"{morph_results.get('alt_min_m', 'N/A'):.0f} m")
-                c6.metric("Altitud Promedio", f"{morph_results.get('alt_prom_m', 'N/A'):.1f} m")
+                alt_max = morph_results.get('alt_max_m')
+                alt_min = morph_results.get('alt_min_m')
+                alt_prom = morph_results.get('alt_prom_m')
+                c4.metric("Altitud Máxima", f"{alt_max:.0f} m" if alt_max is not None else "N/A")
+                c5.metric("Altitud Mínima", f"{alt_min:.0f} m" if alt_min is not None else "N/A")
+                c6.metric("Altitud Promedio", f"{alt_prom:.1f} m" if alt_prom is not None else "N/A")
 
+            # --- 2. Mostrar Balance Hídrico (MEJORADO) ---
             st.markdown("---")
-            st.markdown("#### Curva Hipsométrica")
-            with st.spinner("Calculando curva hipsométrica..."):
-                fig, csv_data = create_hypsometric_figure_and_data(unified_basin_gdf, dem_file_uploader)
+            st.subheader("Balance Hídrico Estimado")
+            mean_precip = st.session_state.get('mean_precip')
             
-            if fig:
-                st.plotly_chart(fig, use_container_width=True)
-                st.download_button(
-                    label="📥 Descargar Datos de la Curva (CSV)",
-                    data=csv_data,
-                    file_name=f"curva_hipsométrica_{st.session_state.get('selected_basins_title', 'cuenca')}.csv",
-                    mime='text/csv',
-                )
-                st.caption("La curva hipsométrica muestra la distribución de la superficie de la cuenca en relación con la altitud.")
+            if mean_precip is not None and alt_prom is not None:
+                with st.spinner("Calculando balance hidrológico mejorado..."):
+                    # Pasamos la altitud media que ya calculamos
+                    balance_results = calculate_hydrological_balance(mean_precip, alt_prom, unified_basin_gdf)
+                
+                if balance_results.get("error"):
+                    st.error(balance_results["error"])
+                else:
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Precipitación Media (P)", f"{balance_results['P_media_anual_mm']:.0f} mm/año")
+                    c2.metric("Altitud Media", f"{balance_results['Altitud_media_m']:.0f} m")
+                    c3.metric("ET Media Estimada (ET)", f"{balance_results['ET_media_anual_mm']:.0f} mm/año")
+                    c4.metric("Escorrentía (Q = P - ET)", f"{balance_results['Q_mm']:.0f} mm/año")
+                    st.success(f"Volumen de escorrentía anual estimado: **{balance_results['Q_m3_año']/1e6:.2f} millones de m³** sobre un área de **{balance_results['Area_km2']:.2f} km²**.")
             else:
-                st.error("No se pudo generar la curva hipsométrica. Verifique que el DEM cubra el área de la cuenca.")
+                st.warning("No se pudo calcular el balance hídrico. Faltan datos de precipitación o altitud.")
+
+            # --- 3. Calcular y Mostrar la Curva Hipsométrica (MEJORADA) ---
+            st.markdown("---")
+            st.markdown("#### Curva Hipsométrica y Ecuación de Ajuste")
+            with st.spinner("Calculando curva hipsométrica y ajuste polinomial..."):
+                hypsometric_data = calculate_hypsometric_curve(unified_basin_gdf, dem_path)
+            
+            if hypsometric_data.get("error"):
+                st.error(hypsometric_data["error"])
+            else:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=hypsometric_data['cumulative_area_percent'],
+                    y=hypsometric_data['elevations'],
+                    mode='lines',
+                    fill='tozeroy',
+                    name='Curva Hipsométrica (Datos DEM)',
+                    opacity=0.7
+                ))
+                fig.add_trace(go.Scatter(
+                    x=hypsometric_data['fit_x'],
+                    y=hypsometric_data['fit_y'],
+                    mode='lines',
+                    name='Ajuste Polinomial (Grado 3)',
+                    line=dict(color='red', dash='dash')
+                ))
+                
+                fig.update_layout(
+                    title="Curva Hipsométrica de la Cuenca Agregada",
+                    xaxis_title="Área Acumulada sobre la Elevación (%)",
+                    yaxis_title="Elevación (m)",
+                    xaxis=dict(range=[0, 100]),
+                    template="plotly_white",
+                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                st.markdown("##### Ecuaciones Derivadas")
+                st.latex(r'''A(h) = \int_{h}^{H_{max}} f(z) \, dz''')
+                st.caption("Ecuación integral de la curva hipsométrica, donde A(h) es el área por encima de la altitud h.")
+                
+                col1, col2 = st.columns(2)
+                col1.metric("Ecuación de Ajuste (x = % Área / 100)", hypsometric_data['equation'])
+                col2.metric("Coeficiente de Determinación (R²)", f"{hypsometric_data['r_squared']:.4f}")
+                st.caption("El R² indica qué tan bien la ecuación polinomial representa la forma de la curva (un valor cercano a 1 es un ajuste perfecto).")
+
+            os.remove(dem_path) # Limpiar archivo temporal
+            
         else:
             st.warning("Primero, genere un mapa para una cuenca y suba un archivo DEM en la pestaña 'Superficies de Interpolación'.")
 
