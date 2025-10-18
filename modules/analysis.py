@@ -234,7 +234,7 @@ def get_mean_altitude_for_basin(_basin_geometry):
 def calculate_hydrological_balance(mean_precip_mm, mean_altitude_m, basin_geometry_input):
     """
     Calcula el balance hídrico (P - ET = Q) para una cuenca.
-    Ahora recibe la altitud media como parámetro.
+    Recibe la altitud media como parámetro (del DEM) en lugar de llamarla de una API.
     """
     results = {
         "P_media_anual_mm": mean_precip_mm,
@@ -246,12 +246,11 @@ def calculate_hydrological_balance(mean_precip_mm, mean_altitude_m, basin_geomet
         "error": None
     }
 
-    if mean_altitude_m is None:
-        results["error"] = "No se pudo calcular el balance; la altitud media es desconocida."
+    if mean_altitude_m is None or pd.isna(mean_altitude_m):
+        results["error"] = "No se pudo calcular el balance; la altitud media es desconocida (N/A). Verifique el DEM."
         return results
 
-    # 1. Calcular Evapotranspiración (ET) usando la altitud (Fórmula de Turc simplificada)
-    # (Esta es la fórmula que ya tenías, ahora es más fiable porque la altitud viene del DEM)
+    # 1. Calcular Evapotranspiración (ET) usando la altitud
     eto_dia = 4.37 * np.exp(-0.0002 * mean_altitude_m)
     eto_anual_mm = eto_dia * 365.25
     results["ET_media_anual_mm"] = eto_anual_mm
@@ -273,7 +272,7 @@ def calculate_hydrological_balance(mean_precip_mm, mean_altitude_m, basin_geomet
         results["error"] = f"Error al calcular el área de la cuenca: {e}"
 
     return results
-
+    
 def calculate_morphometry(basin_gdf, dem_path):
     """
     Calcula la morfometría, re-proyectando la cuenca al CRS del DEM
