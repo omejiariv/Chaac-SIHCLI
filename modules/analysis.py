@@ -338,39 +338,50 @@ def calculate_hypsometric_curve(basin_gdf, dem_path):
         with rasterio.open(dem_path) as src:
             dem_crs = src.crs
             basin_reprojected = basin_gdf.to_crs(dem_crs)
+            
             zonal_result = zonal_stats(
                 basin_reprojected,
                 dem_path,
-                stats="count",
-                raster_out=True,
+                stats="count", # Pedimos 'count' para asegurar que obtenemos los datos
+                raster_out=True, # ¡Clave! Extrae los valores crudos del ráster
                 nodata=src.nodata
             )
+            
+            if not zonal_result or 'mini_raster_array' not in zonal_result[0]:
+                 return {"error": "No se pudo extraer datos del ráster para la cuenca."}
+                 
             elevations = zonal_result[0]['mini_raster_array'].compressed()
+            
             if elevations.size == 0:
-                return {"error": "No se encontraron valores de elevación en la cuenca."}
+                return {"error": "No se encontraron valores de elevación válidos en la cuenca."}
 
+        # Ordenar las elevaciones de menor a mayor
         elevations_sorted = np.sort(elevations)
         total_pixels = len(elevations_sorted)
+        
+        # Calcular el porcentaje de área acumulada que está POR ENCIMA de una elevación dada
+        # (1 - [posición / total]) * 100
         cumulative_area_percent = (1 - np.arange(total_pixels) / total_pixels) * 100
 
-        # --- AJUSTE DE CURVA POLINOMIAL ---
-        # Normalizamos el eje X (área) a un rango de [0, 1] para mejorar la estabilidad numérica del ajuste
+        # --- AJUSTE DE CURVA POLINOMIAL (TU SOLICITUD) ---
+        # Normalizamos el eje X (área) a un rango de [0, 1] para mejorar la estabilidad numérica
         x_norm = cumulative_area_percent / 100.0
-        # Ajustamos un polinomio de grado 3
+        
+        # Ajustamos un polinomio de grado 3 (puedes cambiar el '3' si quieres otro grado)
         coeffs = np.polyfit(x_norm, elevations_sorted, 3)
-        p = np.poly1d(coeffs)
+        p = np.poly1d(coeffs) # 'p' es ahora la función polinomial
         
         # Generamos los puntos de la curva ajustada para graficar
-        x_fit = np.linspace(0, 100, 200)
+        x_fit = np.linspace(0, 100, 200) # 200 puntos para una curva suave
         y_fit = p(x_fit / 100.0)
         
-        # Calculamos el R² (coeficiente de determinación) para ver qué tan bueno es el ajuste
+        # Calculamos el R² (coeficiente de determinación)
         y_predicted = p(x_norm)
         ss_res = np.sum((elevations_sorted - y_predicted) ** 2)
         ss_tot = np.sum((elevations_sorted - np.mean(elevations_sorted)) ** 2)
         r_squared = 1 - (ss_res / ss_tot)
         
-        # Formateamos la ecuación para mostrarla
+        # Formateamos la ecuación para mostrarla (y = ax³ + bx² + cx + d)
         equation = f"y = {coeffs[0]:.2f}x³ + {coeffs[1]:.2f}x² + {coeffs[2]:.2f}x + {coeffs[3]:.0f}"
         # --- FIN DEL AJUSTE ---
 
