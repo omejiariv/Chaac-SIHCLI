@@ -231,13 +231,14 @@ def get_mean_altitude_for_basin(_basin_geometry):
         st.warning(error_message)
         return None, error_message
 
-def calculate_hydrological_balance(mean_precip_mm, basin_geometry_input):
+def calculate_hydrological_balance(mean_precip_mm, mean_altitude_m, basin_geometry_input):
     """
-    Calcula el balance hídrico (P - ET = Q) para una cuenca o conjunto de cuencas.
+    Calcula el balance hídrico (P - ET = Q) para una cuenca.
+    Ahora recibe la altitud media como parámetro.
     """
     results = {
         "P_media_anual_mm": mean_precip_mm,
-        "Altitud_media_m": None,
+        "Altitud_media_m": mean_altitude_m,
         "ET_media_anual_mm": None,
         "Q_mm": None,
         "Q_m3_año": None,
@@ -245,41 +246,32 @@ def calculate_hydrological_balance(mean_precip_mm, basin_geometry_input):
         "error": None
     }
 
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Aseguramos que siempre trabajamos con un objeto GeoPandas
-    if isinstance(basin_geometry_input, (gpd.GeoDataFrame, gpd.GeoSeries)):
-        basin_geopandas_obj = basin_geometry_input
-    else:
-        # Si es una geometría cruda, la convertimos a un GeoSeries con el CRS correcto (WGS84)
-        basin_geopandas_obj = gpd.GeoSeries([basin_geometry_input], crs="EPSG:4326")
-    # --- FIN DE LA CORRECCIÓN ---
-
-    # 1. Calcular Altitud Media
-    # Pasamos la geometría unificada a la función de altitud
-    mean_altitude, error = get_mean_altitude_for_basin(basin_geopandas_obj.unary_union)
-    if error:
-        results["error"] = error
+    if mean_altitude_m is None:
+        results["error"] = "No se pudo calcular el balance; la altitud media es desconocida."
         return results
-    results["Altitud_media_m"] = mean_altitude
 
-    # 2. Calcular Evapotranspiración (ET)
-    eto_dia = 4.37 * np.exp(-0.0002 * mean_altitude)
+    # 1. Calcular Evapotranspiración (ET) usando la altitud (Fórmula de Turc simplificada)
+    # (Esta es la fórmula que ya tenías, ahora es más fiable porque la altitud viene del DEM)
+    eto_dia = 4.37 * np.exp(-0.0002 * mean_altitude_m)
     eto_anual_mm = eto_dia * 365.25
     results["ET_media_anual_mm"] = eto_anual_mm
 
-    # 3. Calcular la Escorrentía (Q)
+    # 2. Calcular la Escorrentía (Q)
     q_mm = mean_precip_mm - eto_anual_mm
     results["Q_mm"] = q_mm
 
-    # 4. Calcular el Caudal en Volumen
-    basin_metric = basin_geopandas_obj.to_crs("EPSG:3116")
-    area_m2 = basin_metric.area.sum() # Usamos .sum() para obtener el área total
-    results["Area_km2"] = area_m2 / 1_000_000
+    # 3. Calcular el Caudal en Volumen
+    try:
+        basin_metric = basin_geometry_input.to_crs("EPSG:3116") # Proyección métrica para área
+        area_m2 = basin_metric.area.sum()
+        results["Area_km2"] = area_m2 / 1_000_000
+        
+        q_m = q_mm / 1000
+        q_volumen_m3_anual = q_m * area_m2
+        results["Q_m3_año"] = q_volumen_m3_anual
+    except Exception as e:
+        results["error"] = f"Error al calcular el área de la cuenca: {e}"
 
-    q_m = q_mm / 1000
-    q_volumen_m3_anual = q_m * area_m2
-    results["Q_m3_año"] = q_volumen_m3_anual
-    
     return results
 
 def calculate_morphometry(basin_gdf, dem_path):
