@@ -4,6 +4,7 @@ import base64
 import geopandas as gpd
 import altair as alt
 import folium
+from rasterstats import zonal_stats
 from folium.plugins import MarkerCluster, MiniMap
 from folium.raster_layers import WmsTileLayer
 from streamlit_folium import folium_static
