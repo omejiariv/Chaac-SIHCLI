@@ -194,9 +194,13 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
     metrics = _perform_loocv(method, lons, lats, vals, elevs)
     rmse = metrics.get('RMSE')
 
-    grid_lon = np.linspace(gdf_bounds[0] - 0.1, gdf_bounds[2] + 0.1, 200)
-    grid_lat = np.linspace(gdf_bounds[1] - 0.1, gdf_bounds[3] + 0.1, 200)
-    z_grid, fig_variogram, error_message = None, None, None
+res_lon = (grid_lon.max() - grid_lon.min()) / (len(grid_lon) - 1)
+    res_lat = (grid_lat.max() - grid_lat.min()) / (len(grid_lat) - 1)
+    # El transform va de la esquina superior-izquierda (lon min, lat max)
+    transform = from_origin(grid_lon.min(), grid_lat.max(), res_lon, res_lat)
+
+    # Inicializa z_grid como None
+    z_grid = None
 
     try:
         if method in ["Kriging Ordinario", "Kriging con Deriva Externa (KED)"]:
@@ -267,9 +271,8 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
             xaxis_title="Longitud", yaxis_title="Latitud", height=600,
             legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0)")
         )
-        return fig, fig_variogram, None
-
-    return go.Figure().update_layout(title="Error: Método no implementado"), None, "Método no implementado"
+        return fig, fig_variogram, z_grid, transform, grid_lon, grid_lat, None
+    return go.Figure().update_layout(title="Error: Método no implementado"), None, None, None, None, "Método no implementado"
 
 # In modules/interpolation.py
 
