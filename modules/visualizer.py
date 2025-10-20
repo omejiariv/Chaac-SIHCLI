@@ -1750,74 +1750,22 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
 
     with risk_map_tab:
         st.subheader("Mapa de Vulnerabilidad por Tendencias de Precipitación a Largo Plazo")
-        st.info("Este mapa muestra la tendencia (Pendiente de Sen) para cada estación con datos suficientes (>10 años).")
+        st.info("""
+        Este mapa interpola la tendencia (Pendiente de Sen) de todas las estaciones con datos suficientes (>10 años)
+        para crear una superficie de riesgo.
+        - **Zonas Azules:** Indican una tendencia a precipitación *creciente* (más mm/año).
+        - **Zonas Rojas:** Indican una tendencia a precipitación *decreciente* (menos mm/año).
+        """)
         
-        with st.expander("Opciones del Mapa"):
-            map_style = st.selectbox(
-                "Estilo del Mapa Base:",
-                options=["carto-positron", "open-street-map", "stamen-terrain", "white-bg"],
-                key="risk_map_style"
-            )
-            marker_size = st.slider("Tamaño de los Puntos de Estación:", 5, 25, 10, key="risk_marker_size")
-            show_trend_surface = st.toggle("Mostrar superficie de tendencia interpolada", value=True)
-
-        if st.button("Generar Mapa de Riesgo Integrado"):
-            with st.spinner("Calculando tendencias y generando mapa..."):
-                gdf_trends = calculate_all_station_trends(df_anual_melted, gdf_filtered)
-
-                if not gdf_trends.empty:
-                    gdf_trends['hover_text'] = gdf_trends.apply(
-                        lambda row: f"<b>Estación: {row[Config.STATION_NAME_COL]}</b><br><br>"
-                                    f"Municipio: {row[Config.MUNICIPALITY_COL]}<br>"
-                                    f"Altitud: {row[Config.ALTITUDE_COL]:.0f} m<br>"
-                                    f"Tendencia: {row['slope_sen']:.2f} mm/año<br>"
-                                    f"Significancia (p-valor): {row['p_value']:.3f}",
-                        axis=1
-                    )
-                    
-                    # --- INICIO DE LA CORRECCIÓN: USAR DENSITYMAPBOX ---
-                    
-                    # 1. Crear la figura base (los puntos de las estaciones)
-                    fig_risk = px.scatter_mapbox(
-                        gdf_trends,
-                        lat=gdf_trends.geometry.y,
-                        lon=gdf_trends.geometry.x,
-                        color="slope_sen",
-                        size=np.abs(gdf_trends['slope_sen']),
-                        color_continuous_scale=px.colors.diverging.RdBu,
-                        size_max=marker_size,
-                        zoom=5,
-                        mapbox_style=map_style,
-                        hover_name=Config.STATION_NAME_COL,
-                        custom_data=['hover_text']
-                    )
-                    fig_risk.update_traces(hovertemplate="%{customdata[0]}")
-                    fig_risk.update_layout(
-                        title="Tendencias de Precipitación sobre Mapa Base",
-                        legend_title_text='Tendencia (mm/año)',
-                        margin={"r":0,"t":40,"l":0,"b":0}
-                    )
-
-                    # 2. Añadir la superficie de calor (Densitymapbox) si está activada
-                    if show_trend_surface:
-                        if len(gdf_trends) < 4:
-                            st.warning("Se necesitan al menos 4 estaciones para generar la superficie de tendencia.")
-                        else:
-                            fig_risk.add_trace(go.Densitymapbox(
-                                lat=gdf_trends.geometry.y,
-                                lon=gdf_trends.geometry.x,
-                                z=gdf_trends['slope_sen'], # Usar la pendiente como el valor 'z'
-                                radius=30, # Radio de influencia de cada punto
-                                colorscale='RdBu',
-                                opacity=0.5,
-                                showscale=False,
-                                hoverinfo='none'
-                            ))
-                    # --- FIN DE LA CORRECCIÓN ---
-                    
-                    st.plotly_chart(fig_risk, use_container_width=True)
-                else:
-                    st.warning("No hay suficientes datos de tendencia (>10 años) para generar el mapa.")
+        # Llamamos a la función que SÍ interpola la superficie (definida alrededor de la línea 2751)
+        # Asegúrate de que los argumentos pasados (df_anual_melted, gdf_filtered) 
+        # son los correctos según el contexto de tu función display_advanced_maps_tab
+        fig_risk_contour = create_climate_risk_map(df_anual_melted, gdf_filtered)
+        
+        if fig_risk_contour:
+            st.plotly_chart(fig_risk_contour, use_container_width=True)
+        else:
+            st.warning("No hay suficientes datos de tendencia (>10 años) para generar el mapa.")
 
     with validation_tab:
         st.subheader("Validación Cruzada Comparativa de Métodos de Interpolación")
