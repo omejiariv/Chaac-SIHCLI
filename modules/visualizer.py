@@ -1234,13 +1234,13 @@ def create_interpolation_surface(year, method, variogram_model, bounds, gdf_meta
         return None, None, f"Error en la interpolación: {e}\n{traceback.format_exc()}"
 
 @st.cache_data
-def create_climate_risk_map(df_anual, gdf_filtered):
+def create_climate_risk_map(df_anual, _gdf_filtered):
     """
     Calcula y visualiza un mapa de riesgo por variabilidad climática basado en tendencias.
     """
     with st.spinner("Calculando tendencias para todas las estaciones..."):
         # Llama a la función que calcula la tendencia para cada estación
-        gdf_trends = calculate_all_station_trends(df_anual, gdf_filtered)
+        gdf_trends = calculate_all_station_trends(df_anual, _gdf_filtered)
 
     if gdf_trends.empty or len(gdf_trends) < 4:
         st.warning("No hay suficientes estaciones con datos de tendencia (>10 años) para generar un mapa de riesgo.")
@@ -1251,7 +1251,7 @@ def create_climate_risk_map(df_anual, gdf_filtered):
     values = gdf_trends['slope_sen'].values
     
     # Crea la grilla de interpolación
-    bounds = gdf_filtered.total_bounds
+    bounds = _gdf_filtered.total_bounds
     grid_lon = np.linspace(bounds[0], bounds[2], 200)
     grid_lat = np.linspace(bounds[1], bounds[3], 200)
     grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
