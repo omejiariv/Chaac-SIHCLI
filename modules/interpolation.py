@@ -192,7 +192,7 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
     elevs = df_clean[Config.ELEVATION_COL].values if Config.ELEVATION_COL in df_clean else None
 
     # Llama a la función auxiliar para obtener métricas
-    metrics = _perform_loocv(method, lons, lats, vals, elevs) # [cite: 1408]
+    metrics = _perform_loocv(method, lons, lats, vals, elevs) 
     rmse = metrics.get('RMSE')
 
     grid_lon = np.linspace(gdf_bounds[0] - 0.1, gdf_bounds[2] + 0.1, 200)
@@ -215,20 +215,20 @@ def create_interpolation_surface(year, method, variogram_model, gdf_bounds, gdf_
 
             if method == "Kriging Ordinario":
                 krig = gs.krige.Ordinary(model, (lons, lats), vals)
-                z_grid, _ = krig.structured([grid_lon, grid_lat]) # [cite: 1427]
+                z_grid, _ = krig.structured([grid_lon, grid_lat]) 
             else: # KED
-                rbf_elev = Rbf(lons, lats, elevs, function='thin_plate') # [cite: 1430]
+                rbf_elev = Rbf(lons, lats, elevs, function='thin_plate') 
                 grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
                 drift_grid = rbf_elev(grid_x, grid_y)
                 krig = gs.krige.ExtDrift(model, (lons, lats), vals, drift_src=elevs)
-                z_grid, _ = krig.structured([grid_lon, grid_lat], drift_tgt=drift_grid.T) # [cite: 1435]
+                z_grid, _ = krig.structured([grid_lon, grid_lat], drift_tgt=drift_grid.T) 
 
         elif method == "IDW":
-            z_grid = interpolate_idw(lons, lats, vals, grid_lon, grid_lat) # [cite: 1437]
+            z_grid = interpolate_idw(lons, lats, vals, grid_lon, grid_lat) 
         elif method == "Spline (Thin Plate)":
             rbf = Rbf(lons, lats, vals, function='thin_plate')
             grid_x, grid_y = np.meshgrid(grid_lon, grid_lat)
-            z_grid = rbf(grid_x, grid_y) # [cite: 1441]
+            z_grid = rbf(grid_x, grid_y) 
 
     except Exception as e:
         error_message = f"Error al calcular {method}: {e}"
