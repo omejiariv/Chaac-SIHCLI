@@ -1436,6 +1436,7 @@ def display_advanced_maps_tab(gdf_filtered, stations_for_analysis, df_anual_melt
                     dem_file = st.session_state.get('dem_file')
 
                     if st.button("Generar Mapa para Cuenca(s)", disabled=not selected_basins, key="generate_basin_map_button"):
+                        st.session_state['run_balance'] = run_balance
                         st.session_state['fig_basin'] = None
                         st.session_state['error_msg'] = None
                         st.session_state['mean_precip'] = None
