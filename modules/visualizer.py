@@ -1277,13 +1277,19 @@ def create_climate_risk_map(df_anual, _gdf_filtered):
     ))
 
     # Añade los puntos de las estaciones con sus datos de tendencia
-    fig.add_trace(go.Scatter(
-        x=coords[:, 0], y=coords[:, 1], mode='markers',
-        marker=dict(color='black', size=5, symbol='circle-open'),
-        hoverinfo='text',
-        hovertext=gdf_trends.apply(lambda row: f"<b>{row[Config.STATION_NAME_COL]}</b><br>Tendencia: {row['slope_sen']:.2f} mm/año<br>p-valor: {row['p_value']:.3f}", axis=1),
-        name='Estaciones con Tendencia'
-    ))
+fig.add_trace(go.Scatter(
+            x=coords[:, 0], y=coords[:, 1], mode='markers',
+            marker=dict(color='black', size=5, symbol='circle-open'),
+            hoverinfo='text',
+            hovertext=gdf_trends.apply(lambda row:
+                                       f"<b>Estación: {row[Config.STATION_NAME_COL]}</b><br><br>"
+                                       f"Municipio: {row.get(Config.MUNICIPALITY_COL, 'N/A')}<br>" # Added Municipio
+                                       f"Altitud: {row.get(Config.ALTITUDE_COL, 'N/A'):.0f} m<br>" # Added Altitud
+                                       f"Tendencia: {row['slope_sen']:.2f} mm/año<br>"
+                                       f"Significancia (p-valor): {row['p_value']:.3f}", 
+                                       axis=1),
+            name='Estaciones con Tendencia' # Esta línea (1291) está bien indentada
+        ))
 
     fig.update_layout(
         title="Mapa de Riesgo por Tendencias de Precipitación",
