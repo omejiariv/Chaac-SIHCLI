@@ -1277,7 +1277,7 @@ def create_climate_risk_map(df_anual, _gdf_filtered):
     ))
 
     # Añade los puntos de las estaciones con sus datos de tendencia
-fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scatter(
             x=coords[:, 0], y=coords[:, 1], mode='markers',
             marker=dict(color='black', size=5, symbol='circle-open'),
             hoverinfo='text',
