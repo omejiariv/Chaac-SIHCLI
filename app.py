@@ -224,8 +224,8 @@ def main():
             
     # PESTAÑA 7: NUEVO MÓDULO TOTALMENTE INDEPENDIENTE PARA TU ARCHIVO CONSOLIDADO DE 3 GB
     with tabs[7]:
-        st.header("📊 Análisis de Lluvia Mensual (Optimizado por Estación)")
-        st.markdown("Visualización ágil de datos históricos calculados por fragmentos mediante la arquitectura híbrida.")
+        st.header("📊 Análisis de Lluvia Mensual (Estaciones Automáticas)")
+        st.markdown("Visualización y comparación ágil de las estaciones automáticas optimizadas desde el archivo masivo del IDEAM.")
         archivo_resumen = "data/lluvia_mensual_consolidado.csv"
         
         if os.path.exists(archivo_resumen):
@@ -233,61 +233,105 @@ def main():
             df_masivo = pd.read_csv(archivo_resumen, sep=',')
             df_masivo['codigo_estacion'] = df_masivo['codigo_estacion'].astype(str)
             
-            # 2. Capturar el código de la estación seleccionada en tu panel de control actual
-            # Tomamos la primera estación que el usuario tenga seleccionada en la barra lateral
-            if stations_for_analysis:
-                estacion_actual = stations_for_analysis[0] # Ej: "ABEJORRAL [26180160]"
+            # 2. Mapear códigos del archivo con los nombres amigables de tu sistema
+            # Creamos un diccionario para cruzar el código puro con el nombre "NOMBRE [CODIGO]"
+            estaciones_disponibles_3gb = df_masivo['codigo_estacion'].unique().tolist()
+            
+            # Buscamos en el DataFrame global de tus estaciones cargadas en session_state
+            opciones_filtro = []
+            diccionario_codigos = {}
+            
+            if 'gdf_stations' in st.session_state and Config.STATION_NAME_COL in st.session_state.gdf_stations.columns:
+                # Construimos la lista de nombres tal como aparecen en tu sistema
+                lista_nombres_sistema = st.session_state.gdf_stations[Config.STATION_NAME_COL].unique().tolist()
                 
-                # Extraemos el número que está dentro de los corchetes []
-                import re
-                match = re.search(r'\[(\d+)\]', estacion_actual)
+                for est_sistema in lista_nombres_sistema:
+                    import re
+                    match = re.search(r'\[(\d+)\]', est_sistema)
+                    if match:
+                        cod_num = str(match.group(1))
+                        if cod_num in estaciones_disponibles_3gb:
+                            opciones_filtro.append(est_sistema)
+                            diccionario_codigos[est_sistema] = cod_num
+            
+            # Si por alguna razón una estación automática no está en tu catálogo general, 
+            # la añadimos con su código puro para no perderla
+            for cod_puro in estaciones_disponibles_3gb:
+                if cod_puro tastes not in diccionario_codigos.values():
+                    nombre_alterno = f"ESTACIÓN AUTOMÁTICA [{cod_puro}]"
+                    opciones_filtro.append(nombre_alterno)
+                    diccionario_codigos[nombre_alterno] = cod_puro
+            
+            opciones_filtro = sorted(list(set(opciones_filtro)))
+            
+            # 3. Incorporar el filtro de selección múltiple dentro de la pestaña
+            st.markdown("---")
+            st.write(f"💡 **Se encontraron {len(opciones_filtro)} estaciones automáticas con datos reales en Antioquia.**")
+            
+            estaciones_seleccionadas = st.multiselect(
+                "🔍 Seleccione una o varias estaciones automáticas para analizar y comparar:",
+                options=opciones_filtro,
+                default=[opciones_filtro[0]] if opciones_filtro else None,
+                key="filtro_multiselect_3gb"
+            )
+            
+            st.markdown("---")
+            
+            if estaciones_seleccionadas:
+                # Extraemos los códigos de las estaciones elegidas
+                codigos_filtrar = [diccionario_codigos[est] for est in estaciones_seleccionadas]
                 
-                if match:
-                    codigo_ideam = str(match.group(1)) # Ej: "26180160"
+                # Filtrar el DataFrame masivo por el grupo de códigos elegidos
+                df_filtrado_estacion = df_masivo[df_masivo['codigo_estacion'].isin(codigos_filtrar)].copy()
+                df_filtrado_estacion = df_filtrado_estacion.sort_values('periodo_mensual')
+                
+                # Métricas consolidadas del grupo seleccionado
+                col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+                with col_kpi1:
+                    st.metric("Estaciones en Análisis", len(estaciones_seleccionadas))
+                with col_kpi2:
+                    st.metric("Lluvia Promedio del Grupo", f"{df_filtrado_estacion['precipitacion'].mean():.1f} mm")
+                with col_kpi3:
+                    st.metric("Máximo Registro Mensual", f"{df_filtrado_estacion['precipitacion'].max():.1f} mm")
+                
+                st.markdown("---")
+                col_graf, col_tabla = st.columns([2, 1])
+                
+                with col_graf:
+                    st.write("#### Comparación de Tendencias de Precipitación Acumulada")
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots(figsize=(10, 4))
                     
-                    # 3. Filtrar el DataFrame masivo por el código extraído
-                    df_filtrado_estacion = df_masivo[df_masivo['codigo_estacion'] == codigo_ideam].copy()
-                    df_filtrado_estacion = df_filtrado_estacion.sort_values('periodo_mensual')
+                    # Graficamos una línea independiente por cada estación seleccionada
+                    for est in estaciones_seleccionadas:
+                        cod_id = diccionario_codigos[est]
+                        df_sub = df_filtrado_estacion[df_filtrado_estacion['codigo_estacion'] == cod_id].sort_values('periodo_mensual')
+                        if not df_sub.empty:
+                            ax.plot(df_sub['periodo_mensual'], df_sub['precipitacion'], marker='o', linestyle='-', linewidth=2, label=est.split(" [")[0])
                     
-                    st.subheader(f"📍 Estación: {estacion_actual}")
+                    ax.set_xlabel("Periodo (Año-Mes)")
+                    ax.set_ylabel("Precipitación (mm)")
+                    ax.grid(True, linestyle='--', alpha=0.5)
+                    plt.xticks(rotation=90, fontsize=8)
+                    ax.legend(loc='upper left', fontsize=9)
+                    st.pyplot(fig)
                     
-                    if not df_filtrado_estacion.empty:
-                        # Despliegue de Tarjetas de Información Reales e Individuales
-                        col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-                        with col_kpi1:
-                            st.metric("Total Meses Registrados", len(df_filtrado_estacion))
-                        with col_kpi2:
-                            st.metric("Lluvia Promedio Mensual", f"{df_filtrado_estacion['precipitacion'].mean():.1f} mm")
-                        with col_kpi3:
-                            st.metric("Máximo Histórico Mensual", f"{df_filtrado_estacion['precipitacion'].max():.1f} mm")
-                        
-                        st.markdown("---")
-                        col_graf, col_tabla = st.columns([2, 1])
-                        
-                        with col_graf:
-                            st.write("#### Tendencia de Precipitación Acumulada Mensual")
-                            import matplotlib.pyplot as plt
-                            fig, ax = plt.subplots(figsize=(10, 4))
-                            ax.plot(df_filtrado_estacion['periodo_mensual'], df_filtrado_estacion['precipitacion'], marker='o', color='#1f77b4', linewidth=2)
-                            ax.set_xlabel("Periodo (Año-Mes)")
-                            ax.set_ylabel("Precipitación (mm)")
-                            ax.grid(True, linestyle='--', alpha=0.5)
-                            plt.xticks(rotation=90, fontsize=8)
-                            st.pyplot(fig)
-                            
-                        with col_tabla:
-                            st.write("#### Registros de esta Estación")
-                            # Mostramos solo las columnas de interés para el usuario
-                            st.dataframe(df_filtrado_estacion[['periodo_mensual', 'precipitacion']], use_container_width=True, height=300)
-                    else:
-                        st.info(f"ℹ️ La estación '{estacion_actual}' (Código IDEAM: {codigo_ideam}) no tiene registros en el archivo de sensores automáticos consolidados.")
-                else:
-                    st.warning("⚠️ No se pudo extraer un código numérico válido de la estación seleccionada en el panel.")
+                with col_tabla:
+                    st.write("#### Matriz de Datos Combinada")
+                    # Pivoteamos la tabla para que sea más fácil comparar los datos lado a lado
+                    try:
+                        df_pivot = df_filtrado_estacion.pivot(index='periodo_mensual', columns='codigo_estacion', values='precipitacion')
+                        # Reemplazamos los códigos de las columnas por los nombres amigables abreviados
+                        inverso_dict = {v: k.split(" [")[0] for k, v in diccionario_codigos.items()}
+                        df_pivot = df_pivot.rename(columns=inverso_dict)
+                        st.dataframe(df_pivot, use_container_width=True, height=320)
+                    except Exception:
+                        st.dataframe(df_filtrado_estacion[['codigo_estacion', 'periodo_mensual', 'precipitacion']], use_container_width=True, height=320)
             else:
-                st.info("👈 Por favor, selecciona una estación en el Panel de Control izquierdo para visualizar su serie histórica mensual.")
+                st.info("ℹ️ Seleccione al menos una estación del buscador superior para desplegar las curvas climáticas.")
         else:
-            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Verifica que esté subido a GitHub.")
-
+            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Verifica su ubicación en la carpeta data.")
+            
     # REAJUSTE DE ÍNDICES RESTANTES (+1 por el desplazamiento del nuevo menú)
     with tabs[8]:
         display_correlation_tab(**display_args)
