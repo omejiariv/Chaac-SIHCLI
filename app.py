@@ -96,6 +96,7 @@ def main():
     tab_names = [
         "Bienvenida", "Distribución Espacial", "Gráficos", "Mapas Avanzados",
         "Análisis de Anomalías", "Análisis de Extremos", "Estadísticas",
+        "Análisis 3 GB (Optimizado)", # <--- NUEVA PESTAÑA INDEPENDIENTE EN EL MENÚ INDICE [7]
         "Correlación", "Análisis ENSO", "Tendencias y Pronósticos",
         "Pronóstico Semanal",
         "Descargas", "Análisis por Cuenca", "Comparación de Periodos",
