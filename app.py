@@ -217,31 +217,31 @@ def main():
     with tabs[5]:
         display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
         
-    # --- PESTAÑA 6: ESTADÍSTICAS E INTEGRACIÓN DE MÉTRICAS MENSUALES OPTIMIZADAS ---
+    # --- PESTAÑA 6: ESTADÍSTICAS E INTEGRACIÓN DE MÉTRICAS MASIVAS ---
     with tabs[6]:
-        # Creamos dos sub-pestañas internas dentro de Estadísticas para no interferir con tus funciones base
-        subtab_descriptiva, subtab_resumen_masivo = st.tabs(["Estadísticas Descriptivas", "Resumen de Lluvia Mensual (Optimizado)"])
+        # Creamos tres sub-pestañas internas con nombres únicos y claros
+        subtab_descriptiva, subtab_analisis_3gb = st.tabs(["Estadísticas Descriptivas Base", "Análisis de Datos Masivos (3 GB)"])
         
         with subtab_descriptiva:
             display_stats_tab(df_long=st.session_state.df_long, **display_args)
             
-        with subtab_resumen_masivo:
-            st.subheader("📊 Análisis de Lluvia Mensual desde Formato Optimizado")
-            # Apuntamos correctamente a tu repositorio usando la estructura de carpetas de tu data
+        with subtab_analisis_3gb:
+            st.subheader("📊 Análisis de Lluvia Mensual - Formato Columnar Optimizado")
             archivo_resumen = "data/lluvia_mensual_consolidado.csv"
             
             if os.path.exists(archivo_resumen):
-                df_masivo = pd.read_csv(archivo_resumen)
+                # Forzamos la lectura con el separador de comas correcto según tu última subida
+                df_masivo = pd.read_csv(archivo_resumen, sep=',')
                 df_masivo = df_masivo.sort_values('periodo_mensual')
                 
-                # Indicadores Clave en la sub-pestaña
+                # Despliegue de Indicadores Analíticos
                 col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
                 with col_kpi1:
-                    st.metric("Total Meses Procesados (3 GB)", len(df_masivo))
+                    st.metric("Total Meses Procesados", len(df_masivo))
                 with col_kpi2:
-                    st.metric("Lluvia Promedio Mensual", f"{df_masivo.iloc[:,1].mean():.1f} mm")
+                    st.metric("Lluvia Promedio Mensual", f"{df_masivo['precipitacion'].mean():.1f} mm")
                 with col_kpi3:
-                    st.metric("Máximo Histórico Mensual", f"{df_masivo.iloc[:,1].max():.1f} mm")
+                    st.metric("Máximo Histórico Mensual", f"{df_masivo['precipitacion'].max():.1f} mm")
                 
                 st.markdown("---")
                 col_graf, col_tabla = st.columns([2, 1])
@@ -250,7 +250,7 @@ def main():
                     st.write("#### Tendencia de Precipitación Acumulada Mensual")
                     import matplotlib.pyplot as plt
                     fig, ax = plt.subplots(figsize=(10, 4))
-                    ax.plot(df_masivo['periodo_mensual'], df_masivo.iloc[:,1], marker='o', color='#1f77b4', linewidth=2)
+                    ax.plot(df_masivo['periodo_mensual'], df_masivo['precipitacion'], marker='o', color='#1f77b4', linewidth=2)
                     ax.set_xlabel("Periodo (Año-Mes)")
                     ax.set_ylabel("Precipitación (mm)")
                     ax.grid(True, linestyle='--', alpha=0.5)
@@ -261,7 +261,7 @@ def main():
                     st.write("#### Datos Consolidados")
                     st.dataframe(df_masivo, use_container_width=True, height=300)
             else:
-                st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Asegúrate de procesar el dataset de 3 GB localmente e incorporar el archivo consolidado.")
+                st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}'. Verifica su ubicación en la carpeta data.")
 
     with tabs[7]:
         display_correlation_tab(**display_args)
