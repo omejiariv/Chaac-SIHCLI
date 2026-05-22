@@ -257,7 +257,7 @@ def main():
             # Si por alguna razón una estación automática no está en tu catálogo general, 
             # la añadimos con su código puro para no perderla
             for cod_puro in estaciones_disponibles_3gb:
-                if cod_puro tastes not in diccionario_codigos.values():
+                if cod_puro not in diccionario_codigos.values():
                     nombre_alterno = f"ESTACIÓN AUTOMÁTICA [{cod_puro}]"
                     opciones_filtro.append(nombre_alterno)
                     diccionario_codigos[nombre_alterno] = cod_puro
