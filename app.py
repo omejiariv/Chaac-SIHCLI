@@ -218,66 +218,64 @@ def main():
     with tabs[5]:
         display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
         
-    # --- PESTAÑA 6: ESTADÍSTICAS E INTEGRACIÓN DE MÉTRICAS MASIVAS ---
+    # PESTAÑA 6: ESTADÍSTICAS TRADICIONALES (Se queda intacta y original como la tenías)
     with tabs[6]:
-        # Creamos tres sub-pestañas internas con nombres únicos y claros
-        subtab_descriptiva, subtab_analisis_3gb = st.tabs(["Estadísticas Descriptivas Base", "Análisis de Datos Masivos (3 GB)"])
-        
-        with subtab_descriptiva:
-            display_stats_tab(df_long=st.session_state.df_long, **display_args)
+        display_stats_tab(df_long=st.session_state.df_long, **display_args)
             
-        with subtab_analisis_3gb:
-            st.subheader("📊 Análisis de Lluvia Mensual - Formato Columnar Optimizado")
-            archivo_resumen = "data/lluvia_mensual_consolidado.csv"
-            
-            if os.path.exists(archivo_resumen):
-                # Forzamos la lectura con el separador de comas correcto según tu última subida
-                df_masivo = pd.read_csv(archivo_resumen, sep=',')
-                df_masivo = df_masivo.sort_values('periodo_mensual')
-                
-                # Despliegue de Indicadores Analíticos
-                col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-                with col_kpi1:
-                    st.metric("Total Meses Procesados", len(df_masivo))
-                with col_kpi2:
-                    st.metric("Lluvia Promedio Mensual", f"{df_masivo['precipitacion'].mean():.1f} mm")
-                with col_kpi3:
-                    st.metric("Máximo Histórico Mensual", f"{df_masivo['precipitacion'].max():.1f} mm")
-                
-                st.markdown("---")
-                col_graf, col_tabla = st.columns([2, 1])
-                
-                with col_graf:
-                    st.write("#### Tendencia de Precipitación Acumulada Mensual")
-                    import matplotlib.pyplot as plt
-                    fig, ax = plt.subplots(figsize=(10, 4))
-                    ax.plot(df_masivo['periodo_mensual'], df_masivo['precipitacion'], marker='o', color='#1f77b4', linewidth=2)
-                    ax.set_xlabel("Periodo (Año-Mes)")
-                    ax.set_ylabel("Precipitación (mm)")
-                    ax.grid(True, linestyle='--', alpha=0.5)
-                    plt.xticks(rotation=90, fontsize=8)
-                    st.pyplot(fig)
-                    
-                with col_tabla:
-                    st.write("#### Datos Consolidados")
-                    st.dataframe(df_masivo, use_container_width=True, height=300)
-            else:
-                st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}'. Verifica su ubicación en la carpeta data.")
-
+    # PESTAÑA 7: NUEVO MÓDULO TOTALMENTE INDEPENDIENTE PARA TU ARCHIVO CONSOLIDADO DE 3 GB
     with tabs[7]:
-        display_correlation_tab(**display_args)
+        st.header("📊 Análisis de Lluvia Mensual (Optimizado)")
+        st.markdown("Visualización ágil de datos históricos calculados por fragmentos mediante la arquitectura híbrida.")
+        archivo_resumen = "data/lluvia_mensual_consolidado.csv"
+        
+        if os.path.exists(archivo_resumen):
+            df_masivo = pd.read_csv(archivo_resumen, sep=',')
+            df_masivo = df_masivo.sort_values('periodo_mensual')
+            
+            # Despliegue de Tarjetas de Información
+            col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+            with col_kpi1:
+                st.metric("Total Meses Procesados", len(df_masivo))
+            with col_kpi2:
+                st.metric("Lluvia Promedio Mensual", f"{df_masivo['precipitacion'].mean():.1f} mm")
+            with col_kpi3:
+                st.metric("Máximo Histórico Mensual", f"{df_masivo['precipitacion'].max():.1f} mm")
+            
+            st.markdown("---")
+            col_graf, col_tabla = st.columns([2, 1])
+            
+            with col_graf:
+                st.write("#### Tendencia de Precipitación Acumulada Mensual")
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots(figsize=(10, 4))
+                ax.plot(df_masivo['periodo_mensual'], df_masivo['precipitacion'], marker='o', color='#1f77b4', linewidth=2)
+                ax.set_xlabel("Periodo (Año-Mes)")
+                ax.set_ylabel("Precipitación (mm)")
+                ax.grid(True, linestyle='--', alpha=0.5)
+                plt.xticks(rotation=90, fontsize=8)
+                st.pyplot(fig)
+                
+            with col_tabla:
+                st.write("#### Datos Consolidados")
+                st.dataframe(df_masivo, use_container_width=True, height=300)
+        else:
+            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Verifica que esté subido a GitHub con separación por comas.")
+
+    # REAJUSTE DE ÍNDICES RESTANTES (+1 por el desplazamiento del nuevo menú)
     with tabs[8]:
-        display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+        display_correlation_tab(**display_args)
     with tabs[9]:
+        display_enso_tab(df_enso=st.session_state.df_enso, **display_args)
+    with tabs[10]:
         display_trends_and_forecast_tab(df_full_monthly=st.session_state.df_long, **display_args)
         
-    with tabs[10]:
-        display_weekly_forecast_tab(
-        stations_for_analysis=stations_for_analysis,
-        gdf_filtered=gdf_filtered
-    )
-    
     with tabs[11]:
+        display_weekly_forecast_tab(
+            stations_for_analysis=stations_for_analysis,
+            gdf_filtered=gdf_filtered
+        )
+    
+    with tabs[12]:
         display_downloads_tab(
             df_anual_melted=df_anual_melted,
             df_monthly_filtered=df_monthly_filtered,
@@ -285,7 +283,7 @@ def main():
             analysis_mode=st.session_state.analysis_mode
         )
 
-    with tabs[12]:
+    with tabs[13]:
         st.header("Análisis Agregado por Cuenca Hidrográfica")
         if st.session_state.gdf_subcuencas is not None and not st.session_state.gdf_subcuencas.empty:
             BASIN_NAME_COLUMN = 'SUBC_LBL'
@@ -330,7 +328,7 @@ def main():
         else:
             st.warning("Los datos de las subcuencas no están cargados.")
 
-    with tabs[13]:
+    with tabs[14]:
         st.header("Comparación de Periodos de Tiempo")
         analysis_level = st.radio(
             "Seleccione el nivel de análisis para la comparación:",
@@ -416,10 +414,10 @@ def main():
                     st.write(f"**Periodo 2 ({periodo2[0]}-{periodo2[1]})**")
                     st.dataframe(df_periodo2[Config.PRECIPITATION_COL].describe().round(2))
     
-    with tabs[14]:
+    with tabs[15]:
         display_station_table_tab(**display_args)
     
-    with tabs[15]:
+    with tabs[16]:
         st.header("Generación de Reporte PDF")
        
         # Opciones para el reporte
