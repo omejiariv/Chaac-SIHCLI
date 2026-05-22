@@ -224,42 +224,69 @@ def main():
             
     # PESTAÑA 7: NUEVO MÓDULO TOTALMENTE INDEPENDIENTE PARA TU ARCHIVO CONSOLIDADO DE 3 GB
     with tabs[7]:
-        st.header("📊 Análisis de Lluvia Mensual (Optimizado)")
+        st.header("📊 Análisis de Lluvia Mensual (Optimizado por Estación)")
         st.markdown("Visualización ágil de datos históricos calculados por fragmentos mediante la arquitectura híbrida.")
         archivo_resumen = "data/lluvia_mensual_consolidado.csv"
         
         if os.path.exists(archivo_resumen):
+            # 1. Leer el archivo consolidado de las 96 estaciones
             df_masivo = pd.read_csv(archivo_resumen, sep=',')
-            df_masivo = df_masivo.sort_values('periodo_mensual')
+            df_masivo['codigo_estacion'] = df_masivo['codigo_estacion'].astype(str)
             
-            # Despliegue de Tarjetas de Información
-            col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-            with col_kpi1:
-                st.metric("Total Meses Procesados", len(df_masivo))
-            with col_kpi2:
-                st.metric("Lluvia Promedio Mensual", f"{df_masivo['precipitacion'].mean():.1f} mm")
-            with col_kpi3:
-                st.metric("Máximo Histórico Mensual", f"{df_masivo['precipitacion'].max():.1f} mm")
-            
-            st.markdown("---")
-            col_graf, col_tabla = st.columns([2, 1])
-            
-            with col_graf:
-                st.write("#### Tendencia de Precipitación Acumulada Mensual")
-                import matplotlib.pyplot as plt
-                fig, ax = plt.subplots(figsize=(10, 4))
-                ax.plot(df_masivo['periodo_mensual'], df_masivo['precipitacion'], marker='o', color='#1f77b4', linewidth=2)
-                ax.set_xlabel("Periodo (Año-Mes)")
-                ax.set_ylabel("Precipitación (mm)")
-                ax.grid(True, linestyle='--', alpha=0.5)
-                plt.xticks(rotation=90, fontsize=8)
-                st.pyplot(fig)
+            # 2. Capturar el código de la estación seleccionada en tu panel de control actual
+            # Tomamos la primera estación que el usuario tenga seleccionada en la barra lateral
+            if stations_for_analysis:
+                estacion_actual = stations_for_analysis[0] # Ej: "ABEJORRAL [26180160]"
                 
-            with col_tabla:
-                st.write("#### Datos Consolidados")
-                st.dataframe(df_masivo, use_container_width=True, height=300)
+                # Extraemos el número que está dentro de los corchetes []
+                import re
+                match = re.search(r'\[(\d+)\]', estacion_actual)
+                
+                if match:
+                    codigo_ideam = str(match.group(1)) # Ej: "26180160"
+                    
+                    # 3. Filtrar el DataFrame masivo por el código extraído
+                    df_filtrado_estacion = df_masivo[df_masivo['codigo_estacion'] == codigo_ideam].copy()
+                    df_filtrado_estacion = df_filtrado_estacion.sort_values('periodo_mensual')
+                    
+                    st.subheader(f"📍 Estación: {estacion_actual}")
+                    
+                    if not df_filtrado_estacion.empty:
+                        # Despliegue de Tarjetas de Información Reales e Individuales
+                        col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+                        with col_kpi1:
+                            st.metric("Total Meses Registrados", len(df_filtrado_estacion))
+                        with col_kpi2:
+                            st.metric("Lluvia Promedio Mensual", f"{df_filtrado_estacion['precipitacion'].mean():.1f} mm")
+                        with col_kpi3:
+                            st.metric("Máximo Histórico Mensual", f"{df_filtrado_estacion['precipitacion'].max():.1f} mm")
+                        
+                        st.markdown("---")
+                        col_graf, col_tabla = st.columns([2, 1])
+                        
+                        with col_graf:
+                            st.write("#### Tendencia de Precipitación Acumulada Mensual")
+                            import matplotlib.pyplot as plt
+                            fig, ax = plt.subplots(figsize=(10, 4))
+                            ax.plot(df_filtrado_estacion['periodo_mensual'], df_filtrado_estacion['precipitacion'], marker='o', color='#1f77b4', linewidth=2)
+                            ax.set_xlabel("Periodo (Año-Mes)")
+                            ax.set_ylabel("Precipitación (mm)")
+                            ax.grid(True, linestyle='--', alpha=0.5)
+                            plt.xticks(rotation=90, fontsize=8)
+                            st.pyplot(fig)
+                            
+                        with col_tabla:
+                            st.write("#### Registros de esta Estación")
+                            # Mostramos solo las columnas de interés para el usuario
+                            st.dataframe(df_filtrado_estacion[['periodo_mensual', 'precipitacion']], use_container_width=True, height=300)
+                    else:
+                        st.info(f"ℹ️ La estación '{estacion_actual}' (Código IDEAM: {codigo_ideam}) no tiene registros en el archivo de sensores automáticos consolidados.")
+                else:
+                    st.warning("⚠️ No se pudo extraer un código numérico válido de la estación seleccionada en el panel.")
+            else:
+                st.info("👈 Por favor, selecciona una estación en el Panel de Control izquierdo para visualizar su serie histórica mensual.")
         else:
-            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Verifica que esté subido a GitHub con separación por comas.")
+            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Verifica que esté subido a GitHub.")
 
     # REAJUSTE DE ÍNDICES RESTANTES (+1 por el desplazamiento del nuevo menú)
     with tabs[8]:
