@@ -31,3 +31,9 @@ retry-requests
 rich==13.7.1
 rasterstats
 PyKrige
+
+streamlit>=1.30.0
+pandas>=2.0.0
+polars>=0.20.0
+pyarrow>=14.0.0
+matplotlib>=3.8.0
