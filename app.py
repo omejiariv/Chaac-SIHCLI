@@ -216,8 +216,53 @@ def main():
         display_anomalies_tab(df_long=st.session_state.df_long, **display_args)
     with tabs[5]:
         display_drought_analysis_tab(df_long=st.session_state.df_long, **display_args)
+        
+    # --- PESTAÑA 6: ESTADÍSTICAS E INTEGRACIÓN DE MÉTRICAS MENSUALES OPTIMIZADAS ---
     with tabs[6]:
-        display_stats_tab(df_long=st.session_state.df_long, **display_args)
+        # Creamos dos sub-pestañas internas dentro de Estadísticas para no interferir con tus funciones base
+        subtab_descriptiva, subtab_resumen_masivo = st.tabs(["Estadísticas Descriptivas", "Resumen de Lluvia Mensual (Optimizado)"])
+        
+        with subtab_descriptiva:
+            display_stats_tab(df_long=st.session_state.df_long, **display_args)
+            
+        with subtab_resumen_masivo:
+            st.subheader("📊 Análisis de Lluvia Mensual desde Formato Optimizado")
+            # Apuntamos correctamente a tu repositorio usando la estructura de carpetas de tu data
+            archivo_resumen = "data/lluvia_mensual_consolidado.csv"
+            
+            if os.path.exists(archivo_resumen):
+                df_masivo = pd.read_csv(archivo_resumen)
+                df_masivo = df_masivo.sort_values('periodo_mensual')
+                
+                # Indicadores Clave en la sub-pestaña
+                col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+                with col_kpi1:
+                    st.metric("Total Meses Procesados (3 GB)", len(df_masivo))
+                with col_kpi2:
+                    st.metric("Lluvia Promedio Mensual", f"{df_masivo.iloc[:,1].mean():.1f} mm")
+                with col_kpi3:
+                    st.metric("Máximo Histórico Mensual", f"{df_masivo.iloc[:,1].max():.1f} mm")
+                
+                st.markdown("---")
+                col_graf, col_tabla = st.columns([2, 1])
+                
+                with col_graf:
+                    st.write("#### Tendencia de Precipitación Acumulada Mensual")
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    ax.plot(df_masivo['periodo_mensual'], df_masivo.iloc[:,1], marker='o', color='#1f77b4', linewidth=2)
+                    ax.set_xlabel("Periodo (Año-Mes)")
+                    ax.set_ylabel("Precipitación (mm)")
+                    ax.grid(True, linestyle='--', alpha=0.5)
+                    plt.xticks(rotation=90, fontsize=8)
+                    st.pyplot(fig)
+                    
+                with col_tabla:
+                    st.write("#### Datos Consolidados")
+                    st.dataframe(df_masivo, use_container_width=True, height=300)
+            else:
+                st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Asegúrate de procesar el dataset de 3 GB localmente e incorporar el archivo consolidado.")
+
     with tabs[7]:
         display_correlation_tab(**display_args)
     with tabs[8]:
@@ -417,12 +462,6 @@ def main():
             else:
                 with st.spinner("Generando reporte PDF... Esto puede tardar unos minutos."):
                     try:
-                        # Prepara los datos necesarios para el reporte
-                        # (Asegúrate de que estas variables estén disponibles en el alcance global o pasadas a generate_pdf_report)
-                        # Por ejemplo, df_anomalies, df_drought_extremes, etc., deben ser calculados previamente
-                        # o pasados como argumentos. Para este ejemplo, solo paso los args mínimos.
-                        # DEBES ASEGURARTE DE QUE TODOS LOS DATOS NECESARIOS PARA CADA SECCIÓN ESTÉN DISPONIBLES.
-
                         report_pdf_bytes = generate_pdf_report(
                             selected_report_sections=selected_report_sections,
                             report_title=report_title,
@@ -432,15 +471,6 @@ def main():
                             df_anual_melted=df_anual_melted,
                             df_monthly_filtered=df_monthly_filtered,
                             stations_for_analysis=stations_for_analysis,
-                            # AÑADIR OTROS DATAFRAMES Y OBJETOS NECESARIOS AQUÍ
-                            # Por ejemplo:
-                            # df_anomalies=df_anomalies, 
-                            # df_drought_extremes=df_drought_extremes,
-                            # df_thresholds=df_thresholds,
-                            # df_enso=st.session_state.df_enso,
-                            # sarima_forecast=st.session_state.sarima_forecast,
-                            # prophet_forecast=st.session_state.prophet_forecast
-                            # etc.
                         )
                         st.success("Reporte PDF generado exitosamente!")
                         st.download_button(
