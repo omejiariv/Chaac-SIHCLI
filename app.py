@@ -226,67 +226,72 @@ def main():
     # PESTAÑA 7: NUEVO MÓDULO TOTALMENTE INDEPENDIENTE PARA TU ARCHIVO CONSOLIDADO DE 3 GB
     with tabs[7]:
         st.header("📊 Análisis de Lluvia Mensual (Estaciones Automáticas)")
-        st.markdown("Visualización y comparación ágil de las estaciones automáticas optimizadas desde el archivo masivo del IDEAM.")
+        st.markdown("Visualización y comparación de las series de sensores automáticos del IDEAM con control de calidad.")
         archivo_resumen = "data/lluvia_mensual_consolidado.csv"
         
         if os.path.exists(archivo_resumen):
-            # 1. Leer el archivo consolidado de las 96 estaciones
+            # 1. Leer el archivo consolidado de las estaciones
             df_masivo = pd.read_csv(archivo_resumen, sep=',')
             df_masivo['codigo_estacion'] = df_masivo['codigo_estacion'].astype(str)
             
-            # 2. Mapear códigos del archivo con los nombres amigables de tu sistema
-            # Creamos un diccionario para cruzar el código puro con el nombre "NOMBRE [CODIGO]"
             estaciones_disponibles_3gb = df_masivo['codigo_estacion'].unique().tolist()
             
-            # Buscamos en el DataFrame global de tus estaciones cargadas en session_state
+            # 2. Mapear códigos con nombres, municipio y departamento
             opciones_filtro = []
             diccionario_codigos = {}
             
-            if 'gdf_stations' in st.session_state and Config.STATION_NAME_COL in st.session_state.gdf_stations.columns:
-                # Construimos la lista de nombres tal como aparecen en tu sistema
-                lista_nombres_sistema = st.session_state.gdf_stations[Config.STATION_NAME_COL].unique().tolist()
-                
-                for est_sistema in lista_nombres_sistema:
-                    import re
-                    match = re.search(r'\[(\d+)\]', est_sistema)
-                    if match:
-                        cod_num = str(match.group(1))
-                        if cod_num in estaciones_disponibles_3gb:
-                            opciones_filtro.append(est_sistema)
-                            diccionario_codigos[est_sistema] = cod_num
+            # Intentar extraer info geográfica desde el catálogo de la app
+            tiene_catalogo = 'gdf_stations' in st.session_state and not st.session_state.gdf_stations.empty
             
-            # Si por alguna razón una estación automática no está en tu catálogo general, 
-            # la añadimos con su código puro para no perderla
             for cod_puro in estaciones_disponibles_3gb:
-                if cod_puro not in diccionario_codigos.values():
-                    nombre_alterno = f"ESTACIÓN AUTOMÁTICA [{cod_puro}]"
-                    opciones_filtro.append(nombre_alterno)
-                    diccionario_codigos[nombre_alterno] = cod_puro
+                nombre_completo = f"ESTACIÓN AUTOMÁTICA [{cod_puro}]" # Valor por defecto
+                
+                if tiene_catalogo:
+                    # Buscamos la estación por su código en el GeoDataFrame existente
+                    # Asumiendo que el código viene dentro del nombre o en una columna específica. 
+                    # Filtramos las filas que contengan el código de 8 dígitos
+                    coincidencia = st.session_state.gdf_stations[
+                        st.session_state.gdf_stations[Config.STATION_NAME_COL].str.contains(cod_puro, na=False)
+                    ]
+                    
+                    if not coincidencia.empty:
+                        fila = coincidencia.iloc[0]
+                        nombre_base = str(fila[Config.STATION_NAME_COL]).split(" [")[0]
+                        
+                        # Buscamos columnas de municipio y depto de forma dinámica en tu estructura
+                        mun = str(fila.get('municipio', fila.get('MUNICIPIO', 'ANTIOQUIA'))).title()
+                        dep = str(fila.get('departamento', fila.get('DEPARTAMENTO', 'Antioquia'))).upper()
+                        
+                        nombre_completo = f"📍 {nombre_base} [{cod_puro}] — {mun}, {dep}"
+                
+                opciones_filtro.append(nombre_completo)
+                diccionario_codigos[nombre_completo] = cod_puro
             
             opciones_filtro = sorted(list(set(opciones_filtro)))
             
-            # 3. Incorporar el filtro de selección múltiple dentro de la pestaña
             st.markdown("---")
-            st.write(f"💡 **Se encontraron {len(opciones_filtro)} estaciones automáticas con datos reales en Antioquia.**")
+            st.write(f"💡 **Se encontraron {len(opciones_filtro)} estaciones automáticas depuradas en la zona de análisis.**")
             
+            # Selector múltiple mejorado con ubicación
             estaciones_seleccionadas = st.multiselect(
                 "🔍 Seleccione una o varias estaciones automáticas para analizar y comparar:",
                 options=opciones_filtro,
                 default=[opciones_filtro[0]] if opciones_filtro else None,
-                key="filtro_multiselect_3gb"
+                key="filtro_multiselect_3gb_v2"
             )
             
             st.markdown("---")
             
             if estaciones_seleccionadas:
-                # Extraemos los códigos de las estaciones elegidas
                 codigos_filtrar = [diccionario_codigos[est] for est in estaciones_seleccionadas]
                 
-                # Filtrar el DataFrame masivo por el grupo de códigos elegidos
+                # Filtrar el DataFrame y asegurar el ORDEN CRONOLÓGICO GLOBAL para evitar cruce de líneas
                 df_filtrado_estacion = df_masivo[df_masivo['codigo_estacion'].isin(codigos_filtrar)].copy()
+                
+                # REFINAMIENTO CRÍTICO: Ordenar primero por periodo mensual estrictamente
                 df_filtrado_estacion = df_filtrado_estacion.sort_values('periodo_mensual')
                 
-                # Métricas consolidadas del grupo seleccionado
+                # Métricas del grupo seleccionado
                 col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
                 with col_kpi1:
                     st.metric("Estaciones en Análisis", len(estaciones_seleccionadas))
@@ -299,43 +304,71 @@ def main():
                 col_graf, col_tabla = st.columns([2, 1])
                 
                 with col_graf:
-                    st.write("#### Comparación de Tendencias de Precipitación Acumulada")
+                    st.write("#### Tendencia Temporal Cronológica Comparada")
                     import matplotlib.pyplot as plt
                     fig, ax = plt.subplots(figsize=(10, 4))
                     
-                    # Graficamos una línea independiente por cada estación seleccionada
+                    # Para garantizar que el eje X no se desordene, extraemos la lista maestra y ordenada de periodos
+                    periodos_maestros = sorted(df_filtrado_estacion['periodo_mensual'].unique().tolist())
+                    
+                    # Graficamos una línea independiente por cada estación mapeándola contra el orden maestro
                     for est in estaciones_seleccionadas:
                         cod_id = diccionario_codigos[est]
-                        df_sub = df_filtrado_estacion[df_filtrado_estacion['codigo_estacion'] == cod_id].sort_values('periodo_mensual')
-                        if not df_sub.empty:
-                            ax.plot(df_sub['periodo_mensual'], df_sub['precipitacion'], marker='o', linestyle='-', linewidth=2, label=est.split(" [")[0])
+                        df_sub = df_filtrado_estacion[df_filtrado_estacion['codigo_estacion'] == cod_id].copy()
+                        
+                        # Reindexamos la serie para que se alinee perfectamente con la línea de tiempo global
+                        df_sub = df_sub.set_index('periodo_mensual').reindex(periodos_maestros).reset_index()
+                        
+                        # Extraer el nombre corto para la leyenda (sin el sufijo geográfico)
+                        nombre_leyenda = est.split(" [")[0].replace("📍 ", "")
+                        
+                        if not df_sub['precipitacion'].dropna().empty:
+                            ax.plot(
+                                df_sub['periodo_mensual'], 
+                                df_sub['precipitacion'], 
+                                marker='o', 
+                                linestyle='-', 
+                                linewidth=2, 
+                                label=nombre_leyenda
+                            )
                     
                     ax.set_xlabel("Periodo (Año-Mes)")
                     ax.set_ylabel("Precipitación (mm)")
                     ax.grid(True, linestyle='--', alpha=0.5)
-                    plt.xticks(rotation=90, fontsize=8)
+                    
+                    # Ajuste dinámico de etiquetas en el eje X para mantener legibilidad
+                    ticks_totales = len(periodos_maestros)
+                    intervalo = max(1, ticks_totales // 20) # Muestra un tick cada cierto tramo si hay demasiados meses
+                    
+                    ax.set_xticks(periodos_maestros[::intervalo])
+                    ax.set_xticklabels(periodos_maestros[::intervalo], rotation=90, fontsize=8)
+                    
                     ax.legend(loc='upper left', fontsize=9)
                     st.pyplot(fig)
                     
                 with col_tabla:
-                    st.write("#### Matriz de Datos Combinada")
-                    # Creamos una vista limpia y ordenada sin transformaciones pesadas que confundan a React
-                    # Reemplazamos los códigos por los nombres amigables para el usuario
+                    st.write("#### Matriz de Datos")
                     df_tabla_limpia = df_filtrado_estacion.copy()
-                    inverso_dict = {v: k.split(" [")[0] for k, v in diccionario_codigos.items()}
+                    
+                    # Mostrar el nombre limpio en la tabla con su contexto geográfico resumido
+                    inverso_dict = {v: k.split(" [")[0].replace("📍 ", "") for k, v in diccionario_codigos.items()}
                     df_tabla_limpia['Estación'] = df_tabla_limpia['codigo_estacion'].map(inverso_dict)
                     
-                    # Ordenamos de forma descendente por fecha para ver lo más reciente primero
-                    df_tabla_render = df_tabla_limpia[['periodo_mensual', 'Estación', 'precipitacion']].sort_values(by=['periodo_mensual', 'Estación'], ascending=[False, True])
+                    df_tabla_render = df_tabla_limpia[['periodo_mensual', 'Estación', 'precipitacion']].sort_values(
+                        by=['periodo_mensual', 'Estación'], ascending=[False, True]
+                    )
                     df_tabla_render.columns = ['Periodo', 'Estación', 'Lluvia (mm)']
                     
-                    # Renderizado seguro en formato dataframe estándar
                     st.dataframe(
                         df_tabla_render, 
                         use_container_width=True, 
                         height=350,
-                        hide_index=True # Oculta la columna de índices para que se vea más limpio
+                        hide_index=True
                     )
+            else:
+                st.info("ℹ️ Seleccione al menos una estación del buscador superior para desplegar las curvas climáticas.")
+        else:
+            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data.")
             
     # REAJUSTE DE ÍNDICES RESTANTES (+1 por el desplazamiento del nuevo menú)
     with tabs[8]:
