@@ -71,7 +71,7 @@ def create_sidebar(gdf_stations, df_long):
         )
 
         years_with_data = sorted(df_long[Config.YEAR_COL].dropna().unique())
-        year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2020)
+        year_range_default = (min(years_with_data), max(years_with_data)) if years_with_data else (1970, 2026)
         year_range = st.slider(
             "Rango de Años",
             min_value=year_range_default[0],
