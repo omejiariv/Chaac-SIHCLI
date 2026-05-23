@@ -3,23 +3,27 @@ on:
   schedule:
     # Se ejecuta de forma programada el día 2 de cada mes a las 05:00 AM UTC (12:00 AM hora Colombia)
     - cron: '0 5 2 * *'
-  workflow_dispatch: # Te permite ejecutarlo manualmente desde el botón de GitHub cuando quieras
+  workflow_dispatch: # Permite lanzarlo manualmente
 
 jobs:
   actualizar_sihcli:
     runs-on: ubuntu-latest
+    # Forzamos explícitamente los permisos de escritura en el código del flujo
+    permissions:
+      contents: write
+      
     steps:
     - name: Descargar Repositorio
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 # <-- Actualizado para evitar advertencias de Node
 
     - name: Configurar Entorno Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 # <-- Actualizado para evitar advertencias de Node
       with:
         python-version: '3.10'
 
     - name: Instalar Dependencias
       run: |
-        pip install pandas requests
+        pip install pandas requests numpy
 
     - name: Ejecutar Pipeline de Descarga y Agregación
       run: |
@@ -30,5 +34,5 @@ jobs:
         git config --global user.name 'Chaac Bot Actualizador'
         git config --global user.email 'sihcli-bot@cuencaverde.org'
         git add data/lluvia_mensual_consolidado.csv
-        git commit -m "Automatizado: Actualización mensual de datos de lluvia (Antioquia incluido)" || echo "Sin cambios detectados"
+        git commit -m "Automatizado: Actualización de datos de lluvia (Control de calidad y Antioquia incluido)" || echo "Sin cambios detectados"
         git push
