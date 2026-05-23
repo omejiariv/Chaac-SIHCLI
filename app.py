@@ -1,4 +1,5 @@
 # app.py
+
 import streamlit as st
 import geopandas as gpd
 import pandas as pd
@@ -318,19 +319,23 @@ def main():
                     
                 with col_tabla:
                     st.write("#### Matriz de Datos Combinada")
-                    # Pivoteamos la tabla para que sea más fácil comparar los datos lado a lado
-                    try:
-                        df_pivot = df_filtrado_estacion.pivot(index='periodo_mensual', columns='codigo_estacion', values='precipitacion')
-                        # Reemplazamos los códigos de las columnas por los nombres amigables abreviados
-                        inverso_dict = {v: k.split(" [")[0] for k, v in diccionario_codigos.items()}
-                        df_pivot = df_pivot.rename(columns=inverso_dict)
-                        st.dataframe(df_pivot, use_container_width=True, height=320)
-                    except Exception:
-                        st.dataframe(df_filtrado_estacion[['codigo_estacion', 'periodo_mensual', 'precipitacion']], use_container_width=True, height=320)
-            else:
-                st.info("ℹ️ Seleccione al menos una estación del buscador superior para desplegar las curvas climáticas.")
-        else:
-            st.warning(f"⚠️ No se encontró el archivo '{archivo_resumen}' en tu carpeta data. Verifica su ubicación en la carpeta data.")
+                    # Creamos una vista limpia y ordenada sin transformaciones pesadas que confundan a React
+                    # Reemplazamos los códigos por los nombres amigables para el usuario
+                    df_tabla_limpia = df_filtrado_estacion.copy()
+                    inverso_dict = {v: k.split(" [")[0] for k, v in diccionario_codigos.items()}
+                    df_tabla_limpia['Estación'] = df_tabla_limpia['codigo_estacion'].map(inverso_dict)
+                    
+                    # Ordenamos de forma descendente por fecha para ver lo más reciente primero
+                    df_tabla_render = df_tabla_limpia[['periodo_mensual', 'Estación', 'precipitacion']].sort_values(by=['periodo_mensual', 'Estación'], ascending=[False, True])
+                    df_tabla_render.columns = ['Periodo', 'Estación', 'Lluvia (mm)']
+                    
+                    # Renderizado seguro en formato dataframe estándar
+                    st.dataframe(
+                        df_tabla_render, 
+                        use_container_width=True, 
+                        height=350,
+                        hide_index=True # Oculta la columna de índices para que se vea más limpio
+                    )
             
     # REAJUSTE DE ÍNDICES RESTANTES (+1 por el desplazamiento del nuevo menú)
     with tabs[8]:
