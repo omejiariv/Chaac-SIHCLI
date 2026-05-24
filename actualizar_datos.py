@@ -81,7 +81,7 @@ def descargar_y_actualizar_ideam():
         time.sleep(0.2)
 
     if resultados_parciales:
-        print("🔄 Consolidando series y exportando catalogos...")
+        print("Consolidando series, aplicando purga climatica y exportando catalogos...")
         df_total = pd.concat(resultados_parciales)
         
         df_consolidado = df_total.groupby(['codigoestacion', 'periodo_mensual']).agg(
@@ -89,25 +89,35 @@ def descargar_y_actualizar_ideam():
             total_horas_validas=('horas_validas', 'sum')
         ).reset_index()
         
-        # Filtro de representatividad (Mínimo 80% de horas mensuales)
-        df_consolidado = df_consolidado[df_consolidado['total_horas_validas'] >= 576]
+        # 1. Filtro de representatividad horaria (Umbral ajustado para estaciones nuevas)
+        df_consolidado = df_consolidado[df_consolidado['total_horas_validas'] >= 400]
+        
+        # 2. PURGA CLIMÁTICA DEFINTIVA A NIVEL MENSUAL (Extermina picos corruptos y ceros falsos)
+        df_consolidado = df_consolidado[
+            (df_consolidado['precipitacion'] > 0.0) & 
+            (df_consolidado['precipitacion'] <= 1200)
+        ]
+        
         df_consolidado['periodo_mensual'] = df_consolidado['periodo_mensual'].astype(str)
         
+        # Preparar DataFrame final de lluvias para la App
         df_final = df_consolidado[['codigoestacion', 'periodo_mensual', 'precipitacion']].copy()
         df_final.columns = ['codigo_estacion', 'periodo_mensual', 'precipitacion']
         
         os.makedirs("data", exist_ok=True)
         
-        # Guardar 1: El archivo indexado de lluvia que ya lee tu App
+        # Guardar 1: El archivo indexado de lluvia purgado y limpio
         df_final.to_csv(ARCHIVO_SALIDA, index=False, sep=',')
         
-        # Guardar 2: El nuevo catálogo geográfico estructurado para las estaciones automáticas
-        df_cat = pd.DataFrame(catalogo_estaciones.values())
-        df_cat.to_csv(ARCHIVO_ESTACIONES_NUEVAS, index=False, sep=',')
+        # Guardar 2: El catálogo geográfico estructurado para las 429 estaciones automáticas
+        if catalogo_estaciones:
+            df_cat = pd.DataFrame(catalogo_estaciones.values())
+            df_cat.to_csv(ARCHIVO_ESTACIONES_NUEVAS, index=False, sep=',')
+            print(f"Catalogo geografico actualizado con exito ({len(df_cat)} estaciones).")
         
-        print(f"🏁 Pipeline finalizado. Catalogo georreferenciado guardado en: {ARCHIVO_ESTACIONES_NUEVAS}")
+        print(f"Pipeline finalizado con exito. Archivos guardados en la carpeta data/.")
     else:
-        print("❌ No se recuperaron datos de la API.")
+        print("Error: No se recuperaron datos validos de la API.")
 
 if __name__ == "__main__":
     descargar_y_actualizar_ideam()
