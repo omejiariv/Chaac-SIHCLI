@@ -340,11 +340,25 @@ def main():
                     )
                     df_tabla_render.columns = ['Periodo', 'Estación', 'Lluvia (mm)']
                     
+                    # --- BLINDAJE CONTRA ERROR #185 ---
+                    # Para evitar que React colapse con más de 200 periodos en el layout lateral,
+                    # mostramos los últimos 60 registros (5 años de historia reciente) y añadimos 
+                    # un botón de descarga para el que quiera el histórico completo en Excel/CSV.
                     st.dataframe(
-                        df_tabla_render, 
+                        df_tabla_render.head(60), 
                         use_container_width=True, 
                         height=350,
                         hide_index=True
+                    )
+                    
+                    # Botón ligero para descargar la serie completa seleccionada sin saturar la pantalla
+                    csv_descarga = df_tabla_render.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Descargar Serie Completa (.csv)",
+                        data=csv_descarga,
+                        file_name="serie_temporal_seleccionada.csv",
+                        mime="text/csv",
+                        use_container_width=True
                     )
             else:
                 st.info("ℹ️ Seleccione una o varias estaciones de la lista para desplegar las curvas climáticas comparadas.")
