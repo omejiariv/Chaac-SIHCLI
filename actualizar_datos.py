@@ -15,7 +15,7 @@ def descargar_y_actualizar_ideam():
     
     departamentos = [
         "ANTIOQUIA", "CHOCO", "CHOCÓ", "CORDOBA", "CÓRDOBA", 
-        "CALDAS", "TOLIMA", "BOYACA", "BOYACÁ", "SANTANDER", "RISARALDA"
+        "CALDAS", "TOLIMA", "BOYACA", "BOYACÁ", "SANTANDER", "RISARALDA", 'CUNDINAMARCA'
     ]
     
     deptos_query = ", ".join([f"'{d}'" for d in departamentos])
