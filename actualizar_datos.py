@@ -14,7 +14,7 @@ def descargar_y_actualizar_ideam():
     ARCHIVO_ESTACIONES_NUEVAS = "data/estaciones_automaticas_catalogo.csv"
     
     departamentos = [
-        "ANTIOQUIA", "CHOCO", "CHOCÓ", "CORDOBA", "CÓRDOBA", 'SUCRE', 'QUINDÍO', 'QUINDIO', 
+        "ANTIOQUIA", "CHOCO", "CHOCÓ", "CORDOBA", "CÓRDOBA", 'SUCRE', 'QUINDÍO', 
         "CALDAS", "TOLIMA", "BOYACA", "BOYACÁ", "SANTANDER", "RISARALDA", 'CUNDINAMARCA'
     ]
     
